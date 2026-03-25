@@ -58,6 +58,15 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Verify Android.Compat.dll from LFS
+        run: |
+          DLL="Mihon.ExtensionsBridge.Net/libs/Android.Compat.dll"
+          if [ ! -f "$DLL" ]; then
+            echo "::error::Android.Compat.dll not found. Run the 'Rebuild Android.Compat.dll' workflow first."
+            exit 1
+          fi
+          echo "Android.Compat.dll: $(du -h "$DLL" | cut -f1)"
+
       - name: Setup Node.js and pnpm
         uses: actions/setup-node@v4
         with:

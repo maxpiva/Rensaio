@@ -207,27 +207,35 @@ namespace KaizokuBackend.Services.Series
         }
 
         /// <summary>
-        /// Queries the source for the full series title via GetDetailsAsync (which includes
-        /// HTML meta-tag recovery for truncated titles). If the source returns a longer title
-        /// than what's in the DB, updates it and sets NeedsRename so the user can fix file/folder names.
-        /// This catches both titles ending with "..." AND titles that had the "..." already stripped
-        /// by the old workaround in FillSeriesFromProviderSeriesDetails.
+        /// Queries the title-source provider for the full series title via GetDetailsAsync (which
+        /// includes HTML meta-tag recovery for truncated titles). Only updates the series title and
+        /// that specific provider's title — never touches other providers' titles.
+        /// Only triggers recovery when the current title is actually truncated (ends with "..."/"…")
+        /// or when the title-source provider's own title is truncated.
         /// </summary>
         private async Task TryRecoverTruncatedTitleAsync(SeriesEntity series, CancellationToken token)
         {
             if (string.IsNullOrEmpty(series.Title))
                 return;
 
-            // Find an active source to query
-            SeriesProviderEntity? provider = series.Sources
+            // Find the provider that is the title source (IsTitle flag), falling back to first active
+            SeriesProviderEntity? titleProvider = series.Sources
+                .FirstOrDefault(s => s.IsTitle && !s.IsDisabled && !s.IsUninstalled && !s.IsUnknown && !string.IsNullOrEmpty(s.MihonProviderId));
+            titleProvider ??= series.Sources
                 .FirstOrDefault(s => !s.IsDisabled && !s.IsUninstalled && !s.IsUnknown && !string.IsNullOrEmpty(s.MihonProviderId));
-            if (provider == null)
+            if (titleProvider == null)
+                return;
+
+            // Only attempt recovery if the series title OR the title provider's title looks truncated
+            bool seriesTruncated = IsTitleTruncated(series.Title);
+            bool providerTruncated = IsTitleTruncated(titleProvider.Title);
+            if (!seriesTruncated && !providerTruncated)
                 return;
 
             try
             {
-                var src = await _mihon.SourceFromProviderIdAsync(provider.MihonProviderId!, token).ConfigureAwait(false);
-                var manga = provider.ToManga();
+                var src = await _mihon.SourceFromProviderIdAsync(titleProvider.MihonProviderId!, token).ConfigureAwait(false);
+                var manga = titleProvider.ToManga();
                 if (manga == null)
                     return;
 
@@ -235,37 +243,30 @@ namespace KaizokuBackend.Services.Series
                 if (details == null || string.IsNullOrEmpty(details.Title))
                     return;
 
-                // Use the best available title: prefer the source result if longer, otherwise keep DB title
-                bool detailsTruncated = details.Title.EndsWith("...") || details.Title.EndsWith("\u2026");
-                string bestTitle = (!detailsTruncated && details.Title.Length > series.Title.Length)
-                    ? details.Title
-                    : series.Title;
+                bool detailsTruncated = IsTitleTruncated(details.Title);
+                if (detailsTruncated)
+                    return; // Source also returned truncated — nothing we can do
 
                 bool changed = false;
 
-                // Update series title if source provided a better one
-                if (bestTitle.Length > series.Title.Length)
+                // Update the title provider's own title if it was truncated
+                if (providerTruncated && details.Title.Length > titleProvider.Title.Length)
                 {
-                    string oldTitle = series.Title;
-                    series.Title = bestTitle;
-                    series.NeedsRename = true;
+                    _logger.LogInformation("Updated title-source provider {Provider} title: \"{Old}\" → \"{New}\"",
+                        titleProvider.Provider, titleProvider.Title, details.Title);
+                    titleProvider.Title = details.Title;
                     changed = true;
-                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"", series.Id, oldTitle, bestTitle);
                 }
 
-                // Always sync provider titles — catches the case where the series title was
-                // already recovered in a prior run but provider titles were never updated
-                if (series.Sources != null)
+                // Update series title if the title-source provider now has a longer title
+                if (details.Title.Length > series.Title.Length)
                 {
-                    foreach (var src2 in series.Sources)
-                    {
-                        if (src2.Title.Length < bestTitle.Length)
-                        {
-                            _logger.LogInformation("Updated provider {Provider} title: \"{Old}\" → \"{New}\"", src2.Provider, src2.Title, bestTitle);
-                            src2.Title = bestTitle;
-                            changed = true;
-                        }
-                    }
+                    string oldTitle = series.Title;
+                    series.Title = details.Title;
+                    series.NeedsRename = true;
+                    changed = true;
+                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"",
+                        series.Id, oldTitle, details.Title);
                 }
 
                 if (changed)
@@ -275,6 +276,13 @@ namespace KaizokuBackend.Services.Series
             {
                 _logger.LogWarning(ex, "Failed to recover truncated title for series {Id}", series.Id);
             }
+        }
+
+        private static bool IsTitleTruncated(string? title)
+        {
+            if (string.IsNullOrEmpty(title))
+                return false;
+            return title.EndsWith("...") || title.EndsWith("\u2026");
         }
 
         /// <summary>

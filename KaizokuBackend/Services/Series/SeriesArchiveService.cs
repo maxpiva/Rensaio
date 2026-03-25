@@ -235,27 +235,41 @@ namespace KaizokuBackend.Services.Series
                 if (details == null || string.IsNullOrEmpty(details.Title))
                     return;
 
-                // Compare: source title must be longer and not itself truncated
+                // Use the best available title: prefer the source result if longer, otherwise keep DB title
                 bool detailsTruncated = details.Title.EndsWith("...") || details.Title.EndsWith("\u2026");
-                if (!detailsTruncated && details.Title.Length > series.Title.Length)
+                string bestTitle = (!detailsTruncated && details.Title.Length > series.Title.Length)
+                    ? details.Title
+                    : series.Title;
+
+                bool changed = false;
+
+                // Update series title if source provided a better one
+                if (bestTitle.Length > series.Title.Length)
                 {
                     string oldTitle = series.Title;
-                    series.Title = details.Title;
+                    series.Title = bestTitle;
                     series.NeedsRename = true;
+                    changed = true;
+                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"", series.Id, oldTitle, bestTitle);
+                }
 
-                    // Also update all provider titles that still have the truncated name
-                    if (series.Sources != null)
+                // Always sync provider titles — catches the case where the series title was
+                // already recovered in a prior run but provider titles were never updated
+                if (series.Sources != null)
+                {
+                    foreach (var src2 in series.Sources)
                     {
-                        foreach (var src2 in series.Sources)
+                        if (src2.Title.Length < bestTitle.Length)
                         {
-                            if (src2.Title.Length < details.Title.Length)
-                                src2.Title = details.Title;
+                            _logger.LogInformation("Updated provider {Provider} title: \"{Old}\" → \"{New}\"", src2.Provider, src2.Title, bestTitle);
+                            src2.Title = bestTitle;
+                            changed = true;
                         }
                     }
-
-                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
-                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"", series.Id, oldTitle, details.Title);
                 }
+
+                if (changed)
+                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

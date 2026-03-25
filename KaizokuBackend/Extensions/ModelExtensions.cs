@@ -266,6 +266,7 @@ namespace KaizokuBackend.Extensions
                 Path = EnvironmentSetup.IsDocker ? s.StoragePath : Path.Combine(settings.StorageFolder, s.StoragePath),
                 IsActive = s.Sources.Any(a => !a.IsDisabled && !a.IsUninstalled),
                 HasUnknown = s.Sources.Any(a=>!a.IsUnknown),
+                NeedsRename = s.NeedsRename,
                 StoragePath = s.StoragePath,
                 ChapterCount = s.ChapterCount,
                 ChapterList = s.Sources

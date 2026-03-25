@@ -57,4 +57,7 @@ public class BaseSeriesDto : IThumb
 
     [JsonPropertyName("startFromChapter")]
     public decimal? StartFromChapter { get; set; }
+
+    [JsonPropertyName("needsRename")]
+    public bool NeedsRename { get; set; } = false;
 }

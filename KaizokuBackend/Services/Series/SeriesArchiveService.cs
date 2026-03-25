@@ -4,6 +4,7 @@ using KaizokuBackend.Models;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
+using KaizokuBackend.Services.Bridge;
 using KaizokuBackend.Services.Helpers;
 using KaizokuBackend.Services.Jobs;
 using KaizokuBackend.Services.Jobs.Models;
@@ -20,15 +21,17 @@ namespace KaizokuBackend.Services.Series
     {
         private readonly AppDbContext _db;
         private readonly SettingsService _settings;
+        private readonly MihonBridgeService _mihon;
         private readonly ArchiveHelperService _archiveHelper;
         private readonly JobHubReportService _reportingService;
         private readonly ILogger<SeriesArchiveService> _logger;
 
-        public SeriesArchiveService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
-            JobHubReportService reportingService, ILogger<SeriesArchiveService> logger)
+        public SeriesArchiveService(AppDbContext db, SettingsService settings, MihonBridgeService mihon,
+            ArchiveHelperService archiveHelper, JobHubReportService reportingService, ILogger<SeriesArchiveService> logger)
         {
             _db = db;
             _settings = settings;
+            _mihon = mihon;
             _archiveHelper = archiveHelper;
             _reportingService = reportingService;
             _logger = logger;
@@ -45,12 +48,12 @@ namespace KaizokuBackend.Services.Series
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources).Where(a => a.Id == seriesId)
                 .FirstOrDefaultAsync(token).ConfigureAwait(false);
-            
+
             if (series == null)
                 throw new ArgumentException("Invalid series Id");
-            
+
             string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
-            
+
             // Remove empty unknown providers
             SeriesProviderEntity? sp = series.Sources.FirstOrDefault(a =>
                 a.IsUnknown && a.Chapters.All(a => string.IsNullOrEmpty(a.Filename)));
@@ -61,9 +64,12 @@ namespace KaizokuBackend.Services.Series
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
             }
 
+            // Check for truncated title and try to recover the full name from the source
+            await TryRecoverTruncatedTitleAsync(series, token).ConfigureAwait(false);
+
             List<Chapter> chaps = series.Sources.SelectMany(a => a.Chapters)
                 .Where(a => !string.IsNullOrEmpty(a.Filename)).ToList();
-            
+
             return GetIntegrityResult(basePath, chaps);
         }
 
@@ -120,6 +126,141 @@ namespace KaizokuBackend.Services.Series
 
             if (update)
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Renames the storage folder (if the title changed) and all chapter files for a series
+        /// to use the correct title. Also clears the <see cref="SeriesEntity.NeedsRename"/> flag.
+        /// </summary>
+        /// <param name="seriesId">The series ID to rename files for</param>
+        /// <param name="token">Cancellation token</param>
+        public async Task RenameSeriesFilesAsync(Guid seriesId, CancellationToken token = default)
+        {
+            var series = await _db.Series.FirstOrDefaultAsync(s => s.Id == seriesId, token).ConfigureAwait(false);
+            if (series != null)
+            {
+                await RenameStorageFolderIfNeededAsync(series, token).ConfigureAwait(false);
+            }
+
+            await _archiveHelper.UpdateTitleAndAddComicInfoAsync(seriesId, true, token).ConfigureAwait(false);
+
+            // Clear the flag after a successful rename
+            if (series != null && series.NeedsRename)
+            {
+                series.NeedsRename = false;
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Renames the physical storage folder when the series title no longer matches the folder name.
+        /// This happens after a truncated title is recovered to its full version.
+        /// </summary>
+        private async Task RenameStorageFolderIfNeededAsync(SeriesEntity series, CancellationToken token)
+        {
+            SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+            string currentFullPath = Path.Combine(settings.StorageFolder, series.StoragePath);
+
+            // Compute what the folder name should be based on the current (corrected) title
+            string expectedFolderName = series.Title.MakeFolderNameSafe();
+            string currentFolderName = Path.GetFileName(
+                series.StoragePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+            if (string.Equals(expectedFolderName, currentFolderName, StringComparison.Ordinal))
+                return; // Already matches
+
+            // Build the new path by replacing only the last segment (the folder name)
+            string parentPath = Path.GetDirectoryName(currentFullPath)
+                                ?? settings.StorageFolder;
+            string newFullPath = Path.Combine(parentPath, expectedFolderName);
+
+            if (!Directory.Exists(currentFullPath))
+            {
+                _logger.LogWarning("Storage folder does not exist, skipping folder rename: {Path}", currentFullPath);
+                return;
+            }
+
+            if (Directory.Exists(newFullPath))
+            {
+                _logger.LogWarning("Target folder already exists, skipping folder rename: {Path}", newFullPath);
+                return;
+            }
+
+            try
+            {
+                Directory.Move(currentFullPath, newFullPath);
+
+                // Update the StoragePath in the DB (relative path from storage root)
+                string parentRelative = Path.GetDirectoryName(series.StoragePath)
+                                        ?? string.Empty;
+                series.StoragePath = string.IsNullOrEmpty(parentRelative)
+                    ? expectedFolderName
+                    : Path.Combine(parentRelative, expectedFolderName);
+
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                _logger.LogInformation("Renamed storage folder from \"{Old}\" to \"{New}\"", currentFullPath, newFullPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to rename storage folder from \"{Old}\" to \"{New}\"", currentFullPath, newFullPath);
+            }
+        }
+
+        /// <summary>
+        /// Queries the source for the full series title via GetDetailsAsync (which includes
+        /// HTML meta-tag recovery for truncated titles). If the source returns a longer title
+        /// than what's in the DB, updates it and sets NeedsRename so the user can fix file/folder names.
+        /// This catches both titles ending with "..." AND titles that had the "..." already stripped
+        /// by the old workaround in FillSeriesFromProviderSeriesDetails.
+        /// </summary>
+        private async Task TryRecoverTruncatedTitleAsync(SeriesEntity series, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(series.Title))
+                return;
+
+            // Find an active source to query
+            SeriesProviderEntity? provider = series.Sources
+                .FirstOrDefault(s => !s.IsDisabled && !s.IsUninstalled && !s.IsUnknown && !string.IsNullOrEmpty(s.MihonProviderId));
+            if (provider == null)
+                return;
+
+            try
+            {
+                var src = await _mihon.SourceFromProviderIdAsync(provider.MihonProviderId!, token).ConfigureAwait(false);
+                var manga = provider.ToManga();
+                if (manga == null)
+                    return;
+
+                var details = await src.GetDetailsAsync(manga, token).ConfigureAwait(false);
+                if (details == null || string.IsNullOrEmpty(details.Title))
+                    return;
+
+                // Compare: source title must be longer and not itself truncated
+                bool detailsTruncated = details.Title.EndsWith("...") || details.Title.EndsWith("\u2026");
+                if (!detailsTruncated && details.Title.Length > series.Title.Length)
+                {
+                    string oldTitle = series.Title;
+                    series.Title = details.Title;
+                    series.NeedsRename = true;
+
+                    // Also update all provider titles that still have the truncated name
+                    if (series.Sources != null)
+                    {
+                        foreach (var src2 in series.Sources)
+                        {
+                            if (src2.Title.Length < details.Title.Length)
+                                src2.Title = details.Title;
+                        }
+                    }
+
+                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"", series.Id, oldTitle, details.Title);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to recover truncated title for series {Id}", series.Id);
+            }
         }
 
         /// <summary>

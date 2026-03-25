@@ -401,7 +401,7 @@ namespace KaizokuBackend.Services.Series
                 _logger.LogWarning("Series Provider {SeriesProvider} has no longer valid Mihon Id", seriesProvider);
                 return JobResult.Failed;
             }
-            var series = await _db.Series.Include(a => a.Sources).Where(s => s.Id == serie.SeriesId).AsNoTracking().FirstAsync(token).ConfigureAwait(false);
+            var series = await _db.Series.Include(a => a.Sources).Where(s => s.Id == serie.SeriesId).FirstAsync(token).ConfigureAwait(false);
             List<ParsedChapter>? chapterData;
 
             ISourceInterop src;
@@ -414,7 +414,16 @@ namespace KaizokuBackend.Services.Series
                 _logger.LogError(e, "Unable to get Chapter from {mihonProviderId}", serie.MihonProviderId);
                 return JobResult.Failed;
             }
-            
+
+            // If the series title ends with "..." or "…", try to recover the full title.
+            // This catches newly added series with truncated search result titles.
+            // For older series where "..." was already stripped, the user can click Verify
+            // on the series page which does an unconditional check against the source.
+            if (IsTitleTruncated(series.Title))
+            {
+                await TryRecoverTruncatedTitleAsync(series, serie, src, token).ConfigureAwait(false);
+            }
+
             string provider = src.Name + " (" + src.Language + ")";
             _logger.LogInformation("Getting chapters from Series {series} Provider {provider}", serie.Title, provider);
             chapterData = await _mihon.MihonErrorWrapperAsync(
@@ -594,6 +603,69 @@ namespace KaizokuBackend.Services.Series
             public string MihonId { get; set; }
             public ParsedManga? Series { get; set; }
             public List<ParsedChapter> Chapters { get; set; } = [];
+        }
+
+        /// <summary>
+        /// Returns true if a title appears to have been truncated by the source (ends with "..." or "…").
+        /// </summary>
+        private static bool IsTitleTruncated(string? title)
+        {
+            if (string.IsNullOrEmpty(title))
+                return false;
+            return title.EndsWith("...") || title.EndsWith("\u2026");
+        }
+
+        /// <summary>
+        /// Attempts to recover a full title for a series whose current title is truncated.
+        /// Calls GetDetailsAsync on the source to fetch the manga detail page, which now
+        /// includes HTML title recovery. If a longer title is found, updates the DB title
+        /// and sets <see cref="SeriesEntity.NeedsRename"/> so the user can rename files/folder.
+        /// </summary>
+        private async Task TryRecoverTruncatedTitleAsync(
+            Models.Database.SeriesEntity series,
+            SeriesProviderEntity provider,
+            ISourceInterop source,
+            CancellationToken token)
+        {
+            try
+            {
+                var manga = provider.ToManga();
+                if (manga == null)
+                    return;
+
+                var details = await _mihon.MihonErrorWrapperAsync(
+                    () => source.GetDetailsAsync(manga, token),
+                    "Unable to recover title for {series}", series.Title).ConfigureAwait(false);
+
+                if (details == null || string.IsNullOrEmpty(details.Title))
+                    return;
+
+                // Only update if the new title is not truncated and is longer
+                if (!IsTitleTruncated(details.Title) && details.Title.Length > series.Title.Length)
+                {
+                    string oldTitle = series.Title;
+                    series.Title = details.Title;
+                    series.NeedsRename = true;
+
+                    // Also update all provider titles that still have the truncated name
+                    if (series.Sources != null)
+                    {
+                        foreach (var src2 in series.Sources)
+                        {
+                            if (src2.Title.Length < details.Title.Length)
+                                src2.Title = details.Title;
+                        }
+                    }
+
+                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                    _logger.LogInformation("Recovered full title for series {Id}: \"{OldTitle}\" → \"{NewTitle}\"",
+                        series.Id, oldTitle, details.Title);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to recover truncated title for series {Id}", series.Id);
+            }
         }
 
     }

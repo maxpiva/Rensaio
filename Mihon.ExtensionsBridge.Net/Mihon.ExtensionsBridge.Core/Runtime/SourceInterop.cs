@@ -6,6 +6,7 @@ using eu.kanade.tachiyomi.source.model;
 using Microsoft.Extensions.Logging;
 using okhttp3;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Mihon.ExtensionsBridge.Core.Extensions;
 using Mihon.ExtensionsBridge.Core.Utilities;
 using Mihon.ExtensionsBridge.Models;
@@ -55,8 +56,10 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
 
         /// <summary>
         /// Cached filter list for catalogue queries. Populated on first access.
+        /// Thread-safe via lock to prevent concurrent initialization from parallel searches.
         /// </summary>
-        public eu.kanade.tachiyomi.source.model.FilterList _cachedList = null;
+        private volatile eu.kanade.tachiyomi.source.model.FilterList? _cachedList;
+        private readonly object _filterLock = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SourceInterop"/> class.
@@ -117,6 +120,7 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
 
         /// <summary>
         /// Ensures the catalogue filter list is populated and cached.
+        /// Uses double-checked locking to be safe under concurrent parallel searches.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the source does not support catalogue operations.</exception>
         private void PopulateFilterList()
@@ -126,7 +130,10 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
 
             if (_cachedList == null)
             {
-                _cachedList = _catalogueSource.getFilterList();
+                lock (_filterLock)
+                {
+                    _cachedList ??= _catalogueSource.getFilterList();
+                }
             }
         }
         public async Task<T> WrapHttpException<T>(Func<Task<T>> func)
@@ -224,8 +231,142 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 var mangaDetails = await _httpSource.fetchMangaDetails(mangaImpl).ConsumeObservableOneOrDefaultAsync<SManga>(mangaImpl, token).ConfigureAwait(false);
                 ParsedManga m = mangaDetails!.ToManga<ParsedManga>(manga);
                 m.RealUrl = _httpSource.getMangaUrl(mangaDetails ?? mangaImpl);
+
+                // Many Tachiyomi extensions don't set the title in mangaDetailsParse because the
+                // Tachiyomi app already knows it from search results. However, search results often
+                // contain truncated titles (e.g. "Long Title..."). When detected, fetch the manga
+                // detail page HTML directly and extract the full title from metadata tags.
+                if (IsTitleTruncated(m.Title))
+                {
+                    string recovered = await TryRecoverFullTitleAsync(m.RealUrl, m.Title, token).ConfigureAwait(false);
+                    if (!string.IsNullOrEmpty(recovered))
+                        m.Title = recovered;
+                }
+
                 return m;
             }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Determines whether a title appears to be truncated by the source.
+        /// </summary>
+        private static bool IsTitleTruncated(string? title)
+        {
+            if (string.IsNullOrEmpty(title))
+                return false;
+            return title.EndsWith("...") || title.EndsWith("\u2026"); // Unicode ellipsis
+        }
+
+        /// <summary>
+        /// Attempts to recover the full manga title by fetching the detail page HTML
+        /// and extracting the title from og:title, twitter:title, or the HTML title tag.
+        /// Uses the source's own HTTP client to preserve headers, cookies, and authentication.
+        /// </summary>
+        private async Task<string?> TryRecoverFullTitleAsync(string? pageUrl, string truncatedTitle, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(pageUrl) || _httpSource == null)
+                return null;
+
+            try
+            {
+                Request request = RequestsKt.GET(pageUrl, _httpSource.getHeaders(), CacheControl.FORCE_NETWORK);
+                var response = await Task.Run(() => _httpSource.getClient().newCall(request).execute(), token).ConfigureAwait(false);
+                if (response == null || response.code() != 200)
+                    return null;
+
+                var body = response.body();
+                if (body == null)
+                    return null;
+
+                string html = body.@string();
+                if (string.IsNullOrEmpty(html))
+                    return null;
+
+                // Strip the trailing ellipsis to get the prefix we expect the full title to contain
+                string prefix = truncatedTitle.TrimEnd('.').TrimEnd('\u2026').TrimEnd();
+
+                // Gather all available title sources
+                string?[] rawCandidates = {
+                    ExtractMetaContent(html, "og:title"),
+                    ExtractMetaContent(html, "twitter:title"),
+                    ExtractHtmlTitle(html)
+                };
+
+                // For each candidate, decode HTML entities and extract the substring starting at the prefix.
+                // Site-specific junk (e.g. "[Manga]: ", " Read", " Manga Online for Free") gets stripped
+                // by finding where the known prefix begins and extracting from there.
+                List<string> extractions = new();
+                foreach (var raw in rawCandidates)
+                {
+                    if (string.IsNullOrEmpty(raw))
+                        continue;
+                    string decoded = System.Net.WebUtility.HtmlDecode(raw).Trim();
+                    int idx = decoded.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+                    if (idx >= 0)
+                    {
+                        string extracted = decoded.Substring(idx);
+                        if (extracted.Length > truncatedTitle.Length)
+                            extractions.Add(extracted);
+                    }
+                }
+
+                if (extractions.Count == 0)
+                    return null;
+
+                if (extractions.Count == 1)
+                {
+                    // Single match — return as-is (may have trailing site junk, still better than truncated)
+                    string result = extractions[0].Trim();
+                    return result.Length > truncatedTitle.Length ? result : null;
+                }
+
+                // Multiple matches — find the longest common prefix across all extractions.
+                // This strips trailing site-specific junk that differs between meta tags
+                // (e.g. " Read" vs " Manga Online for Free"), leaving only the real title.
+                string lcp = extractions[0];
+                for (int i = 1; i < extractions.Count; i++)
+                {
+                    int len = Math.Min(lcp.Length, extractions[i].Length);
+                    int j = 0;
+                    while (j < len && char.ToLowerInvariant(lcp[j]) == char.ToLowerInvariant(extractions[i][j]))
+                        j++;
+                    lcp = lcp.Substring(0, j);
+                }
+
+                string recovered = lcp.Trim();
+                return recovered.Length > truncatedTitle.Length ? recovered : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extracts the content attribute from a meta tag with the given property or name.
+        /// </summary>
+        private static string? ExtractMetaContent(string html, string propertyName)
+        {
+            // Match: <meta property="og:title" content="..."> or <meta name="twitter:title" content="...">
+            // Also handles content before property/name, single quotes, and self-closing tags.
+            var pattern = $@"<meta\s[^>]*?(?:property|name)\s*=\s*[""']{Regex.Escape(propertyName)}[""'][^>]*?content\s*=\s*[""']([^""']+)[""']";
+            var match = Regex.Match(html, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (match.Success)
+                return match.Groups[1].Value;
+
+            // Try reversed attribute order: content before property
+            var reversedPattern = $@"<meta\s[^>]*?content\s*=\s*[""']([^""']+)[""'][^>]*?(?:property|name)\s*=\s*[""']{Regex.Escape(propertyName)}[""']";
+            match = Regex.Match(html, reversedPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        /// <summary>
+        /// Extracts the text content from the HTML title tag.
+        /// </summary>
+        private static string? ExtractHtmlTitle(string html)
+        {
+            var match = Regex.Match(html, @"<title[^>]*>([^<]+)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            return match.Success ? match.Groups[1].Value : null;
         }
 
         /// <summary>

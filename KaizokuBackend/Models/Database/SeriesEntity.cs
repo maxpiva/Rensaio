@@ -48,6 +48,14 @@ namespace KaizokuBackend.Models.Database
         [JsonPropertyName("startFromChapter")]
         public decimal? StartFromChapter { get; set; }
 
+        /// <summary>
+        /// Set when the series title was recovered from a truncated source title,
+        /// indicating that the storage folder and chapter filenames still use the old truncated name
+        /// and should be renamed by the user.
+        /// </summary>
+        [JsonPropertyName("needsRename")]
+        public bool NeedsRename { get; set; } = false;
+
         public virtual ICollection<SeriesProviderEntity> Sources { get; set; } = [];
     }
 }

@@ -5,6 +5,7 @@ using KaizokuBackend.Services.Import.Models;
 using KaizokuBackend.Services.Bridge;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Action = KaizokuBackend.Models.Action;
 using Mihon.ExtensionsBridge.Models.Extensions;
@@ -917,6 +918,9 @@ public static class SeriesExtensions
 
     public static void FillSeriesFromProviderSeriesDetails(this DbSeriesEntity dbSeries, ProviderSeriesDetails consolidatedSeries, decimal? startFromChapter)
     {
+        // Title recovery from truncated sources is now handled in SourceInterop.GetDetailsAsync
+        // (HTML meta tag extraction) and SeriesArchiveService.TryRecoverTruncatedTitleAsync
+        // (verify button + periodic checks). Just accept whatever title the provider gives us.
         dbSeries.Title = consolidatedSeries.Title;
         dbSeries.Description = consolidatedSeries.Description ?? string.Empty;
         dbSeries.ThumbnailUrl = consolidatedSeries.ThumbnailUrl ?? string.Empty;

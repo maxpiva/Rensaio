@@ -315,3 +315,13 @@ KaizokuBackend/runtime/kaizoku.schedule.db-wal
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/build/reports/problems
 /uploads
 /.claude/
+Claude Code.bat
+
+# Binary dependencies (downloaded by CI, not stored in repo)
+Mihon.ExtensionsBridge.Net/libs/Android.Compat.dll
+Mihon.ExtensionsBridge.Net/IKVM.Android.Compatibility.Layer.CILPatcher/libs/
+Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/gradle/wrapper/gradle-wrapper.jar
+
+# AI generated artifacts
+generated-images/
+modal-redesign-mockup.html

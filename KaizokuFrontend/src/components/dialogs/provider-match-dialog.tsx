@@ -474,7 +474,7 @@ export function ProviderMatchDialog({
                       {selectedMatchInfoId && renderProviderWithFlag(selectedMatchInfoId)}
                     </SelectValue>
                   </SelectTrigger>                  <SelectContent>
-                    {availableMatchInfos?.map((matchInfo: any) => (
+                    {availableMatchInfos?.filter((matchInfo: any) => matchInfo.id).map((matchInfo: any) => (
                       <SelectItem key={matchInfo.id} value={matchInfo.id}>
                         {renderProviderWithFlag(matchInfo.id)}
                       </SelectItem>

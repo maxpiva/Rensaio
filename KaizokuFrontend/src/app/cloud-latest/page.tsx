@@ -293,7 +293,7 @@ export default function CloudLatestPage() {
                     <span>All Sources</span>
                   </div>
                 </SelectItem>
-                {sortedSources.map((source) => (
+                {sortedSources.filter((source) => source.mihonProviderId).map((source) => (
                   <SelectItem key={source.mihonProviderId} value={source.mihonProviderId}>
                     <div className="flex items-center gap-2">
                       {source.language === "all" ? (

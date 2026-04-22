@@ -621,7 +621,7 @@ export function ConfirmSeriesStep({
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableCategories.map((category: string) => (
+                    {availableCategories.filter((category: string) => category).map((category: string) => (
                       <SelectItem key={category} value={category}>
                         {category}
                       </SelectItem>

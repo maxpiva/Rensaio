@@ -13,6 +13,10 @@ import { providerService } from "@/lib/api/services/providerService";
 import type { ProviderPreferences, ProviderPreference } from "@/lib/api/types";
 import { EntryType } from "@/lib/api/types";
 
+// Sentinel value used in place of "" for Select items, since Radix UI
+// does not allow empty-string values on <SelectItem>.
+const EMPTY_VALUE_SENTINEL = "__EMPTY__";
+
 interface ProviderPreferencesRequesterProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -117,25 +121,26 @@ export function ProviderPreferencesRequester({
   };  const getCurrentValue = (preference: ProviderPreference): unknown => {
     return preference.currentValue ?? preference.defaultValue;
   };
-  // Get the correct value for ComboBox, ensuring it matches entryValues
+  // Get the correct value for ComboBox, ensuring it matches entryValues.
+  // Returns the sentinel in place of "" so Radix Select never receives an empty string.
   const getCurrentComboBoxValue = (preference: ProviderPreference): string => {
     let currentVal = preference.currentValue;
-    
+
     // If currentValue is null, undefined, or empty, use defaultValue
     if (currentVal === null || currentVal === undefined || currentVal === '') {
       currentVal = preference.defaultValue;
     }
-    
+
     // Ensure the value exists in entryValues, otherwise use the first one
     if (preference.entryValues && preference.entryValues.length > 0) {
       if (preference.entryValues.includes(currentVal as string)) {
-        return currentVal as string;
+        return (currentVal as string) || EMPTY_VALUE_SENTINEL;
       }
       // If currentValue is not in entryValues, return the first valid value
-      return preference.entryValues[0] ?? '';
+      return preference.entryValues[0] || EMPTY_VALUE_SENTINEL;
     }
-    
-    return currentVal as string || '';
+
+    return (currentVal as string) || EMPTY_VALUE_SENTINEL;
   };
 
   // Process summary text for ComboBox preferences, replacing %s with selected display value
@@ -170,21 +175,24 @@ export function ProviderPreferencesRequester({
           <Select
             value={comboBoxValue}
             onValueChange={(value) => {
-              updatePreferenceValue(index, value);
+              updatePreferenceValue(index, value === EMPTY_VALUE_SENTINEL ? '' : value);
             }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select an option" />
             </SelectTrigger>
             <SelectContent>
-              {preference.entries?.map((entry, entryIndex) => (
-                <SelectItem 
-                  key={entryIndex} 
-                  value={preference.entryValues?.[entryIndex] ?? entry}
-                >
-                  {entry}
-                </SelectItem>
-              ))}
+              {preference.entries?.map((entry, entryIndex) => {
+                const rawValue = preference.entryValues?.[entryIndex] ?? entry;
+                return (
+                  <SelectItem
+                    key={entryIndex}
+                    value={rawValue || EMPTY_VALUE_SENTINEL}
+                  >
+                    {entry}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         );

@@ -206,7 +206,7 @@ export default function RootPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__ALL__">All Genres</SelectItem>
-                        {genres.map((genre) => (
+                        {genres.filter((genre) => genre).map((genre) => (
                           <SelectItem key={genre} value={genre}>
                             {genre}
                           </SelectItem>
@@ -224,7 +224,7 @@ export default function RootPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__ALL__">All Sources</SelectItem>
-                        {providers.map((provider) => (
+                        {providers.filter((provider) => provider).map((provider) => (
                           <SelectItem key={provider} value={provider}>
                             {provider}
                           </SelectItem>

@@ -12,12 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="IKVM.Java">
-      <HintPath>libs\IKVM.Java.dll</HintPath>
-    </Reference>
-    <Reference Include="IKVM.Runtime">
-      <HintPath>libs\IKVM.Runtime.dll</HintPath>
-    </Reference>
+    <PackageReference Include="IKVM" Version="8.15.0" />
   </ItemGroup>
 
 </Project>

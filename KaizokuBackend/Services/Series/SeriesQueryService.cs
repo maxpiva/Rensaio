@@ -100,6 +100,22 @@ namespace KaizokuBackend.Services.Series
                 series = series.Where(a => a.MihonProviderId == mihonProviderId);
             }
 
+            // Honor the user's PreferredLanguages even when a specific source is
+            // picked — multi-language sources (e.g. NovelCool reporting Language="all")
+            // would otherwise surface results in scripts the user doesn't want.
+            // Rows whose Language is empty or "all" are legacy entries written before
+            // per-title detection; they stay visible so existing data isn't suddenly
+            // hidden, and the startup backfill + next source refresh will retag them.
+            List<string> prefs = (await _settings.GetSettingsAsync(token).ConfigureAwait(false))
+                .PreferredLanguages?.ToList() ?? new List<string>();
+            if (prefs.Count == 0)
+                prefs.Add("en");
+            series = series.Where(a =>
+                a.Language == null
+                || a.Language == ""
+                || a.Language == "all"
+                || prefs.Contains(a.Language));
+
             if (!string.IsNullOrEmpty(keyword))
                 series = series.Where(a => EF.Functions.Like(a.Title, $"%{keyword}%"));
 

@@ -145,5 +145,47 @@ namespace KaizokuBackend.Services.Helpers
                 provider.IsCover = provider.Id == coverProvider.Id;
             }
         }
+
+        /// <summary>
+        /// One-time backfill for the Browse tab's language filter:
+        /// LatestSerieEntity rows written before per-title language detection store
+        /// the source's Language verbatim (often "all" for multi-language sources like
+        /// NovelCool). Re-detect the language from the title so the user's
+        /// PreferredLanguages filter can hide unwanted scripts.
+        /// </summary>
+        /// <returns>Number of rows whose Language was rewritten.</returns>
+        public async Task<int> BackfillLatestSeriesLanguagesAsync(CancellationToken token)
+        {
+            // Process in batches to keep memory bounded on large libraries.
+            const int batchSize = 500;
+            int updated = 0;
+            while (!token.IsCancellationRequested)
+            {
+                List<LatestSerieEntity> batch = await _db.LatestSeries
+                    .Where(a => a.Language == null || a.Language == "" || a.Language == "all")
+                    .Take(batchSize)
+                    .ToListAsync(token)
+                    .ConfigureAwait(false);
+
+                if (batch.Count == 0)
+                    break;
+
+                foreach (LatestSerieEntity entry in batch)
+                {
+                    // LanguageDetector.Detect always returns a concrete code (defaults to
+                    // "en"), so this loop is guaranteed to make progress — the next pass
+                    // won't re-select these rows.
+                    entry.Language = LanguageDetector.Detect(entry.Title);
+                    updated++;
+                }
+
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
+
+                if (batch.Count < batchSize)
+                    break;
+            }
+
+            return updated;
+        }
     }
 }

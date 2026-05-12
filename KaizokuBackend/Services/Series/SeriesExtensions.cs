@@ -16,6 +16,7 @@ using KaizokuBackend.Models.Dto;
 using Chapter = KaizokuBackend.Models.Chapter;
 using ImportEntity = KaizokuBackend.Models.Database.ImportEntity;
 using DbSeriesEntity = KaizokuBackend.Models.Database.SeriesEntity;
+using KaizokuBackend.Services.Helpers;
 using KaizokuBackend.Services.Images;
 
 namespace KaizokuBackend.Services.Series;
@@ -29,7 +30,11 @@ public static class SeriesExtensions
     {
         l.Artist = fs.Artist;
         l.Provider = source.Name;
-        l.Language = source.Language;
+        // Multi-language sources (e.g. NovelCool) report Language="all", which means
+        // results may be in any language. Detect the title's script so the Browse tab
+        // can honor the user's preferred-languages filter. Specific-language sources
+        // keep their explicit code.
+        l.Language = LanguageDetector.Resolve(source.Language, fs.Title);
         l.Status = (SeriesStatus)(int)fs.Status;
         l.Title = fs.Title;
         if (!string.IsNullOrWhiteSpace(fs.ThumbnailUrl))

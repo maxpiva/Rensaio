@@ -115,6 +115,20 @@ namespace KaizokuBackend.Services.Background
                 await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
                 await _fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
 
+                // Retag historical Browse-tab rows that were written before per-title
+                // language detection. This lets the user's PreferredLanguages filter
+                // immediately hide unwanted scripts from multi-language sources.
+                try
+                {
+                    int retagged = await _fixes.BackfillLatestSeriesLanguagesAsync(cancellationToken).ConfigureAwait(false);
+                    if (retagged > 0)
+                        _logger.LogInformation("Backfilled language tags on {Count} cloud-latest rows.", retagged);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Latest-series language backfill failed; Browse filter may be incomplete until next source refresh.");
+                }
+
                 IHostApplicationLifetime lifetime = scope.ServiceProvider.GetRequiredService<IHostApplicationLifetime>();
                 JobManagementService jobManagement = scope.ServiceProvider.GetRequiredService<JobManagementService>();
                 _logger.LogInformation("Checking Storage folder Status...");

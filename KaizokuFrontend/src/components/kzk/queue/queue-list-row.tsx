@@ -102,7 +102,7 @@ function SourceCell({
   if (!label) {
     return (
       <div
-        className="px-2 text-xs text-muted-foreground truncate"
+        className="px-2 text-xs text-muted-foreground truncate flex items-center"
         style={{ width: COLUMN_WIDTHS.source, flex: `0 0 ${COLUMN_WIDTHS.source}px` }}
       />
     );
@@ -110,7 +110,7 @@ function SourceCell({
 
   return (
     <div
-      className="px-2 text-xs text-muted-foreground truncate"
+      className="px-2 text-xs text-muted-foreground truncate flex items-center"
       style={{ width: COLUMN_WIDTHS.source, flex: `0 0 ${COLUMN_WIDTHS.source}px` }}
       title={label}
     >

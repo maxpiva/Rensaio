@@ -6,18 +6,15 @@ import {
   useCompletedDownloadsWithCount,
   useWaitingDownloadsWithCount,
   useFailedDownloadsWithCount,
-  useManageErrorDownload,
-  useRemoveDownload,
   useClearDownloadsByStatus,
   useRetryAllFailedDownloads,
   useDownloadsMetrics,
+  useRemoveDownload,
+  useManageErrorDownload,
 } from '@/lib/api/hooks/useDownloads';
-import { useSettings } from '@/lib/api/hooks/useSettings';
 import { useSearch } from '@/contexts/search-context';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -34,73 +31,36 @@ import {
   CheckCircle,
   Clock,
   Smile,
-  Calendar,
-  ExternalLink,
   RotateCcw,
-  X,
   Activity,
   Layers,
 } from 'lucide-react';
 import {
+  ErrorDownloadAction,
   ProgressStatus,
   QueueStatus,
-  type DownloadInfo,
-  ErrorDownloadAction,
 } from '@/lib/api/types';
-import Image from 'next/image';
 import { JobsPanel } from '@/components/kzk/jobs/jobs-panel';
-import { formatThumbnailUrl } from '@/lib/utils/thumbnail';
+import { QueueListView } from '@/components/kzk/queue/queue-list-view';
+import {
+  ActiveRow,
+  QueueRow,
+  ErrorRow,
+  type ActiveDownloadItem,
+  type QueueRowData,
+  type ErrorRowData,
+} from '@/components/kzk/queue/queue-list-row';
+import {
+  sortDownloads,
+  type SortDir,
+  type SortKey,
+} from '@/components/kzk/queue/queue-list-columns';
 
 // ---------------------------------------------------------------------------
-// Types
+// Constants
 // ---------------------------------------------------------------------------
 
-interface ActiveDownloadItem {
-  id: string;
-  seriesTitle: string;
-  chapterTitle: string;
-  thumbnailUrl?: string;
-  status: 'downloading' | 'completed' | 'error' | 'queued';
-  progress: number;
-  provider?: string;
-  scanlator?: string;
-  language?: string;
-  chapterNumber?: number;
-  pageCount?: number;
-  message?: string;
-  errorMessage?: string;
-  url?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function normalizeUtcString(dateString: string): string {
-  return dateString.includes('Z') ||
-    dateString.includes('+') ||
-    dateString.includes('-', 10)
-    ? dateString
-    : dateString + 'Z';
-}
-
-function getStatusIcon(status: string, isScheduledForFuture: boolean) {
-  if (isScheduledForFuture) {
-    return <Calendar className="h-4 w-4 text-amber-500 flex-shrink-0" />;
-  }
-  switch (status) {
-    case 'downloading':
-      return <Download className="h-4 w-4 text-blue-500 animate-pulse flex-shrink-0" />;
-    case 'completed':
-      return <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />;
-    case 'error':
-      return <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />;
-    case 'waiting':
-      return <Clock className="h-4 w-4 text-amber-500 flex-shrink-0" />;
-    default:
-      return <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
-  }
-}
+const LIST_FETCH_LIMIT = 5000;
 
 // ---------------------------------------------------------------------------
 // Confirmation Dialog
@@ -212,160 +172,16 @@ const LoadingState = memo(() => (
 LoadingState.displayName = 'LoadingState';
 
 // ---------------------------------------------------------------------------
-// Active Download Card (real-time, no controls)
+// Sort hook helper
 // ---------------------------------------------------------------------------
 
-const ActiveDownloadCard = memo(({ item }: { item: ActiveDownloadItem }) => {
-  const isDownloading = item.status === 'downloading';
-  return (
-    <Card className="transition-all duration-200 flex-shrink-0">
-      <div className="p-2">
-        <div className="flex items-start gap-3">
-          <Image src={formatThumbnailUrl(item.thumbnailUrl)} alt={item.seriesTitle} width={60} height={80}
-            className="rounded-md object-cover flex-shrink-0"
-            onError={(e) => { (e.target as HTMLImageElement).src = '/kaizoku.net.png'; }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold line-clamp-2 leading-tight">{item.seriesTitle}</p>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.chapterTitle}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {(item.provider || item.scanlator) && (
-                item.url ? (
-                  <button type="button" className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
-                    onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')} title="Open chapter source">
-                    <ExternalLink className="h-3 w-3" />
-                    {item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}
-                  </button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}
-                  </p>
-                )
-              )}
-              <Download className="h-3.5 w-3.5 text-blue-500 animate-pulse flex-shrink-0" />
-              {isDownloading && item.progress > 0 && <span className="text-xs text-muted-foreground font-medium">{item.progress}%</span>}
-            </div>
-            {isDownloading && item.progress > 0 && <Progress value={item.progress} className="mt-1.5 h-1.5" />}
-            {item.errorMessage && (
-              <p className="text-xs text-red-600 mt-1.5 bg-red-50 dark:bg-red-950/30 px-1.5 py-1 rounded">{item.errorMessage}</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-});
-ActiveDownloadCard.displayName = 'ActiveDownloadCard';
-
-// ---------------------------------------------------------------------------
-// Removable Download Card (queued / completed — has X button)
-// ---------------------------------------------------------------------------
-
-const RemovableDownloadCard = memo(({ item }: { item: DownloadInfo }) => {
-  const removeDownload = useRemoveDownload();
-
-  const isScheduledForFuture = useMemo(() => {
-    const scheduledDate = new Date(normalizeUtcString(item.scheduledDateUTC));
-    return !item.downloadDateUTC && scheduledDate > new Date();
-  }, [item.scheduledDateUTC, item.downloadDateUTC]);
-
-  const scheduledDate = useMemo(() => (isScheduledForFuture ? new Date(normalizeUtcString(item.scheduledDateUTC)) : null), [isScheduledForFuture, item.scheduledDateUTC]);
-  const downloadDate = useMemo(() => (item.downloadDateUTC ? new Date(normalizeUtcString(item.downloadDateUTC)) : null), [item.downloadDateUTC]);
-  const statusString = item.status === QueueStatus.WAITING ? 'waiting' : item.status === QueueStatus.COMPLETED ? 'completed' : 'unknown';
-
-  const handleRemove = useCallback((e: React.MouseEvent) => { e.stopPropagation(); removeDownload.mutate(item.id); }, [item.id, removeDownload]);
-  const handleExternalLink = useCallback((e: React.MouseEvent) => { e.stopPropagation(); if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer'); }, [item.url]);
-
-  return (
-    <Card className="transition-all duration-200 flex-shrink-0 relative group">
-      <button type="button" onClick={handleRemove} disabled={removeDownload.isPending} title="Remove from queue"
-        className="absolute top-1.5 right-1.5 z-10 h-5 w-5 rounded-sm flex items-center justify-center bg-background/80 border border-border opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-150 disabled:pointer-events-none disabled:opacity-50">
-        <X className="h-3 w-3" />
-      </button>
-      <div className="p-2 pr-7">
-        <div className="flex items-start gap-3">
-          <Image src={formatThumbnailUrl(item.thumbnailUrl)} alt={item.title} width={60} height={80}
-            className="rounded-md object-cover flex-shrink-0"
-            onError={(e) => { (e.target as HTMLImageElement).src = '/kaizoku.net.png'; }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold line-clamp-2 leading-tight">{item.title}</p>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.chapterTitle || `Chapter ${item.chapter}`}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {(item.provider || item.scanlator) && (
-                item.url ? (
-                  <button type="button" className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors" onClick={handleExternalLink} title="Open chapter source">
-                    <ExternalLink className="h-3 w-3" />
-                    {item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}
-                  </button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">{item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}</p>
-                )
-              )}
-              {getStatusIcon(statusString, isScheduledForFuture)}
-              {isScheduledForFuture && scheduledDate && <span className="text-xs text-muted-foreground font-medium">{scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-              {statusString === 'completed' && downloadDate && <span className="text-xs text-muted-foreground font-medium">{downloadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-              {item.retries > 0 && <span className="text-xs text-orange-600 font-medium ml-auto">Retries: {item.retries}</span>}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-});
-RemovableDownloadCard.displayName = 'RemovableDownloadCard';
-
-// ---------------------------------------------------------------------------
-// Error Download Card (retry + delete buttons)
-// ---------------------------------------------------------------------------
-
-const ErrorDownloadCard = memo(({ item }: { item: DownloadInfo }) => {
-  const manageErrorDownload = useManageErrorDownload();
-  const downloadDate = useMemo(() => (item.downloadDateUTC ? new Date(normalizeUtcString(item.downloadDateUTC)) : null), [item.downloadDateUTC]);
-  const handleRetry = useCallback(() => manageErrorDownload.mutate({ id: item.id, action: ErrorDownloadAction.Retry }), [item.id, manageErrorDownload]);
-  const handleDelete = useCallback(() => manageErrorDownload.mutate({ id: item.id, action: ErrorDownloadAction.Delete }), [item.id, manageErrorDownload]);
-  const handleExternalLink = useCallback((e: React.MouseEvent) => { e.stopPropagation(); if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer'); }, [item.url]);
-
-  return (
-    <Card className="transition-all duration-200 flex-shrink-0 relative group">
-      <div className="absolute top-1.5 right-1.5 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-        <button type="button" onClick={handleRetry} disabled={manageErrorDownload.isPending} title="Retry download"
-          className="h-5 w-5 rounded-sm flex items-center justify-center bg-background/80 border border-border hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:border-blue-700 transition-colors disabled:pointer-events-none disabled:opacity-50">
-          <RotateCcw className="h-3 w-3" />
-        </button>
-        <button type="button" onClick={handleDelete} disabled={manageErrorDownload.isPending} title="Delete download"
-          className="h-5 w-5 rounded-sm flex items-center justify-center bg-background/80 border border-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors disabled:pointer-events-none disabled:opacity-50">
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
-      <div className="p-2 pr-14">
-        <div className="flex items-start gap-3">
-          <Image src={formatThumbnailUrl(item.thumbnailUrl)} alt={item.title} width={60} height={80}
-            className="rounded-md object-cover flex-shrink-0"
-            onError={(e) => { (e.target as HTMLImageElement).src = '/kaizoku.net.png'; }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold line-clamp-2 leading-tight">{item.title}</p>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.chapterTitle || `Chapter ${item.chapter}`}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {(item.provider || item.scanlator) && (
-                item.url ? (
-                  <button type="button" className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors" onClick={handleExternalLink} title="Open chapter source">
-                    <ExternalLink className="h-3 w-3" />
-                    {item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}
-                  </button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">{item.provider}{item.provider !== item.scanlator && item.scanlator ? ` · ${item.scanlator}` : ''}</p>
-                )
-              )}
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-              {downloadDate && <span className="text-xs text-muted-foreground font-medium">{downloadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-              {item.retries > 0 && <span className="text-xs text-orange-600 font-medium ml-auto">Retries: {item.retries}</span>}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-});
-ErrorDownloadCard.displayName = 'ErrorDownloadCard';
+function useSortState() {
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: null, dir: 'asc' });
+  const onSortChange = useCallback((key: SortKey, dir: SortDir) => {
+    setSort({ key, dir });
+  }, []);
+  return { sortKey: sort.key, sortDir: sort.dir, onSortChange };
+}
 
 // ---------------------------------------------------------------------------
 // Tab Panels
@@ -381,13 +197,25 @@ const ActiveTabPanel = memo(() => {
     message: d.message, errorMessage: d.errorMessage, url: d.cardInfo.url,
   })), [downloads]);
 
+  // Active tab is always sorted by insertion order — no user sort.
+  const noopSort = useCallback((_key: SortKey, _dir: SortDir) => undefined, []);
+  const activeItemData = useMemo(() => ({ items: activeItems }), [activeItems]);
+
   return (
     <div>
       <TabHeader title="Active Downloads" count={downloadCount} />
-      {activeItems.length === 0 ? <EmptyState icon={<Download className="h-12 w-12" />} message="No active downloads right now" /> : (
-        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-          {activeItems.map((item) => <ActiveDownloadCard key={item.id} item={item} />)}
-        </div>
+      {activeItems.length === 0 ? (
+        <EmptyState icon={<Download className="h-12 w-12" />} message="No active downloads right now" />
+      ) : (
+        <QueueListView
+          itemData={activeItemData}
+          itemCount={activeItems.length}
+          sortKey={null}
+          sortDir="asc"
+          onSortChange={noopSort}
+          rowComponent={ActiveRow}
+          showSortableColumns={false}
+        />
       )}
     </div>
   );
@@ -395,15 +223,21 @@ const ActiveTabPanel = memo(() => {
 ActiveTabPanel.displayName = 'ActiveTabPanel';
 
 const QueuedTabPanel = memo(() => {
-  const { data: settings } = useSettings();
   const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const { data, isLoading } = useWaitingDownloadsWithCount(limit, debouncedSearchTerm.trim() || undefined, { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 });
+  const { sortKey, sortDir, onSortChange } = useSortState();
+  const { data, isLoading } = useWaitingDownloadsWithCount(LIST_FETCH_LIMIT, debouncedSearchTerm.trim() || undefined, { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 });
   const clearDownloads = useClearDownloadsByStatus();
+  const removeDownload = useRemoveDownload();
   const downloads = useMemo(() => data?.downloads ?? [], [data?.downloads]);
+  const sortedDownloads = useMemo(() => sortDownloads(downloads, sortKey, sortDir), [downloads, sortKey, sortDir]);
   const totalCount = data?.totalCount ?? 0;
   const handleClearAll = useCallback(() => { clearDownloads.mutate(QueueStatus.WAITING, { onSuccess: () => setConfirmOpen(false) }); }, [clearDownloads]);
+  const handleRemove = useCallback((id: string) => { removeDownload.mutate(id); }, [removeDownload]);
+  const queueItemData = useMemo<QueueRowData>(
+    () => ({ items: sortedDownloads, onRemove: handleRemove, isRemovePending: removeDownload.isPending }),
+    [sortedDownloads, handleRemove, removeDownload.isPending],
+  );
 
   return (
     <div>
@@ -415,10 +249,19 @@ const QueuedTabPanel = memo(() => {
           </Button>
         )}
       </TabHeader>
-      {isLoading ? <LoadingState /> : downloads.length === 0 ? <EmptyState icon={<Clock className="h-12 w-12" />} message="No downloads in queue" /> : (
-        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-          {downloads.map((item) => <RemovableDownloadCard key={`${item.title}-${item.chapter}-${item.provider}-${item.scheduledDateUTC}`} item={item} />)}
-        </div>
+      {isLoading ? (
+        <LoadingState />
+      ) : downloads.length === 0 ? (
+        <EmptyState icon={<Clock className="h-12 w-12" />} message="No downloads in queue" />
+      ) : (
+        <QueueListView
+          itemData={queueItemData}
+          itemCount={sortedDownloads.length}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSortChange={onSortChange}
+          rowComponent={QueueRow}
+        />
       )}
       <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} title="Clear All Queued Downloads?"
         description={`This will permanently remove all ${totalCount || downloads.length} queued download${(totalCount || downloads.length) !== 1 ? 's' : ''}. This action cannot be undone.`}
@@ -429,15 +272,21 @@ const QueuedTabPanel = memo(() => {
 QueuedTabPanel.displayName = 'QueuedTabPanel';
 
 const CompletedTabPanel = memo(() => {
-  const { data: settings } = useSettings();
   const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const { data, isLoading } = useCompletedDownloadsWithCount(limit, debouncedSearchTerm.trim() || undefined, { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 });
+  const { sortKey, sortDir, onSortChange } = useSortState();
+  const { data, isLoading } = useCompletedDownloadsWithCount(LIST_FETCH_LIMIT, debouncedSearchTerm.trim() || undefined, { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 });
   const clearDownloads = useClearDownloadsByStatus();
+  const removeDownload = useRemoveDownload();
   const downloads = useMemo(() => data?.downloads ?? [], [data?.downloads]);
+  const sortedDownloads = useMemo(() => sortDownloads(downloads, sortKey, sortDir), [downloads, sortKey, sortDir]);
   const totalCount = data?.totalCount ?? 0;
   const handleClearHistory = useCallback(() => { clearDownloads.mutate(QueueStatus.COMPLETED, { onSuccess: () => setConfirmOpen(false) }); }, [clearDownloads]);
+  const handleRemove = useCallback((id: string) => { removeDownload.mutate(id); }, [removeDownload]);
+  const queueItemData = useMemo<QueueRowData>(
+    () => ({ items: sortedDownloads, onRemove: handleRemove, isRemovePending: removeDownload.isPending }),
+    [sortedDownloads, handleRemove, removeDownload.isPending],
+  );
 
   return (
     <div>
@@ -449,10 +298,19 @@ const CompletedTabPanel = memo(() => {
           </Button>
         )}
       </TabHeader>
-      {isLoading ? <LoadingState /> : downloads.length === 0 ? <EmptyState icon={<CheckCircle className="h-12 w-12" />} message="No completed downloads" /> : (
-        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-          {downloads.map((item) => <RemovableDownloadCard key={`${item.title}-${item.chapter}-${item.provider}-${item.scheduledDateUTC}`} item={item} />)}
-        </div>
+      {isLoading ? (
+        <LoadingState />
+      ) : downloads.length === 0 ? (
+        <EmptyState icon={<CheckCircle className="h-12 w-12" />} message="No completed downloads" />
+      ) : (
+        <QueueListView
+          itemData={queueItemData}
+          itemCount={sortedDownloads.length}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSortChange={onSortChange}
+          rowComponent={QueueRow}
+        />
       )}
       <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} title="Clear Download History?"
         description={`This will permanently remove all ${totalCount || downloads.length} completed download record${(totalCount || downloads.length) !== 1 ? 's' : ''}. This action cannot be undone.`}
@@ -463,19 +321,26 @@ const CompletedTabPanel = memo(() => {
 CompletedTabPanel.displayName = 'CompletedTabPanel';
 
 const ErrorsTabPanel = memo(() => {
-  const { data: settings } = useSettings();
   const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [confirmRetryAllOpen, setConfirmRetryAllOpen] = useState(false);
-  const { data, isLoading } = useFailedDownloadsWithCount(limit, debouncedSearchTerm.trim() || undefined, { refetchInterval: 30000, refetchIntervalInBackground: true, staleTime: 15000 });
+  const { sortKey, sortDir, onSortChange } = useSortState();
+  const { data, isLoading } = useFailedDownloadsWithCount(LIST_FETCH_LIMIT, debouncedSearchTerm.trim() || undefined, { refetchInterval: 30000, refetchIntervalInBackground: true, staleTime: 15000 });
   const clearDownloads = useClearDownloadsByStatus();
   const retryAllFailed = useRetryAllFailedDownloads();
+  const manageErrorDownload = useManageErrorDownload();
   const downloads = useMemo(() => data?.downloads ?? [], [data?.downloads]);
+  const sortedDownloads = useMemo(() => sortDownloads(downloads, sortKey, sortDir), [downloads, sortKey, sortDir]);
   const totalCount = data?.totalCount ?? 0;
   const handleClearAll = useCallback(() => { clearDownloads.mutate(QueueStatus.FAILED, { onSuccess: () => setConfirmClearOpen(false) }); }, [clearDownloads]);
   const handleRetryAll = useCallback(() => { retryAllFailed.mutate(undefined, { onSuccess: () => setConfirmRetryAllOpen(false) }); }, [retryAllFailed]);
   const isBulkPending = clearDownloads.isPending || retryAllFailed.isPending;
+  const handleRetry = useCallback((id: string) => { manageErrorDownload.mutate({ id, action: ErrorDownloadAction.Retry }); }, [manageErrorDownload]);
+  const handleDelete = useCallback((id: string) => { manageErrorDownload.mutate({ id, action: ErrorDownloadAction.Delete }); }, [manageErrorDownload]);
+  const errorItemData = useMemo<ErrorRowData>(
+    () => ({ items: sortedDownloads, onRetry: handleRetry, onDelete: handleDelete, isPending: manageErrorDownload.isPending }),
+    [sortedDownloads, handleRetry, handleDelete, manageErrorDownload.isPending],
+  );
 
   return (
     <div>
@@ -493,10 +358,19 @@ const ErrorsTabPanel = memo(() => {
           </>
         )}
       </TabHeader>
-      {isLoading ? <LoadingState /> : downloads.length === 0 ? <EmptyState icon={<Smile className="h-12 w-12" />} message="No failed downloads — great work!" /> : (
-        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-          {downloads.map((item) => <ErrorDownloadCard key={`${item.title}-${item.chapter}-${item.provider}-${item.scheduledDateUTC}`} item={item} />)}
-        </div>
+      {isLoading ? (
+        <LoadingState />
+      ) : downloads.length === 0 ? (
+        <EmptyState icon={<Smile className="h-12 w-12" />} message="No failed downloads — great work!" />
+      ) : (
+        <QueueListView
+          itemData={errorItemData}
+          itemCount={sortedDownloads.length}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSortChange={onSortChange}
+          rowComponent={ErrorRow}
+        />
       )}
       <ConfirmDialog open={confirmRetryAllOpen} onOpenChange={setConfirmRetryAllOpen} title="Retry All Failed Downloads?"
         description={`This will re-queue all ${totalCount || downloads.length} failed download${(totalCount || downloads.length) !== 1 ? 's' : ''} for another attempt.`}

@@ -43,7 +43,7 @@ export function RequestSeriesStep({
 
   if (selectedSeries.length === 0) {
     return (
-      <div className="mt-4 grid gap-2 rounded-md border bg-secondary p-4 text-center">
+      <div className={`mt-4 grid gap-2 rounded-md border bg-secondary p-4 text-center ${isDesktop ? 'flex-1 min-h-0' : ''}`}>
         <p className="text-sm text-muted-foreground">No series selected. Go back and select a series to request.</p>
       </div>
     );
@@ -53,7 +53,7 @@ export function RequestSeriesStep({
   const primary = selectedSeries[0]!;
 
   return (
-    <div className="mt-4 grid gap-4 rounded-md border bg-secondary p-2 sm:p-4">
+    <div className={`mt-4 grid gap-4 rounded-md border bg-secondary p-2 sm:p-4 ${isDesktop ? 'flex-1 min-h-0 overflow-y-auto' : ''}`}>
       <div className="text-center">
         <p className="text-sm text-muted-foreground">
           Review and submit your request. An admin will review it.

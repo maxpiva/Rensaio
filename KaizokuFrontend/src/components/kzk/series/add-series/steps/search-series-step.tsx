@@ -209,7 +209,7 @@ export function SearchSeriesStep({
   const allSeries = formState.allLinkedSeries;
   const isDesktop = useMediaQuery("(min-width: 768px)");
   return (
-    <div className="mt-3 space-y-3">
+    <div className={`mt-3 ${isDesktop ? 'flex flex-col gap-3 flex-1 min-h-0' : 'space-y-3'}`}>
       {/* Search bar + source filter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div className="relative flex-1">
@@ -248,7 +248,7 @@ export function SearchSeriesStep({
       <div
         className={
           isDesktop
-            ? "h-[55dvh] overflow-y-auto overscroll-contain rounded-lg border border-border"
+            ? "flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-border"
             : "rounded-lg border border-border"
         }
         data-vaul-no-drag

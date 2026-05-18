@@ -109,18 +109,18 @@ export function AddSeries({
           {triggerElement}
         </DialogTrigger>
         <DialogContent
-          className="w-[95vw] max-w-4xl max-h-[85vh] overflow-y-auto p-0"
+          className="w-[95vw] max-w-4xl h-[85vh] overflow-hidden p-0 flex flex-col"
           onInteractOutside={(e) => {
             e.preventDefault();
           }}
         >
-          <DialogHeader className="px-5 pt-5 pb-0">
+          <DialogHeader className="shrink-0 px-5 pt-5 pb-0">
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>
               {dialogDescription}
             </DialogDescription>
           </DialogHeader>
-          <div className="px-5 pb-5">
+          <div className="flex-1 min-h-0 flex flex-col px-5 pb-5 pt-2">
           <AddSeriesSteps
             onFinish={() => setOpen(false)}
             title={title}

@@ -356,8 +356,9 @@ export function AddSeriesSteps({
   if (isApproveMode) {
     const confirmStep = stepValues[0]!;
     return (
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-col gap-4 flex-1 min-h-0">
         <Stepper
+          className="shrink-0"
           initialStep={0}
           activeStep={currentStep}
           steps={stepValues}
@@ -394,8 +395,9 @@ export function AddSeriesSteps({
   const secondStep = stepValues[1]!;
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4 flex-1 min-h-0">
       <Stepper
+        className="shrink-0"
         initialStep={0}
         activeStep={currentStep}
         steps={stepValues}

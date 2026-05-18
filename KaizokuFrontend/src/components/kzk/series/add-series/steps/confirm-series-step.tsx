@@ -122,7 +122,7 @@ const SeriesCard = React.memo(({
     onTitleChange(seriesKey, checked);
   }, [seriesKey, onTitleChange]); return (
     <Card
-      className={`overflow-hidden transition-all ${series.isUnselectable
+      className={`w-full max-w-full overflow-hidden transition-all ${series.isUnselectable
           ? 'ml-0.5 mt-0.5 bg-gray-700/80 cursor-not-allowed opacity-75'
           : isSelected
             ? 'ml-0.5 mt-0.5 ring-primary shadow-md bg-primary/60 cursor-pointer'
@@ -199,7 +199,7 @@ const SeriesCard = React.memo(({
           </div>
 
           {/* Content */}
-          <div className="flex-1 space-y-1 min-h-0 min-w-0">
+          <div className="flex-1 space-y-1 min-h-0 min-w-0 overflow-hidden">
             <div>
               <h3 className={`font-semibold truncate align-top ${isDesktop ? '' : 'text-sm'}`}>{series.title}</h3>
               {(series.author || series.artist) && (
@@ -220,13 +220,13 @@ const SeriesCard = React.memo(({
             )}
 
             {/* Description */}
-            <p className={`text-muted-foreground ${isDesktop ? 'text-sm line-clamp-4' : 'text-xs line-clamp-2'}`}>
+            <p className={`text-muted-foreground break-words ${isDesktop ? 'text-sm line-clamp-4' : 'text-xs line-clamp-2'}`}>
               {series.description || "No description available"}
             </p>
 
             {/* Switches */}
             <div
-              className={`flex flex-wrap items-center gap-2 sm:gap-4 pt-1`}
+              className={`flex flex-wrap items-center gap-x-3 gap-y-2 pt-1 w-full min-w-0`}
             >
               <Badge
                 variant="secondary"
@@ -584,7 +584,7 @@ export function ConfirmSeriesStep({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   return (
     <TooltipProvider>
-      <div className="text-center m-0">
+      <div className={`text-center m-0 ${isDesktop ? 'shrink-0' : ''}`}>
         <p className="text-sm text-muted-foreground">
           Review and configure your selected sources before adding them to your library.
         </p>          <p className="text-xs text-muted-foreground mt-1">
@@ -594,7 +594,7 @@ export function ConfirmSeriesStep({
             </span>
           )} {validFullSeries.filter(series => series.isSelected && !series.isUnselectable).length} of {validFullSeries.filter(series => !series.isUnselectable).length} source{validFullSeries.filter(series => !series.isUnselectable).length !== 1 ? 's' : ''} selected • Click cards to select/deselect
         </p>
-      </div><div className="gap-2 rounded-md border bg-secondary p-2 sm:p-4">
+      </div><div className={`gap-2 rounded-md border bg-secondary p-2 sm:p-4 ${isDesktop ? 'flex flex-col flex-1 min-h-0' : ''}`}>
 
         {/* Storage Path Configuration - Hidden in Add Sources mode */}
         {!isAddSourcesMode && titleSeries && (
@@ -633,7 +633,7 @@ export function ConfirmSeriesStep({
           </div>
         )}      <div
           ref={scrollContainerRef}
-          className={`h-[55dvh] sm:h-[60dvh] overflow-y-auto overscroll-contain touch-pan-y space-y-3 sm:space-y-4 ${hasScrollbar ? 'pr-2' : ''}`}
+          className={`${isDesktop ? 'flex-1 min-h-0' : 'h-[55dvh] sm:h-[60dvh]'} overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y space-y-3 sm:space-y-4 ${hasScrollbar ? 'pr-2' : ''}`}
           data-vaul-no-drag      >        {validFullSeries.map((series: FullSeries) => (
             <SeriesCard
               key={`${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`}

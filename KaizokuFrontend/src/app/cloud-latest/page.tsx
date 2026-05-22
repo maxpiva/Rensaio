@@ -400,7 +400,7 @@ export default function CloudLatestPage() {
     const notInLibrary = firstPageItems.filter(
       (s) => s.inLibrary === InLibraryStatus.NotInLibrary,
     );
-    // Fisher–Yates shuffle on a copy, then take 5. Plain temp-swap (not the
+    // Fisher–Yates shuffle on a copy, then take 7. Plain temp-swap (not the
     // destructure idiom) so it cooperates with noUncheckedIndexedAccess.
     const shuffled = [...notInLibrary];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -409,7 +409,7 @@ export default function CloudLatestPage() {
       shuffled[i] = shuffled[j]!;
       shuffled[j] = tmp;
     }
-    return shuffled.slice(0, 5).map((s): SpotlightItem => ({
+    return shuffled.slice(0, 7).map((s): SpotlightItem => ({
       // mihonId is the catalog id; we coerce to string for the SpotlightItem.
       id: s.seriesId ?? s.mihonId,
       title: s.title,

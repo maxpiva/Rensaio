@@ -129,9 +129,9 @@ export default function RootPage() {
       const tb = b.lastChangeUTC ? new Date(b.lastChangeUTC).getTime() : 0;
       return tb - ta;
     });
-    const pool = withChange.length >= 5
-      ? sorted.slice(0, 5)
-      : sorted.slice(0, Math.min(5, sorted.length));
+    const pool = withChange.length >= 7
+      ? sorted.slice(0, 7)
+      : sorted.slice(0, Math.min(7, sorted.length));
     return pool.map((s): SpotlightItem => ({
       id: s.id,
       title: s.title,

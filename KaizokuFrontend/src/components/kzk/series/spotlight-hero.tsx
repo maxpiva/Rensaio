@@ -12,7 +12,7 @@ import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 
 /**
  * SpotlightHero — the big cinematic hero that sits at the top of the Library
- * and Browse pages. Shows up to 5 spotlight series with auto-advancing
+ * and Browse pages. Shows up to 7 spotlight series with auto-advancing
  * thumbnails on the right, a blurred backdrop of the active series cover,
  * a 200×280 floating crisp cover with a status-colored top strip, an eyebrow
  * label, a large display title, a status pill, a meta strip, a gradient-faded
@@ -114,9 +114,17 @@ export function SpotlightHero({
 }: SpotlightHeroProps) {
   const heroId = useId();
   const panelId = `${heroId}-panel`;
-  const safeItems = useMemo(() => items.slice(0, 5), [items]);
+  const safeItems = useMemo(() => items.slice(0, 7), [items]);
   const [active, setActive] = useState(0);
   const [fading, setFading] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  // Collapse the description whenever the active spotlight item changes so
+  // the next item starts in the clamped state rather than inheriting the
+  // previous item's expanded view.
+  useEffect(() => {
+    setDescExpanded(false);
+  }, [active]);
   const pauseUntilRef = useRef<number>(0);
   const crossfadeTimerRef = useRef<number | null>(null);
   const autoAdvanceTimerRef = useRef<number | null>(null);
@@ -282,7 +290,7 @@ export function SpotlightHero({
           "relative z-10 flex h-full items-stretch gap-6 px-5 py-6",
           "sm:gap-8 sm:px-8",
           "lg:items-center lg:gap-10 lg:px-10",
-          "max-lg:flex-col",
+          "max-lg:flex-col max-lg:items-center",
         )}
       >
         {/* Floating cover */}
@@ -345,12 +353,13 @@ export function SpotlightHero({
           className={cn(
             "min-w-0 flex-1 transition-opacity duration-300",
             "lg:max-w-2xl",
+            "max-lg:w-full max-lg:text-center",
             fading ? "opacity-0" : "opacity-100",
           )}
         >
           {/* Eyebrow */}
           <div
-            className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase"
+            className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase max-lg:justify-center"
             style={{
               letterSpacing: "0.28em",
               color: "hsl(346.8 90% 70%)",
@@ -369,7 +378,7 @@ export function SpotlightHero({
           </h2>
 
           {/* Meta strip */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] max-lg:justify-center">
             <span
               className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium"
             >
@@ -439,22 +448,43 @@ export function SpotlightHero({
 
           {/* Description */}
           {current.description && (
-            <div className="relative mb-5 max-h-[4.5em] overflow-hidden text-[14px] leading-[1.5] text-white/65">
-              <p className="line-clamp-3">{current.description}</p>
+            <div className="mb-5 text-[14px] leading-[1.5] text-white/65">
               <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-6"
-                style={{
-                  background:
-                    "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))",
-                }}
-              />
+                id={`${panelId}-desc`}
+                className={cn(
+                  "relative overflow-hidden",
+                  !descExpanded && "max-h-[4.5em]",
+                )}
+              >
+                <p className={cn(!descExpanded && "line-clamp-3")}>
+                  {current.description}
+                </p>
+                {!descExpanded && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-6"
+                    style={{
+                      background:
+                        "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))",
+                    }}
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDescExpanded((v) => !v)}
+                aria-expanded={descExpanded}
+                aria-controls={`${panelId}-desc`}
+                className="mt-1.5 inline-flex items-center text-[12px] font-semibold uppercase tracking-wider text-[hsl(346.8_90%_70%)] transition-colors duration-150 hover:text-[hsl(346.8_90%_80%)] focus-visible:outline-none focus-visible:underline"
+              >
+                {descExpanded ? "Read less" : "Read more"}
+              </button>
             </div>
           )}
 
           {/* Tags */}
           {tags.length > 0 && (
-            <div className="mb-5 flex flex-wrap items-center gap-2">
+            <div className="mb-5 flex flex-wrap items-center gap-2 max-lg:justify-center">
               {tags.map((tag, idx) => (
                 <span
                   key={tag}
@@ -472,7 +502,7 @@ export function SpotlightHero({
           )}
 
           {/* CTA */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 max-lg:justify-center">
             <Button
               type="button"
               onClick={() => onCtaClick(current)}

@@ -52,7 +52,7 @@ export function AboutTab() {
       <div className="rounded-xl border bg-card p-4 space-y-3">
         <h4 className="text-sm font-semibold text-foreground">Links</h4>
         <a
-          href="https://github.com/oae/kaizoku"
+          href="https://github.com/Quickkill0/Kaizoku.Net"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-sm text-primary hover:underline"

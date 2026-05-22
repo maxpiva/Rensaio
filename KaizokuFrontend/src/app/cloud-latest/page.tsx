@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { getResponsiveCardDefault } from "@/lib/utils/responsive-card-default";
-import { Sparkles, Globe, Tag, X, Check, Search } from "lucide-react";
+import { Globe, Tag, X, Check, Search, Compass, Plus } from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -22,8 +23,13 @@ import { useSearchSources, useLatest, useLatestGenres } from "@/lib/api/hooks/us
 import { seriesService } from "@/lib/api/services/seriesService";
 import { useQueryClient } from '@tanstack/react-query';
 import { CloudLatestGrid } from "@/components/kzk/series/cloud-latest-grid";
-import { type LatestSeriesInfo, type LatestGenre } from "@/lib/api/types";
+import { InLibraryStatus, type LatestSeriesInfo, type LatestGenre } from "@/lib/api/types";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import {
+  SpotlightHero,
+  type SpotlightItem,
+} from "@/components/kzk/series/spotlight-hero";
+import { AddSeries } from "@/components/kzk/series/add-series";
 
 const ITEMS_PER_PAGE = 40; // Increased to ensure screen fill
 const MAX_VISIBLE_GENRES = 200;
@@ -64,6 +70,36 @@ function calculateItemsPerPage(cardWidth: string): number {
   return optimalFetch;
 }
 
+// Session storage keys for the cloud-latest page.
+const SESSION_KEYS = {
+  sourceId: "kzk_cloud_sourceId",
+  cardWidth: "kzk_cloud_cardWidth",
+  search: "kzk_cloud_search",
+  genres: "kzk_cloud_genres",
+};
+
+// Read a value from sessionStorage, returning fallback when absent or empty.
+function getSessionValue(key: string, fallback: string | null): string | null {
+  if (typeof window === "undefined") return fallback;
+  const value = sessionStorage.getItem(key);
+  return value !== null && value !== "" ? value : fallback;
+}
+
+function getSessionGenres(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEYS.genres);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((v): v is string => typeof v === "string");
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 // Match the cache-key shape used by useLatest so manual setQueryData hits.
 function buildGenreKey(genres: string[]): string[] {
   return genres
@@ -73,35 +109,14 @@ function buildGenreKey(genres: string[]): string[] {
 }
 
 export default function CloudLatestPage() {
-  // Session storage keys
-  const SESSION_KEYS = {
-    sourceId: "kzk_cloud_sourceId",
-    cardWidth: "kzk_cloud_cardWidth",
-    search: "kzk_cloud_search",
-    genres: "kzk_cloud_genres",
-  };
+  const router = useRouter();
 
-  // Read initial values from sessionStorage
-  function getSessionValue(key: string, fallback: string | null): string | null {
-    if (typeof window === "undefined") return fallback;
-    const value = sessionStorage.getItem(key);
-    return value !== null && value !== "" ? value : fallback;
-  }
-
-  function getSessionGenres(): string[] {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = sessionStorage.getItem(SESSION_KEYS.genres);
-      if (!raw) return [];
-      const parsed: unknown = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((v): v is string => typeof v === "string");
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  }
+  // Add Series modal (controlled) — opened from the spotlight CTA with the
+  // active spotlight item's title prefilled as the search keyword.
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addModalTitle, setAddModalTitle] = useState<string | undefined>(
+    undefined,
+  );
 
   const [selectedSourceId, setSelectedSourceIdState] = useState<string | null>(
     getSessionValue(SESSION_KEYS.sourceId, null)
@@ -109,6 +124,10 @@ export default function CloudLatestPage() {
   const [cardWidth, setCardWidthState] = useState<string>(getSessionValue(SESSION_KEYS.cardWidth, getResponsiveCardDefault())!);
   const [selectedGenres, setSelectedGenresState] = useState<string[]>(getSessionGenres());
   const [items, setItems] = useState<LatestSeriesInfo[]>([]);
+  // The spotlight pool is derived from the FIRST page of results only — it
+  // must not change as the user scrolls and more pages arrive. We snapshot
+  // here whenever currentPage === 0 returns data.
+  const [firstPageItems, setFirstPageItems] = useState<LatestSeriesInfo[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -215,6 +234,7 @@ export default function CloudLatestPage() {
   // Reset pagination when filters change (but NOT for card width changes)
   useEffect(() => {
     setItems([]);
+    setFirstPageItems([]);
     setCurrentPage(0);
     setHasMore(true);
   }, [debouncedSearchTerm, selectedSourceId, selectedGenresSignature]);
@@ -311,10 +331,14 @@ export default function CloudLatestPage() {
           // Store the new data for next comparison
           lastLatestDataRef.current = freshLatestData;
 
-          console.log('Latest data refreshed due to changes detected (user idle)');
+          if (process.env.NODE_ENV !== "production") {
+            console.log('Latest data refreshed due to changes detected (user idle)');
+          }
         }
       } catch (error) {
-        console.error('Failed to refresh latest data:', error);
+        if (process.env.NODE_ENV !== "production") {
+          console.error('Failed to refresh latest data:', error);
+        }
       }
     }, 60000); // Check every 60 seconds
 
@@ -332,8 +356,9 @@ export default function CloudLatestPage() {
   useEffect(() => {
     if (latestData) {
       if (currentPage === 0) {
-        // First page - replace all items
+        // First page - replace all items and snapshot for the spotlight pool
         setItems(latestData);
+        setFirstPageItems(latestData);
       } else {
         // Subsequent pages - append items
         setItems(prevItems => [...prevItems, ...latestData]);
@@ -361,6 +386,62 @@ export default function CloudLatestPage() {
     if (!sources) return [];
     return [...sources].sort((a, b) => a.provider.localeCompare(b.provider));
   }, [sources]);
+
+  // Spotlight pool — derived from the first page of latest results. Filters
+  // out series that are already in the library, shuffles randomly, and caps
+  // at 5. Random (not top-N-by-fetchDate) because the user will already see
+  // the freshest items in the grid directly below the hero — surfacing them
+  // again is redundant. Browse is for discovery, so randomness widens the
+  // chance of showing something the user wouldn't have scrolled into.
+  // Re-shuffles only when filters refresh the first page (source / genre /
+  // search change), so the hero stays stable while paginating.
+  const spotlightItems = useMemo<SpotlightItem[]>(() => {
+    if (!firstPageItems || firstPageItems.length === 0) return [];
+    const notInLibrary = firstPageItems.filter(
+      (s) => s.inLibrary === InLibraryStatus.NotInLibrary,
+    );
+    // Fisher–Yates shuffle on a copy, then take 5. Plain temp-swap (not the
+    // destructure idiom) so it cooperates with noUncheckedIndexedAccess.
+    const shuffled = [...notInLibrary];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = tmp;
+    }
+    return shuffled.slice(0, 5).map((s): SpotlightItem => ({
+      // mihonId is the catalog id; we coerce to string for the SpotlightItem.
+      id: s.seriesId ?? s.mihonId,
+      title: s.title,
+      author: s.author,
+      description: s.description,
+      thumbnailUrl: s.thumbnailUrl,
+      status: s.status,
+      genres: s.genre,
+      availableChapters: s.chapterCount,
+      provider: s.provider,
+      sourceName: s.provider,
+    }));
+  }, [firstPageItems]);
+
+  // Browse spotlight CTA: if the candidate already has a backing seriesId
+  // (e.g. became InLibrary mid-session), navigate to its detail page;
+  // otherwise open the AddSeries modal pre-filled with the title so the
+  // search step kicks off immediately.
+  const handleSpotlightAdd = useCallback(
+    (item: SpotlightItem) => {
+      const raw = firstPageItems.find(
+        (s) => (s.seriesId ?? s.mihonId) === item.id,
+      );
+      if (raw?.seriesId) {
+        router.push(`/library/series?id=${raw.seriesId}`);
+        return;
+      }
+      setAddModalTitle(item.title);
+      setAddModalOpen(true);
+    },
+    [firstPageItems, router],
+  );
 
   // Filtered tag list for the popover. Backend already sorts by count desc,
   // so we preserve that order and just cap at MAX_VISIBLE_GENRES.
@@ -626,6 +707,43 @@ export default function CloudLatestPage() {
           </div>
         </div>
       </RibbonSlot>
+
+      {/* Cinematic spotlight — only renders once the first page has resolved
+          to at least one non-InLibrary candidate. Hidden during the very
+          first load to avoid jumpy layout. */}
+      {isLoading && currentPage === 0 && firstPageItems.length === 0 ? (
+        <div
+          aria-hidden
+          className="mb-6 h-[420px] w-full animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]"
+        />
+      ) : spotlightItems.length > 0 ? (
+        <div className="mb-6 sm:mb-8">
+          <SpotlightHero
+            variant="browse"
+            items={spotlightItems}
+            eyebrow="DISCOVER · From your sources"
+            eyebrowIcon={Compass}
+            ctaLabel="Add to library"
+            ctaIcon={Plus}
+            onCtaClick={handleSpotlightAdd}
+          />
+        </div>
+      ) : null}
+
+      {/* Controlled Add-Series modal launched by the spotlight CTA. The
+          existing AddSeries component already seeds its `searchKeyword`
+          form-state from the `title` prop, so passing the spotlight item's
+          title prefills the search step. The visible trigger is hidden — we
+          drive `open` externally. */}
+      <AddSeries
+        title={addModalTitle}
+        open={addModalOpen}
+        onOpenChange={(v) => {
+          setAddModalOpen(v);
+          if (!v) setAddModalTitle(undefined);
+        }}
+        triggerButton={<span aria-hidden className="hidden" />}
+      />
 
       {selectedGenres.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">

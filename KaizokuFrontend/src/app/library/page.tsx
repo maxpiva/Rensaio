@@ -3,6 +3,8 @@
 // All rendering happens on the client for static export compatibility
 
 import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Sparkles, ExternalLink } from "lucide-react";
 import { AddSeries } from "@/components/kzk/series/add-series";
 import { ListSeries } from "@/components/kzk/series/list-series";
 import {
@@ -20,30 +22,59 @@ import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { usePermission } from "@/hooks/use-permission";
 import { useQueryClient } from "@tanstack/react-query";
 import { getResponsiveCardDefault } from "@/lib/utils/responsive-card-default";
+import {
+  SpotlightHero,
+  type SpotlightItem,
+} from "@/components/kzk/series/spotlight-hero";
+
+// Session storage keys for the library page.
+const SESSION_KEYS = {
+  tab: "kzk_tab",
+  genre: "kzk_genre",
+  provider: "kzk_provider",
+  orderBy: "kzk_orderBy",
+  cardWidth: "kzk_cardWidth",
+};
+
+// Read a value from sessionStorage, returning fallback when absent or empty.
+function getSessionValue(key: string, fallback: string | null): string | null {
+  if (typeof window === "undefined") return fallback;
+  const value = sessionStorage.getItem(key);
+  return value !== null && value !== "" ? value : fallback;
+}
+
+// Tiny relative-time helper — no external dependency. Mirrors the one used
+// by the series-detail hero.
+function formatRelative(dateString: string | null | undefined): string {
+  if (!dateString) return "never";
+  const normalized =
+    dateString.includes("Z") ||
+    dateString.includes("+") ||
+    dateString.includes("-", 10)
+      ? dateString
+      : dateString + "Z";
+  const diff = Date.now() - new Date(normalized).getTime();
+  if (Number.isNaN(diff)) return "never";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
 
 export default function RootPage() {
   const queryClient = useQueryClient();
   const canBrowseSources = usePermission('canBrowseSources');
+  const router = useRouter();
 
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["series", "library"] });
   }, [queryClient]);
-
-  // Session storage keys
-  const SESSION_KEYS = {
-    tab: "kzk_tab",
-    genre: "kzk_genre",
-    provider: "kzk_provider",
-    orderBy: "kzk_orderBy",
-    cardWidth: "kzk_cardWidth",
-  };
-
-  // Read initial values from sessionStorage
-  function getSessionValue(key: string, fallback: string | null): string | null {
-    if (typeof window === "undefined") return fallback;
-    const value = sessionStorage.getItem(key);
-    return value !== null && value !== "" ? value : fallback;
-  }
 
   const [tab, setTabState] = useState<string>(getSessionValue(SESSION_KEYS.tab, "all")!);
   const [selectedGenre, setSelectedGenreState] = useState<string | null>(getSessionValue(SESSION_KEYS.genre, null));
@@ -58,7 +89,7 @@ export default function RootPage() {
   const setOrderBy = (v: string) => { setOrderByState(v); sessionStorage.setItem(SESSION_KEYS.orderBy, v); };
   const setCardWidth = (v: string) => { setCardWidthState(v); sessionStorage.setItem(SESSION_KEYS.cardWidth, v); };
 
-  const { data: library } = useLibrary();
+  const { data: library, isLoading: isLibraryLoading } = useLibrary();
 
   // Debug and deduplicate library data to prevent duplicate keys
   const deduplicatedLibrary = useMemo(() => {
@@ -71,19 +102,49 @@ export default function RootPage() {
     library.forEach((series) => {
       if (seen.has(series.id)) {
         duplicates.push(series.title);
-        console.warn(`[Library] Duplicate series detected: ${series.title} (ID: ${series.id})`);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[Library] Duplicate series detected: ${series.title} (ID: ${series.id})`);
+        }
       } else {
         seen.add(series.id);
         unique.push(series);
       }
     });
 
-    if (duplicates.length > 0) {
+    if (duplicates.length > 0 && process.env.NODE_ENV !== "production") {
       console.error(`[Library] Found ${duplicates.length} duplicate series:`, duplicates);
     }
 
     return unique;
   }, [library]);
+
+  // Spotlight pool: 5 most-recently-changed series, falling back to the
+  // first N from the (assumed insertion-ordered) library when too few have
+  // a `lastChangeUTC`. Drives the cinematic hero at the top of the page.
+  const spotlightItems = useMemo<SpotlightItem[]>(() => {
+    if (!deduplicatedLibrary || deduplicatedLibrary.length === 0) return [];
+    const withChange = deduplicatedLibrary.filter((s) => !!s.lastChangeUTC);
+    const sorted = [...deduplicatedLibrary].sort((a, b) => {
+      const ta = a.lastChangeUTC ? new Date(a.lastChangeUTC).getTime() : 0;
+      const tb = b.lastChangeUTC ? new Date(b.lastChangeUTC).getTime() : 0;
+      return tb - ta;
+    });
+    const pool = withChange.length >= 5
+      ? sorted.slice(0, 5)
+      : sorted.slice(0, Math.min(5, sorted.length));
+    return pool.map((s): SpotlightItem => ({
+      id: s.id,
+      title: s.title,
+      author: s.author,
+      description: s.description,
+      thumbnailUrl: s.thumbnailUrl,
+      status: s.status,
+      genres: s.genre,
+      trackedChapters: s.chapterCount,
+      activeSources: s.providers?.length ?? 0,
+      lastDownload: formatRelative(s.lastChangeUTC),
+    }));
+  }, [deduplicatedLibrary]);
 
   const cardWidthOptions = [
     { value: "w-20", label: "XS", text: "text-[0.4rem]" },
@@ -170,18 +231,60 @@ export default function RootPage() {
       {/* Library contextual ribbon — portaled into the command bar */}
       <RibbonSlot>
         <div className="flex w-full items-center gap-2">
-          {/* Status filter */}
-          <div className="w-32 sm:w-40 shrink-0">
+          {/* Status filter — single Select with status-colored dots and live
+              count badges. Mirrors the cinematic-galaxy mockup's "Status: All"
+              dropdown while keeping our existing Select primitive. */}
+          <div className="w-36 sm:w-44 shrink-0">
             <Select value={tab} onValueChange={setTab}>
               <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All{allCount > 0 && ` (${allCount})`}</SelectItem>
-                <SelectItem value="active">Active{activeCount > 0 && ` (${activeCount})`}</SelectItem>
-                <SelectItem value="paused">Paused{pausedCount > 0 && ` (${pausedCount})`}</SelectItem>
-                <SelectItem value="unassigned">Unassigned{unassignedCount > 0 && ` (${unassignedCount})`}</SelectItem>
-                <SelectItem value="completed">Completed{completedCount > 0 && ` (${completedCount})`}</SelectItem>
+                <SelectItem value="all">
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
+                    <span>All</span>
+                    {allCount > 0 && (
+                      <span className="text-white/40 text-[11px]">{allCount}</span>
+                    )}
+                  </span>
+                </SelectItem>
+                <SelectItem value="active">
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                    <span>Active</span>
+                    {activeCount > 0 && (
+                      <span className="text-white/40 text-[11px]">{activeCount}</span>
+                    )}
+                  </span>
+                </SelectItem>
+                <SelectItem value="paused">
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                    <span>Paused</span>
+                    {pausedCount > 0 && (
+                      <span className="text-white/40 text-[11px]">{pausedCount}</span>
+                    )}
+                  </span>
+                </SelectItem>
+                <SelectItem value="unassigned">
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <span>Unassigned</span>
+                    {unassignedCount > 0 && (
+                      <span className="text-white/40 text-[11px]">{unassignedCount}</span>
+                    )}
+                  </span>
+                </SelectItem>
+                <SelectItem value="completed">
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    <span>Completed</span>
+                    {completedCount > 0 && (
+                      <span className="text-white/40 text-[11px]">{completedCount}</span>
+                    )}
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -259,6 +362,27 @@ export default function RootPage() {
       </RibbonSlot>
 
       <PullToRefresh onRefresh={handleRefresh}>
+        {isLibraryLoading && !deduplicatedLibrary ? (
+          <div
+            aria-hidden
+            className="mb-6 h-[420px] w-full animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]"
+          />
+        ) : spotlightItems.length > 0 ? (
+          <div className="mb-6 sm:mb-8">
+            <SpotlightHero
+              variant="library"
+              items={spotlightItems}
+              eyebrow="SPOTLIGHT · From your library"
+              eyebrowIcon={Sparkles}
+              ctaLabel="Open series"
+              ctaIcon={ExternalLink}
+              onCtaClick={(item) =>
+                router.push(`/library/series?id=${item.id}`)
+              }
+            />
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-2 sm:gap-4">
           <ListSeries
             filterFn={filterFn}

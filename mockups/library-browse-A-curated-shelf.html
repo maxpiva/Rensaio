@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaizoku — Curated Shelf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root {
+    --bg: hsl(240 10% 4%);
+    --bg-1: hsl(240 9% 6%);
+    --bg-2: hsl(240 8% 8%);
+    --bg-3: hsl(240 7% 11%);
+    --fg: hsl(0 0% 98%);
+    --fg-muted: hsl(0 0% 64%);
+    --fg-dim: hsl(0 0% 46%);
+    --border: hsla(0 0% 100% / 0.06);
+    --border-strong: hsla(0 0% 100% / 0.12);
+    --primary: hsl(346.8 77.2% 49.8%);
+    --primary-soft: hsla(346.8 77.2% 49.8% / 0.15);
+
+    --st-ongoing: #22c55e;
+    --st-completed: #3b82f6;
+    --st-licensed: #a855f7;
+    --st-pubfinished: #2563eb;
+    --st-cancelled: #ef4444;
+    --st-hiatus: #eab308;
+    --st-disabled: #4b5563;
+
+    --amber: #f59e0b;
+    --paused: #8b8f99;
+  }
+  html, body { background: var(--bg); color: var(--fg); font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+  body { font-feature-settings: "ss01","cv11"; letter-spacing: -0.005em; }
+  .serif { font-family: 'Fraunces', serif; font-feature-settings: "ss01"; letter-spacing: -0.02em; }
+
+  .cmd-glass {
+    background: hsla(0 0% 7% / 0.85);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid hsla(0 0% 100% / 0.06);
+  }
+  .ribbon-glass {
+    background: hsla(240 10% 5% / 0.7);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid hsla(0 0% 100% / 0.06);
+  }
+
+  /* Cover placeholder gradient covers */
+  .cv { position: relative; overflow: hidden; border-radius: 6px; isolation: isolate; }
+  .cv::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,0.08), transparent 60%),
+      linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .cv .cv-title {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 10px 10px 10px 10px;
+    z-index: 2;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  }
+  .cv .cv-faint {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    color: rgba(255,255,255,0.18);
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    padding: 12px;
+    z-index: 0;
+    font-family: 'Fraunces', serif;
+  }
+
+  /* status strip */
+  .strip { height: 2px; width: 100%; }
+
+  /* card */
+  .card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms ease, border-color 220ms ease;
+    will-change: transform;
+    position: relative;
+  }
+  .card:hover {
+    transform: translateY(-2px) scale(1.04);
+    border-color: var(--border-strong);
+    box-shadow: 0 18px 40px -12px rgba(0,0,0,0.7), 0 6px 14px -8px rgba(0,0,0,0.6);
+    z-index: 10;
+  }
+  .card:hover .hover-actions { opacity: 1; transform: translateY(0); }
+  .hover-actions {
+    opacity: 0; transform: translateY(6px);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+  }
+  .card:hover .hover-actions { pointer-events: auto; }
+
+  /* Rail scrollers */
+  .rail {
+    display: flex; gap: 14px;
+    overflow-x: auto; overflow-y: visible;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: 24px;
+    padding: 28px 24px 28px 24px;
+    margin: 0 -24px;
+  }
+  .rail::-webkit-scrollbar { height: 8px; }
+  .rail::-webkit-scrollbar-thumb { background: hsla(0 0% 100% / 0.08); border-radius: 999px; }
+  .rail::-webkit-scrollbar-track { background: transparent; }
+  .rail > .card { scroll-snap-align: start; flex: 0 0 auto; }
+
+  /* Pills */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 12px; font-weight: 500;
+    transition: all 160ms ease;
+    white-space: nowrap;
+  }
+  .pill:hover { color: var(--fg); border-color: var(--border-strong); background: hsla(0 0% 100% / 0.03); }
+  .pill .count { color: var(--fg-dim); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .pill.active .count { color: rgba(255,255,255,0.85); }
+
+  /* Section pills (top bar) */
+  .nav-pill {
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 13px; font-weight: 500; color: var(--fg-muted);
+    transition: all 140ms ease;
+  }
+  .nav-pill:hover { color: var(--fg); background: hsla(0 0% 100% / 0.04); }
+  .nav-pill.active { color: var(--fg); background: hsla(0 0% 100% / 0.08); }
+
+  /* Dropdown buttons */
+  .dd {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: hsla(0 0% 100% / 0.03);
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 12px; font-weight: 500;
+    transition: all 140ms ease;
+  }
+  .dd:hover { background: hsla(0 0% 100% / 0.06); color: var(--fg); }
+  .dd .label { color: var(--fg); font-weight: 600; }
+
+  /* Segmented */
+  .seg {
+    display: inline-flex; align-items: center;
+    background: hsla(0 0% 100% / 0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .seg button {
+    padding: 3px 9px;
+    font-size: 11px; font-weight: 600;
+    color: var(--fg-muted);
+    border-radius: 6px;
+    transition: all 140ms ease;
+  }
+  .seg button:hover { color: var(--fg); }
+  .seg button.active {
+    background: hsla(0 0% 100% / 0.08);
+    color: var(--fg);
+    box-shadow: 0 0 0 1px hsla(0 0% 100% / 0.08) inset;
+  }
+
+  /* CTA */
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--primary);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 600; font-size: 12.5px;
+    transition: transform 120ms ease, filter 140ms ease, box-shadow 200ms ease;
+    box-shadow: 0 4px 18px -6px hsla(346.8 77.2% 49.8% / 0.6);
+  }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: hsla(0 0% 100% / 0.04);
+    color: var(--fg);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 500; font-size: 11px;
+    border: 1px solid var(--border);
+    transition: all 140ms ease;
+  }
+  .btn-ghost:hover { background: hsla(0 0% 100% / 0.08); border-color: var(--border-strong); }
+
+  /* Provider badge */
+  .prov {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 3px 6px;
+    background: hsla(0 0% 0% / 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsla(0 0% 100% / 0.08);
+    border-radius: 4px;
+    color: hsl(0 0% 88%);
+  }
+
+  /* Attention dot */
+  .att {
+    display: inline-block; width: 8px; height: 8px; border-radius: 999px;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.4);
+  }
+  .att.amber { background: var(--amber); box-shadow: 0 0 0 2px rgba(0,0,0,0.4), 0 0 12px rgba(245,158,11,0.5); }
+  .att.paused { background: var(--paused); }
+
+  /* New chapter badge */
+  .new-ch {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--primary);
+    color: white;
+    font-size: 10px; font-weight: 700;
+    padding: 3px 6px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px -2px hsla(346.8 77.2% 49.8% / 0.55);
+    z-index: 3;
+  }
+
+  /* Heart icon button (Browse) */
+  .heart {
+    position: absolute; top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: hsla(0 0% 0% / 0.55);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsla(0 0% 100% / 0.08);
+    z-index: 3;
+    color: hsl(0 0% 80%);
+    transition: all 140ms ease;
+  }
+  .heart:hover { transform: scale(1.1); }
+  .heart.in-library { color: var(--st-cancelled); }
+  .heart.in-requests { color: var(--st-hiatus); }
+
+  /* Tooltip */
+  .tt {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%; transform: translateX(-50%) translateY(4px);
+    background: hsla(240 10% 10% / 0.96);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: max-content;
+    max-width: 240px;
+    font-size: 11px;
+    color: var(--fg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+    z-index: 50;
+    box-shadow: 0 12px 30px -10px rgba(0,0,0,0.7);
+  }
+  .card:hover .tt { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Group header */
+  .group-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 0 12px 0;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .group-head .chev {
+    transition: transform 220ms cubic-bezier(.2,.7,.2,1);
+  }
+  .group-head.collapsed .chev { transform: rotate(-90deg); }
+  .group-body { transition: max-height 320ms ease, opacity 220ms ease; overflow: hidden; }
+  .group-body.collapsed { max-height: 0 !important; opacity: 0; pointer-events: none; }
+
+  /* Headline */
+  .headline {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .editorial-rule {
+    height: 1px; background: linear-gradient(to right, var(--border-strong), transparent);
+  }
+
+  /* Card sizes */
+  /* base width set inline via CSS var */
+  .card[data-size] { width: var(--cw); }
+  .card[data-size] .cv { aspect-ratio: 2 / 3; }
+  .meta { padding: 10px 10px 12px 10px; }
+  .meta-title { font-size: 13px; font-weight: 600; line-height: 1.25; }
+  .meta-sub { font-size: 11px; color: var(--fg-dim); margin-top: 3px; }
+
+  /* See all link */
+  .see-all { color: var(--fg-dim); font-size: 12px; font-weight: 500; transition: color 140ms ease; display: inline-flex; align-items: center; gap: 4px; }
+  .see-all:hover { color: var(--fg); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 100;
+    background: hsla(0 0% 0% / 0.55);
+    backdrop-filter: blur(8px) saturate(120%);
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; animation: fadeIn 200ms ease; }
+  .modal-card {
+    background: hsla(240 10% 8% / 0.92);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 28px;
+    width: min(520px, 92vw);
+    box-shadow: 0 40px 80px -20px rgba(0,0,0,0.6);
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Subtle grain */
+  .grain::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* Avatar */
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    background: linear-gradient(135deg, #f43f5e, #f59e0b);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 12px;
+    border: 1px solid hsla(0 0% 100% / 0.12);
+  }
+
+  /* Kbd hint */
+  .kbd {
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px 6px; font-size: 10.5px; font-weight: 600;
+    color: var(--fg-dim);
+    background: hsla(0 0% 100% / 0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Genre chip */
+  .chip {
+    display: inline-flex; align-items: center;
+    padding: 2px 7px; border-radius: 999px;
+    font-size: 10px; font-weight: 500;
+    color: var(--fg-muted);
+    background: hsla(0 0% 100% / 0.04);
+    border: 1px solid var(--border);
+  }
+
+  /* Stagger entrance */
+  .stagger { animation: rise 600ms cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Hide scrollbar utility */
+  .no-sb::-webkit-scrollbar { display: none; }
+  .no-sb { scrollbar-width: none; }
+
+  /* In-rail card inline action strip */
+  .rail-action {
+    position: absolute; left: 8px; right: 8px; bottom: 56px;
+    z-index: 4;
+  }
+
+  /* Tag popover trigger count */
+  .badge-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    background: var(--primary); color: white;
+    border-radius: 999px;
+    font-size: 10px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .flag {
+    width: 14px; height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid hsla(0 0% 100% / 0.1);
+  }
+  .flag.jp { background: linear-gradient(to bottom, #fff 0 50%, #fff 50% 100%); position: relative; }
+  .flag.jp::after { content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 999px; background: #bc002d; transform: translate(-50%, -50%); }
+
+  /* Browse Add/Request bottom strip */
+  .strip-actions {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px;
+    display: flex; gap: 6px;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0));
+    z-index: 3;
+  }
+  .strip-actions button {
+    flex: 1; padding: 5px 6px;
+    border-radius: 6px;
+    font-size: 10.5px; font-weight: 600;
+    transition: all 140ms ease;
+  }
+  .strip-actions .add { background: var(--primary); color: white; }
+  .strip-actions .add:hover { filter: brightness(1.1); }
+  .strip-actions .req { background: hsla(0 0% 100% / 0.1); color: var(--fg); border: 1px solid var(--border-strong); }
+  .strip-actions .req:hover { background: hsla(0 0% 100% / 0.16); }
+
+  /* View toggle (editorial style) */
+  .view-toggle {
+    display: inline-flex;
+    background: hsla(0 0% 100% / 0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .view-toggle button {
+    padding: 6px 14px;
+    font-size: 12.5px; font-weight: 600;
+    color: var(--fg-muted);
+    border-radius: 7px;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 160ms ease;
+  }
+  .view-toggle button:hover { color: var(--fg); }
+  .view-toggle button.active {
+    background: hsla(0 0% 100% / 0.08);
+    color: var(--fg);
+    box-shadow: 0 1px 0 hsla(0 0% 100% / 0.08) inset;
+  }
+
+  /* Active filter underline */
+  .underline-dim { position: relative; }
+  .underline-dim::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: var(--border-strong);
+  }
+
+  /* Faint editorial number */
+  .edition-num {
+    font-family: 'Fraunces', serif;
+    font-size: 11px; font-weight: 500;
+    color: var(--fg-dim);
+    letter-spacing: 0.08em;
+  }
+</style>
+</head>
+<body class="grain min-h-screen">
+
+<!-- COMMAND BAR -->
+<header class="cmd-glass sticky top-0 z-40">
+  <div class="h-[56px] px-6 flex items-center gap-6">
+    <!-- Logo + nav -->
+    <div class="flex items-center gap-5">
+      <a class="flex items-center gap-2" href="#">
+        <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: linear-gradient(135deg, hsl(346.8 77.2% 49.8%), hsl(20 90% 55%));">
+          <i data-lucide="book-open-text" class="w-4 h-4 text-white"></i>
+        </div>
+        <span class="font-extrabold tracking-tight text-[15px]">Kaizoku</span>
+        <span class="edition-num ml-1">№ 02</span>
+      </a>
+      <nav class="flex items-center gap-1 ml-2">
+        <a class="nav-pill active" href="#">Library</a>
+        <a class="nav-pill" href="#">Queue</a>
+        <a class="nav-pill" href="#">Browse</a>
+        <a class="nav-pill" href="#">Sources</a>
+      </nav>
+    </div>
+
+    <!-- Search -->
+    <div class="flex-1 flex justify-center">
+      <div class="w-full max-w-[520px] relative">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
+        <input id="cmdSearch" class="w-full bg-white/[0.03] border border-[var(--border)] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] focus:bg-white/[0.05] transition rounded-lg pl-9 pr-20 py-1.5 text-[13px] placeholder:text-zinc-500 outline-none" placeholder="Search series, sources, tags…" />
+        <span class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <span class="kbd">⌘</span><span class="kbd">K</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="flex items-center gap-2">
+      <button class="w-8 h-8 rounded-full hover:bg-white/[0.05] flex items-center justify-center text-zinc-400 hover:text-white transition" title="Toggle theme">
+        <i data-lucide="moon" class="w-4 h-4"></i>
+      </button>
+      <button class="w-8 h-8 rounded-full hover:bg-white/[0.05] flex items-center justify-center text-zinc-400 hover:text-white transition relative" title="Notifications">
+        <i data-lucide="bell" class="w-4 h-4"></i>
+        <span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[var(--primary)]"></span>
+      </button>
+      <div class="avatar">QK</div>
+    </div>
+  </div>
+
+  <!-- RIBBON -->
+  <div class="ribbon-glass">
+    <!-- Library ribbon -->
+    <div id="ribbonLibrary" class="h-[48px] px-6 flex items-center gap-3 overflow-x-auto no-sb">
+      <div id="statusPills" class="flex items-center gap-1">
+        <button class="pill active" data-status="all">All <span class="count">71</span></button>
+        <button class="pill" data-status="active">Active <span class="count">47</span></button>
+        <button class="pill" data-status="paused">Paused <span class="count">6</span></button>
+        <button class="pill" data-status="unassigned">Unassigned <span class="count">4</span></button>
+        <button class="pill" data-status="completed">Completed <span class="count">12</span></button>
+      </div>
+      <div class="w-px h-5 bg-[var(--border)] mx-1"></div>
+      <button class="dd"><i data-lucide="tags" class="w-3.5 h-3.5"></i> Genre <span class="label">All</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <button class="dd"><i data-lucide="database" class="w-3.5 h-3.5"></i> Sources <span class="label">5 of 5</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <button class="dd"><i data-lucide="arrow-down-up" class="w-3.5 h-3.5"></i> Sort <span class="label">Last Update</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <div class="flex-1"></div>
+      <div class="seg" id="sizeSegLib">
+        <button data-size="xs">XS</button>
+        <button data-size="s">S</button>
+        <button class="active" data-size="m">M</button>
+        <button data-size="l">L</button>
+        <button data-size="xl">XL</button>
+      </div>
+      <button id="addSeriesBtn" class="btn-primary"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Series</button>
+    </div>
+
+    <!-- Browse ribbon -->
+    <div id="ribbonBrowse" class="h-[48px] px-6 hidden items-center gap-3 overflow-x-auto no-sb">
+      <button class="dd"><span class="flag jp"></span> <span class="label">MangaDex</span> <span class="text-[10px] text-zinc-500">+ 4 sources</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <button class="dd"><i data-lucide="tag" class="w-3.5 h-3.5"></i> Tags <span class="badge-pill">3</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <button class="dd"><i data-lucide="arrow-down-up" class="w-3.5 h-3.5"></i> Sort <span class="label">Latest Update</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <button class="dd"><i data-lucide="languages" class="w-3.5 h-3.5"></i> Language <span class="label">English</span> <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+      <div class="flex-1"></div>
+      <span class="text-[11px] text-zinc-500 mr-2">Showing <span class="text-zinc-300 font-semibold">5,284</span> series</span>
+      <div class="seg" id="sizeSegBrw">
+        <button data-size="xs">XS</button>
+        <button data-size="s">S</button>
+        <button class="active" data-size="m">M</button>
+        <button data-size="l">L</button>
+        <button data-size="xl">XL</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- PAGE TITLE / VIEW TOGGLE STRIP -->
+<section class="px-6 pt-10 pb-2 relative">
+  <div class="flex items-end justify-between gap-6 flex-wrap">
+    <div>
+      <div class="edition-num mb-2">VOL. 02 · A CURATED SHELF · MAY 21, 2026</div>
+      <h1 class="serif text-[44px] md:text-[56px] leading-[0.95]">
+        <span id="pageTitle">Your Library</span>,
+        <span class="italic text-zinc-400">arranged</span>.
+      </h1>
+      <p class="text-[13.5px] text-zinc-400 mt-3 max-w-[560px] leading-relaxed">
+        <span id="pageSubtitle">Seventy-one series tracked across five sources. Three need your attention this morning — a paused queue, a fresh hiatus, and a missing provider match.</span>
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="view-toggle" id="viewToggle">
+        <button class="active" data-view="library"><i data-lucide="library" class="w-3.5 h-3.5"></i> Library</button>
+        <button data-view="browse"><i data-lucide="compass" class="w-3.5 h-3.5"></i> Browse</button>
+      </div>
+    </div>
+  </div>
+  <div class="editorial-rule mt-8"></div>
+</section>
+
+<!-- ====================== LIBRARY VIEW ====================== -->
+<main id="libraryView" class="px-6 pb-24 stagger">
+
+  <!-- Rail: Needs Attention -->
+  <section class="mt-4">
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Needs Attention</h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">3 items</span>
+      </div>
+      <a href="#" class="see-all">See all <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <p class="text-[12.5px] text-zinc-500 mt-1 max-w-[520px]">Series with paused queues, missing source matches, or failed jobs.</p>
+    <div class="rail" data-rail="attention"></div>
+  </section>
+
+  <!-- Rail: Recently Updated -->
+  <section>
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Recently Updated</h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">12 items · Last 48h</span>
+      </div>
+      <a href="#" class="see-all">See all <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <p class="text-[12.5px] text-zinc-500 mt-1 max-w-[520px]">Sorted by the most recent chapter detection across all sources.</p>
+    <div class="rail" data-rail="recent"></div>
+  </section>
+
+  <!-- Rail: New Chapters Found -->
+  <section>
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">New Chapters Found</h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">7 days · 24 chapters</span>
+      </div>
+      <a href="#" class="see-all">See all <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <p class="text-[12.5px] text-zinc-500 mt-1 max-w-[520px]">Series with chapters detected in the past week. Downloaded automatically.</p>
+    <div class="rail" data-rail="newch"></div>
+  </section>
+
+  <!-- Editorial separator -->
+  <div class="mt-10 mb-2 flex items-center gap-4">
+    <div class="edition-num">THE FULL COLLECTION</div>
+    <div class="editorial-rule flex-1"></div>
+  </div>
+
+  <!-- Full grid grouped by status -->
+  <section id="groupsWrap" class="mt-2"></section>
+</main>
+
+<!-- ====================== BROWSE VIEW ====================== -->
+<main id="browseView" class="px-6 pb-24 hidden stagger">
+
+  <section class="mt-4">
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Latest on <span class="italic">MangaDex</span></h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">Updated 2 minutes ago</span>
+      </div>
+      <a href="#" class="see-all">Browse source <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <div class="rail" data-brail="mangadex"></div>
+  </section>
+
+  <section>
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Latest on <span class="italic">Comick</span></h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">Updated 6 minutes ago</span>
+      </div>
+      <a href="#" class="see-all">Browse source <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <div class="rail" data-brail="comick"></div>
+  </section>
+
+  <section>
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Latest on <span class="italic">Weebcentral</span></h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">Updated 14 minutes ago</span>
+      </div>
+      <a href="#" class="see-all">Browse source <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <div class="rail" data-brail="weebcentral"></div>
+  </section>
+
+  <section>
+    <div class="flex items-end justify-between">
+      <div class="flex items-baseline gap-3">
+        <h2 class="headline text-[24px]">Latest on <span class="italic">Bato</span></h2>
+        <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">Updated 22 minutes ago</span>
+      </div>
+      <a href="#" class="see-all">Browse source <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+    </div>
+    <div class="rail" data-brail="bato"></div>
+  </section>
+
+  <div class="mt-10 mb-6 flex items-center gap-4">
+    <div class="edition-num">LATEST ACROSS ALL SOURCES</div>
+    <div class="editorial-rule flex-1"></div>
+  </div>
+
+  <div id="browseGrid" class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"></div>
+</main>
+
+<!-- MODAL -->
+<div id="modal" class="modal-backdrop">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="edition-num mb-1">ACQUIRE</div>
+        <h3 class="serif text-[24px] leading-tight">Add a new series</h3>
+      </div>
+      <button onclick="closeModal()" class="w-8 h-8 rounded-full hover:bg-white/[0.05] flex items-center justify-center text-zinc-400 hover:text-white transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <p class="text-[13px] text-zinc-400 leading-relaxed mb-5">Paste a series URL from any configured source, or search the source catalogues. Kaizoku will detect providers, fetch metadata, and queue available chapters automatically.</p>
+    <div class="relative mb-3">
+      <i data-lucide="link-2" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></i>
+      <input class="w-full bg-white/[0.03] border border-[var(--border)] focus:border-[var(--border-strong)] focus:bg-white/[0.05] transition rounded-lg pl-9 pr-3 py-2 text-[13px] placeholder:text-zinc-500 outline-none" placeholder="https://mangadex.org/title/…" />
+    </div>
+    <div class="flex items-center justify-between text-[12px] text-zinc-500">
+      <div class="flex items-center gap-2">
+        <span>or search</span>
+        <span class="kbd">⌘</span><span class="kbd">K</span>
+      </div>
+      <button class="btn-primary"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Add &amp; track</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   DATA
+   ========================= */
+const STATUS = {
+  ongoing:        { label: 'Ongoing',            color: '#22c55e' },
+  hiatus:         { label: 'On Hiatus',          color: '#eab308' },
+  completed:      { label: 'Completed',          color: '#3b82f6' },
+  pubfinished:    { label: 'Publishing Finished',color: '#2563eb' },
+  licensed:       { label: 'Licensed',           color: '#a855f7' },
+  cancelled:      { label: 'Cancelled',          color: '#ef4444' },
+  disabled:       { label: 'Disabled',           color: '#4b5563' },
+};
+
+// Gradient palette for covers (each series picks one)
+const PALETTES = [
+  ['#7f1d1d','#991b1b','#f59e0b'],
+  ['#1e3a8a','#312e81','#06b6d4'],
+  ['#064e3b','#065f46','#84cc16'],
+  ['#581c87','#7c3aed','#ec4899'],
+  ['#0c4a6e','#0e7490','#22d3ee'],
+  ['#831843','#9d174d','#fb7185'],
+  ['#3f3f46','#52525b','#e4e4e7'],
+  ['#78350f','#9a3412','#fbbf24'],
+  ['#14532d','#166534','#a3e635'],
+  ['#1e1b4b','#312e81','#a78bfa'],
+  ['#450a0a','#7f1d1d','#fde68a'],
+  ['#0f172a','#1e293b','#38bdf8'],
+  ['#52525b','#27272a','#a1a1aa'],
+  ['#365314','#3f6212','#facc15'],
+  ['#1e293b','#0f172a','#f97316'],
+  ['#4a044e','#86198f','#f0abfc'],
+  ['#082f49','#0c4a6e','#7dd3fc'],
+  ['#7c2d12','#9a3412','#fed7aa'],
+];
+
+const SERIES = [
+  // Needs Attention picks: hasUnknown or pausedDownloads true
+  { t:'Chainsaw Man',         st:'ongoing',     prov:['MangaDex','Comick'],          upd:'34m ago',  newCh:2, unk:false, paused:false, total:178, latest:'Ch. 178', genres:['Action','Supernatural','Seinen'] },
+  { t:'Jujutsu Kaisen',       st:'pubfinished', prov:['MangaDex','Weebcentral'],     upd:'1h ago',   newCh:0, unk:false, paused:false, total:271, latest:'Ch. 271', genres:['Action','Supernatural','Shounen'] },
+  { t:'Berserk',              st:'hiatus',      prov:['MangaDex','Bato'],            upd:'14d ago',  newCh:0, unk:false, paused:true,  total:374, latest:'Ch. 374', genres:['Dark Fantasy','Seinen','Drama'] },
+  { t:'Vinland Saga',         st:'ongoing',     prov:['MangaDex','Comick','Bato'],   upd:'5d ago',   newCh:0, unk:false, paused:false, total:217, latest:'Ch. 217', genres:['Historical','Drama','Seinen'] },
+  { t:'Vagabond',             st:'hiatus',      prov:['MangaDex'],                   upd:'2y ago',   newCh:0, unk:false, paused:true,  total:327, latest:'Ch. 327', genres:['Historical','Seinen','Action'] },
+  { t:'Solo Leveling',        st:'completed',   prov:['MangaDex','Asura'],           upd:'8mo ago',  newCh:0, unk:false, paused:false, total:200, latest:'Ch. 200', genres:['Action','Fantasy','Adventure'] },
+  { t:'Spy × Family',         st:'ongoing',     prov:['MangaDex','Comick'],          upd:'2h ago',   newCh:1, unk:false, paused:false, total:108, latest:'Ch. 108', genres:['Comedy','Action','Slice of Life'] },
+  { t:'Frieren',              st:'ongoing',     prov:['MangaDex'],                   upd:'3d ago',   newCh:1, unk:false, paused:false, total:142, latest:'Ch. 142', genres:['Fantasy','Adventure','Drama'] },
+  { t:'Dandadan',             st:'ongoing',     prov:['MangaDex','Comick'],          upd:'1d ago',   newCh:1, unk:false, paused:false, total:189, latest:'Ch. 189', genres:['Supernatural','Comedy','Action'] },
+  { t:'Kaiju No. 8',          st:'ongoing',     prov:['MangaDex','Weebcentral'],     upd:'4h ago',   newCh:1, unk:false, paused:false, total:128, latest:'Ch. 128', genres:['Action','Sci-Fi','Shounen'] },
+  { t:'Blue Lock',            st:'ongoing',     prov:['MangaDex','Bato'],            upd:'19h ago',  newCh:1, unk:false, paused:false, total:294, latest:'Ch. 294', genres:['Sports','Drama','Shounen'] },
+  { t:'Oshi no Ko',           st:'pubfinished', prov:['MangaDex','Comick'],          upd:'6d ago',   newCh:0, unk:false, paused:false, total:166, latest:'Ch. 166', genres:['Drama','Mystery','Seinen'] },
+  { t:'One Piece',            st:'ongoing',     prov:['MangaDex','Comick','Bato'],   upd:'6h ago',   newCh:1, unk:false, paused:false, total:1148, latest:'Ch. 1148', genres:['Adventure','Action','Shounen'] },
+  { t:'Bleach',               st:'completed',   prov:['MangaDex'],                   upd:'1y ago',   newCh:0, unk:false, paused:false, total:686, latest:'Ch. 686', genres:['Action','Supernatural','Shounen'] },
+  { t:'Hunter × Hunter',      st:'hiatus',      prov:['MangaDex','Bato'],            upd:'21mo ago', newCh:0, unk:false, paused:true,  total:410, latest:'Ch. 410', genres:['Adventure','Action','Shounen'] },
+  { t:'Witch Hat Atelier',    st:'ongoing',     prov:['MangaDex'],                   upd:'2d ago',   newCh:1, unk:true,  paused:false, total:88,  latest:'Ch. 88',  genres:['Fantasy','Adventure','Seinen'] },
+  { t:'Made in Abyss',        st:'ongoing',     prov:['MangaDex','Bato'],            upd:'3mo ago',  newCh:0, unk:false, paused:false, total:67,  latest:'Ch. 67',  genres:['Adventure','Dark Fantasy','Seinen'] },
+  { t:'Goodbye, Eri',         st:'completed',   prov:['MangaDex'],                   upd:'1y ago',   newCh:0, unk:false, paused:false, total:1,   latest:'One-shot', genres:['Drama','Slice of Life'] },
+  { t:'Look Back',            st:'completed',   prov:['MangaDex','Comick'],          upd:'1y ago',   newCh:0, unk:false, paused:false, total:1,   latest:'One-shot', genres:['Drama','Slice of Life'] },
+  { t:'Sakamoto Days',        st:'ongoing',     prov:['MangaDex','Comick'],          upd:'10h ago',  newCh:1, unk:false, paused:false, total:208, latest:'Ch. 208', genres:['Action','Comedy','Shounen'] },
+  { t:'Mashle',               st:'completed',   prov:['MangaDex'],                   upd:'2y ago',   newCh:0, unk:false, paused:false, total:162, latest:'Ch. 162', genres:['Comedy','Action','Fantasy'] },
+  { t:'Akane-banashi',        st:'ongoing',     prov:['MangaDex','Weebcentral'],     upd:'2d ago',   newCh:1, unk:false, paused:false, total:128, latest:'Ch. 128', genres:['Drama','Slice of Life','Shounen'] },
+  { t:'Kagurabachi',          st:'ongoing',     prov:['MangaDex','Asura'],           upd:'1d ago',   newCh:1, unk:false, paused:false, total:84,  latest:'Ch. 84',  genres:['Action','Supernatural','Shounen'] },
+  { t:'Wind Breaker',         st:'ongoing',     prov:['MangaDex','Comick'],          upd:'8h ago',   newCh:2, unk:false, paused:false, total:172, latest:'Ch. 172', genres:['Action','Drama','Shounen'] },
+  { t:'Boy\'s Abyss',         st:'ongoing',     prov:['MangaDex','Bato'],            upd:'4d ago',   newCh:1, unk:false, paused:false, total:184, latest:'Ch. 184', genres:['Drama','Psychological','Seinen'] },
+  { t:'Heavenly Delusion',    st:'ongoing',     prov:['MangaDex'],                   upd:'12d ago',  newCh:0, unk:true,  paused:false, total:72,  latest:'Ch. 72',  genres:['Sci-Fi','Mystery','Seinen'] },
+  { t:'Sousou no Frieren',    st:'ongoing',     prov:['Comick'],                     upd:'6mo ago',  newCh:0, unk:true,  paused:false, total:42,  latest:'Ch. 42',  genres:['Fantasy','Adventure'] },
+  { t:'Boruto: Two Blue Vortex', st:'ongoing', prov:['MangaDex','Comick'],           upd:'9d ago',   newCh:0, unk:false, paused:false, total:24,  latest:'Ch. 24',  genres:['Action','Shounen'] },
+  { t:'My Dress-Up Darling',  st:'ongoing',     prov:['MangaDex','Bato'],            upd:'18d ago',  newCh:0, unk:false, paused:false, total:106, latest:'Ch. 106', genres:['Romance','Comedy','Slice of Life'] },
+  { t:'Tokyo Ghoul:re',       st:'completed',   prov:['MangaDex'],                   upd:'3y ago',   newCh:0, unk:false, paused:false, total:179, latest:'Ch. 179', genres:['Dark Fantasy','Action','Seinen'] },
+];
+
+// Assign palette index deterministically per title length
+SERIES.forEach((s, i) => { s.palette = PALETTES[i % PALETTES.length]; s.id = i; });
+
+// Browse-only series (mix some not in library)
+const BROWSE_EXTRA = [
+  { t:'Sakamoto Days', st:'ongoing', prov:['MangaDex'], upd:'2m ago', latest:'Ch. 208', inLibrary:'InLibrary' },
+  { t:'Kagurabachi', st:'ongoing', prov:['MangaDex'], upd:'4m ago', latest:'Ch. 84', inLibrary:'InLibrary' },
+  { t:'Ichi the Witch', st:'ongoing', prov:['MangaDex'], upd:'6m ago', latest:'Ch. 12', inLibrary:'None' },
+  { t:'Centuria', st:'ongoing', prov:['MangaDex'], upd:'8m ago', latest:'Ch. 23', inLibrary:'InRequests' },
+  { t:'Marriagetoxin', st:'ongoing', prov:['MangaDex'], upd:'11m ago', latest:'Ch. 64', inLibrary:'None' },
+  { t:'Astro Royale', st:'ongoing', prov:['MangaDex'], upd:'14m ago', latest:'Ch. 41', inLibrary:'None' },
+  { t:'Chainsaw Man', st:'ongoing', prov:['MangaDex'], upd:'34m ago', latest:'Ch. 178', inLibrary:'InLibrary' },
+  { t:'Sakamoto Days Side', st:'completed', prov:['MangaDex'], upd:'1h ago', latest:'Ch. 9', inLibrary:'None' },
+  { t:'Drama Queen', st:'ongoing', prov:['Comick'], upd:'3m ago', latest:'Ch. 27', inLibrary:'None' },
+  { t:'Witch Watch', st:'ongoing', prov:['Comick'], upd:'7m ago', latest:'Ch. 197', inLibrary:'InRequests' },
+  { t:'Mission: Yozakura Family', st:'ongoing', prov:['Comick'], upd:'12m ago', latest:'Ch. 244', inLibrary:'None' },
+  { t:'Undead Unluck', st:'ongoing', prov:['Comick'], upd:'21m ago', latest:'Ch. 251', inLibrary:'None' },
+  { t:'Ayashimon', st:'completed', prov:['Comick'], upd:'30m ago', latest:'Ch. 28', inLibrary:'None' },
+  { t:'Build King', st:'cancelled', prov:['Comick'], upd:'48m ago', latest:'Ch. 16', inLibrary:'None' },
+  { t:'Solo Leveling: Ragnarok', st:'ongoing', prov:['Weebcentral'], upd:'4m ago', latest:'Ch. 41', inLibrary:'InLibrary' },
+  { t:'Omniscient Reader', st:'ongoing', prov:['Weebcentral'], upd:'18m ago', latest:'Ch. 235', inLibrary:'None' },
+  { t:'The Beginning After The End', st:'ongoing', prov:['Weebcentral'], upd:'29m ago', latest:'Ch. 196', inLibrary:'InRequests' },
+  { t:'Eleceed', st:'ongoing', prov:['Weebcentral'], upd:'41m ago', latest:'Ch. 348', inLibrary:'None' },
+  { t:'Tower of God', st:'ongoing', prov:['Weebcentral'], upd:'1h ago', latest:'Ch. 638', inLibrary:'None' },
+  { t:'Bato Pick: Saint Cecilia', st:'ongoing', prov:['Bato'], upd:'5m ago', latest:'Ch. 110', inLibrary:'None' },
+  { t:'Hirayasumi', st:'ongoing', prov:['Bato'], upd:'19m ago', latest:'Ch. 102', inLibrary:'None' },
+  { t:'Skip and Loafer', st:'ongoing', prov:['Bato'], upd:'34m ago', latest:'Ch. 67', inLibrary:'None' },
+  { t:'Sanda', st:'ongoing', prov:['Bato'], upd:'52m ago', latest:'Ch. 73', inLibrary:'None' },
+];
+BROWSE_EXTRA.forEach((s, i) => { s.palette = PALETTES[(i+3) % PALETTES.length]; });
+
+/* =========================
+   HELPERS
+   ========================= */
+function paletteToBg(p) {
+  return `linear-gradient(135deg, ${p[0]} 0%, ${p[1]} 55%, ${p[2]} 100%)`;
+}
+function providerInitials(p) {
+  return p; // already short
+}
+function makeCover(series) {
+  const init = (series.t || '').split(' ').slice(0,3).map(w => w[0]?.toUpperCase()).join('');
+  return `
+    <div class="cv" style="background: ${paletteToBg(series.palette)};">
+      <div class="cv-faint">${init || '?'}</div>
+      <div class="cv-title text-[13px] text-white">${series.t}</div>
+    </div>
+  `;
+}
+
+// Card sizes (px width)
+const SIZE_MAP = { xs: 110, s: 132, m: 158, l: 188, xl: 220 };
+let currentSize = 'm';
+
+function setCardSize(size) {
+  currentSize = size;
+  const v = SIZE_MAP[size];
+  document.documentElement.style.setProperty('--cw', v + 'px');
+  // sync seg controls
+  document.querySelectorAll('#sizeSegLib button, #sizeSegBrw button').forEach(b => {
+    b.classList.toggle('active', b.dataset.size === size);
+  });
+  // also update grid columns in browse
+  document.getElementById('browseGrid').style.gridTemplateColumns = `repeat(auto-fill, minmax(${v}px, 1fr))`;
+}
+
+/* Build a library-style card */
+function buildCard(s, opts={}) {
+  const stColor = STATUS[s.st].color;
+  const stLabel = STATUS[s.st].label;
+  const showNewBadge = opts.showNewBadge && s.newCh > 0;
+  const showAttention = opts.attentionAction || s.unk || s.paused;
+  const provBadge = s.prov?.[0] || 'MangaDex';
+  const actionLabel = s.unk ? 'Match source' : s.paused ? 'Resume' : 'Retry';
+  const actionIcon = s.unk ? 'link' : s.paused ? 'play' : 'rotate-ccw';
+
+  return `
+    <div class="card" data-size="${currentSize}">
+      <div class="strip" style="background:${stColor};"></div>
+      <div class="relative">
+        ${makeCover(s)}
+        <div class="absolute top-2 left-2 z-[3]">
+          <span class="prov">${provBadge}</span>
+        </div>
+        ${showNewBadge ? `<div class="new-ch">+${s.newCh} ch</div>` : ''}
+        ${opts.attentionAction ? `
+          <div class="rail-action">
+            <button class="btn-ghost w-full justify-center" style="background: hsla(0 0% 0% / 0.65); border-color: hsla(0 0% 100% / 0.18);">
+              <i data-lucide="${actionIcon}" class="w-3 h-3"></i> ${actionLabel}
+            </button>
+          </div>
+        ` : ''}
+      </div>
+      <div class="meta">
+        <div class="flex items-start gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="meta-title truncate">${s.t}</div>
+            <div class="meta-sub flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full" style="background:${stColor};"></span>
+              <span>${stLabel}</span>
+              <span class="text-zinc-700">·</span>
+              <span>${s.upd}</span>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-1 pt-0.5">
+            ${s.unk ? '<span class="att amber" title="Needs provider match"></span>' : ''}
+            ${s.paused ? '<span class="att paused" title="Paused downloads"></span>' : ''}
+          </div>
+        </div>
+        <div class="mt-2 flex items-center justify-between text-[10.5px] text-zinc-500">
+          <span class="font-medium text-zinc-400">${s.latest}</span>
+          <span class="font-variant-numeric tabular-nums">${s.total} ch</span>
+        </div>
+      </div>
+      <div class="tt">
+        <div class="font-semibold text-[12px] mb-1">${s.t}</div>
+        <div class="text-zinc-400">${s.prov.join(' · ')}</div>
+        <div class="text-zinc-500 mt-1">Last update ${s.upd}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* Build a browse-style card */
+function buildBrowseCard(s) {
+  const stColor = (STATUS[s.st] || STATUS.ongoing).color;
+  const heart = s.inLibrary === 'InLibrary' ? 'in-library' : s.inLibrary === 'InRequests' ? 'in-requests' : '';
+  const heartIcon = s.inLibrary === 'InLibrary' ? 'heart' : s.inLibrary === 'InRequests' ? 'star' : 'heart';
+  return `
+    <div class="card" data-size="${currentSize}">
+      <div class="strip" style="background:${stColor};"></div>
+      <div class="relative">
+        ${makeCover(s)}
+        <div class="absolute top-2 left-2 z-[3]">
+          <span class="prov">${s.prov[0]}</span>
+        </div>
+        <button class="heart ${heart}"><i data-lucide="${heartIcon}" class="w-3.5 h-3.5" ${s.inLibrary==='InLibrary'?'fill="currentColor"':''}></i></button>
+        <div class="hover-actions strip-actions">
+          ${s.inLibrary === 'InLibrary'
+            ? `<button class="req"><i data-lucide="check" class="w-3 h-3 inline -mt-0.5"></i> In library</button>`
+            : `<button class="add"><i data-lucide="plus" class="w-3 h-3 inline -mt-0.5"></i> Add</button><button class="req"><i data-lucide="bookmark" class="w-3 h-3 inline -mt-0.5"></i> Request</button>`
+          }
+        </div>
+      </div>
+      <div class="meta">
+        <div class="meta-title truncate">${s.t}</div>
+        <div class="meta-sub flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full" style="background:${stColor};"></span>
+          <span>${s.latest}</span>
+          <span class="text-zinc-700">·</span>
+          <span>${s.upd}</span>
+        </div>
+      </div>
+      <div class="tt">
+        <div class="font-semibold text-[12px] mb-1">${s.t}</div>
+        <div class="text-zinc-400">${s.prov.join(' · ')}</div>
+        <div class="text-zinc-500 mt-1">${s.latest} · ${s.upd}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* =========================
+   RENDER LIBRARY
+   ========================= */
+function renderLibrary() {
+  // Rails
+  const attention = SERIES.filter(s => s.unk || s.paused).slice(0, 6);
+  const recent = [...SERIES].filter(s=>!s.unk && !s.paused).slice(0, 12);
+  const newch = SERIES.filter(s => s.newCh > 0).slice(0, 10);
+
+  document.querySelector('[data-rail="attention"]').innerHTML =
+    attention.map(s => buildCard(s, { attentionAction: true })).join('');
+  document.querySelector('[data-rail="recent"]').innerHTML =
+    recent.map(s => buildCard(s)).join('');
+  document.querySelector('[data-rail="newch"]').innerHTML =
+    newch.map(s => buildCard(s, { showNewBadge: true })).join('');
+
+  // Groups (full grid)
+  const groups = [
+    { key:'ongoing', label:'Ongoing', open:true },
+    { key:'hiatus', label:'On Hiatus', open:false },
+    { key:'pubfinished', label:'Publishing Finished', open:false },
+    { key:'completed', label:'Completed', open:false },
+    { key:'licensed', label:'Licensed', open:false },
+    { key:'cancelled', label:'Cancelled', open:false },
+  ];
+  const wrap = document.getElementById('groupsWrap');
+  wrap.innerHTML = groups.map(g => {
+    const items = SERIES.filter(s => s.st === g.key);
+    if (items.length === 0) return '';
+    const color = STATUS[g.key].color;
+    return `
+      <div class="group" data-group="${g.key}">
+        <div class="group-head ${g.open ? '' : 'collapsed'}">
+          <i data-lucide="chevron-down" class="chev w-4 h-4 text-zinc-500"></i>
+          <span class="w-2 h-2 rounded-full" style="background:${color};"></span>
+          <span class="headline text-[18px]">${g.label}</span>
+          <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">${items.length} series</span>
+          <div class="flex-1"></div>
+          <span class="text-[11px] text-zinc-500">Sorted by last update</span>
+        </div>
+        <div class="group-body ${g.open ? '' : 'collapsed'}" style="max-height: ${g.open ? '4000px' : '0'};">
+          <div class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(${SIZE_MAP[currentSize]}px, 1fr));">
+            ${items.map(s => buildCard(s)).join('')}
+          </div>
+          <div class="h-6"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire group toggles
+  document.querySelectorAll('.group-head').forEach(h => {
+    h.addEventListener('click', () => {
+      const body = h.nextElementSibling;
+      const willCollapse = !h.classList.contains('collapsed');
+      h.classList.toggle('collapsed', willCollapse);
+      body.classList.toggle('collapsed', willCollapse);
+      body.style.maxHeight = willCollapse ? '0' : '4000px';
+    });
+  });
+
+  // Re-sync grid column widths inside groups when size changes
+  document.querySelectorAll('.group-body .grid').forEach(g => {
+    g.style.gridTemplateColumns = `repeat(auto-fill, minmax(${SIZE_MAP[currentSize]}px, 1fr))`;
+  });
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderBrowse() {
+  const bySource = src => BROWSE_EXTRA.filter(s => s.prov[0] === src);
+  document.querySelector('[data-brail="mangadex"]').innerHTML    = bySource('MangaDex').map(buildBrowseCard).join('');
+  document.querySelector('[data-brail="comick"]').innerHTML      = bySource('Comick').map(buildBrowseCard).join('');
+  document.querySelector('[data-brail="weebcentral"]').innerHTML = bySource('Weebcentral').map(buildBrowseCard).join('');
+  document.querySelector('[data-brail="bato"]').innerHTML        = bySource('Bato').map(buildBrowseCard).join('');
+
+  // Unified grid (30 cards) — repeat the BROWSE_EXTRA list to hit 30
+  const all = [];
+  while (all.length < 30) all.push(...BROWSE_EXTRA);
+  document.getElementById('browseGrid').innerHTML = all.slice(0, 30).map(buildBrowseCard).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+/* =========================
+   INTERACTIONS
+   ========================= */
+function setView(view) {
+  document.querySelectorAll('#viewToggle button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'library') {
+    document.getElementById('libraryView').classList.remove('hidden');
+    document.getElementById('browseView').classList.add('hidden');
+    document.getElementById('ribbonLibrary').classList.remove('hidden');
+    document.getElementById('ribbonLibrary').classList.add('flex');
+    document.getElementById('ribbonBrowse').classList.add('hidden');
+    document.getElementById('ribbonBrowse').classList.remove('flex');
+    document.getElementById('pageTitle').textContent = 'Your Library';
+    document.getElementById('pageSubtitle').textContent = 'Seventy-one series tracked across five sources. Three need your attention this morning — a paused queue, a fresh hiatus, and a missing provider match.';
+    document.querySelectorAll('nav .nav-pill').forEach(p => p.classList.toggle('active', p.textContent.trim() === 'Library'));
+  } else {
+    document.getElementById('libraryView').classList.add('hidden');
+    document.getElementById('browseView').classList.remove('hidden');
+    document.getElementById('ribbonLibrary').classList.add('hidden');
+    document.getElementById('ribbonLibrary').classList.remove('flex');
+    document.getElementById('ribbonBrowse').classList.remove('hidden');
+    document.getElementById('ribbonBrowse').classList.add('flex');
+    document.getElementById('pageTitle').textContent = 'Browse the catalogue';
+    document.getElementById('pageSubtitle').textContent = 'Five thousand titles across MangaDex, Comick, Weebcentral, Bato, and Asura. Curate before you commit — request a series for review or add it directly to tracking.';
+    document.querySelectorAll('nav .nav-pill').forEach(p => p.classList.toggle('active', p.textContent.trim() === 'Browse'));
+  }
+  // Stagger animation reset
+  const main = view === 'library' ? document.getElementById('libraryView') : document.getElementById('browseView');
+  main.classList.remove('stagger'); void main.offsetWidth; main.classList.add('stagger');
+}
+
+function openModal() { document.getElementById('modal').classList.add('open'); if (window.lucide) lucide.createIcons(); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Initial size
+  setCardSize('m');
+  // Render both
+  renderLibrary();
+  renderBrowse();
+
+  // Initial view
+  setView('library');
+
+  // View toggle
+  document.querySelectorAll('#viewToggle button').forEach(b => {
+    b.addEventListener('click', () => setView(b.dataset.view));
+  });
+
+  // Status pills
+  document.querySelectorAll('#statusPills .pill').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('#statusPills .pill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      const status = p.dataset.status;
+      // Filter the groups
+      document.querySelectorAll('#groupsWrap .group').forEach(g => {
+        const key = g.dataset.group;
+        let show = true;
+        if (status === 'active') show = (key === 'ongoing');
+        else if (status === 'paused') show = false; // pausedDownloads is a card attribute, simulate empty group filter
+        else if (status === 'unassigned') show = false;
+        else if (status === 'completed') show = (key === 'completed' || key === 'pubfinished');
+        else if (status === 'all') show = true;
+        g.style.display = show ? '' : 'none';
+      });
+    });
+  });
+
+  // Size segs (both)
+  document.querySelectorAll('#sizeSegLib button, #sizeSegBrw button').forEach(b => {
+    b.addEventListener('click', () => {
+      setCardSize(b.dataset.size);
+      // Update grids in groups
+      document.querySelectorAll('.group-body .grid').forEach(g => {
+        g.style.gridTemplateColumns = `repeat(auto-fill, minmax(${SIZE_MAP[currentSize]}px, 1fr))`;
+      });
+    });
+  });
+
+  // Add series modal
+  document.getElementById('addSeriesBtn').addEventListener('click', openModal);
+  document.getElementById('modal').addEventListener('click', closeModal);
+
+  // Cmd+K focus search
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('cmdSearch').focus();
+    }
+    if (e.key === 'Escape') closeModal();
+  });
+
+  if (window.lucide) lucide.createIcons();
+});
+</script>
+</body>
+</html>

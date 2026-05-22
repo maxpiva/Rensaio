@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaizoku — Cinematic Galaxy</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: hsl(240 10% 4%);
+    --bg-elev: hsl(240 8% 7%);
+    --bg-card: hsl(240 6% 10%);
+    --line: hsla(0 0% 100% / 0.06);
+    --line-strong: hsla(0 0% 100% / 0.12);
+    --fg: hsl(0 0% 98%);
+    --fg-muted: hsl(0 0% 65%);
+    --fg-dim: hsl(0 0% 45%);
+    --pink: hsl(346.8 77.2% 49.8%);
+    --pink-soft: hsla(346.8 77.2% 49.8% / 0.18);
+    --pink-glow: hsla(346.8 77.2% 49.8% / 0.45);
+    --ongoing: #22c55e;
+    --completed: #3b82f6;
+    --licensed: #a855f7;
+    --cancelled: #ef4444;
+    --hiatus: #eab308;
+    --disabled: #4b5563;
+    --amber: #f59e0b;
+  }
+  html, body { background: var(--bg); color: var(--fg); font-family: 'Inter', sans-serif; }
+  body { font-feature-settings: "ss01", "cv11"; -webkit-font-smoothing: antialiased; }
+
+  /* Command bar */
+  .cmdbar {
+    background: hsla(0 0% 7% / 0.85);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid hsla(0 0% 100% / 0.06);
+  }
+  .ribbon {
+    background: hsla(0 0% 5% / 0.85);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid hsla(0 0% 100% / 0.06);
+  }
+  .pill { transition: all .18s ease; }
+  .pill:hover { background: hsla(0 0% 100% / 0.04); color: var(--fg); }
+  .pill-active { background: hsla(0 0% 100% / 0.06); color: var(--fg); }
+
+  /* Cover gradients (24 series) */
+  .cv1  { background: linear-gradient(135deg, #1a0b0b 0%, #7c1d1d 45%, #ff4d4d 100%); }
+  .cv2  { background: linear-gradient(140deg, #0a0a23 0%, #2e2e6e 50%, #9090ff 100%); }
+  .cv3  { background: linear-gradient(160deg, #1a1208 0%, #5a3a18 45%, #e0b070 100%); }
+  .cv4  { background: linear-gradient(170deg, #060606 0%, #2a0a0a 55%, #7a1010 100%); }
+  .cv5  { background: linear-gradient(150deg, #0b1a14 0%, #1d4d3a 50%, #6cd0a8 100%); }
+  .cv6  { background: linear-gradient(135deg, #0a0a18 0%, #1e1b4b 50%, #6366f1 100%); }
+  .cv7  { background: linear-gradient(130deg, #1a0a14 0%, #5a1f3a 50%, #ff77aa 100%); }
+  .cv8  { background: linear-gradient(140deg, #0d1f0f 0%, #2a4d2e 50%, #a8d97e 100%); }
+  .cv9  { background: linear-gradient(160deg, #1a1a25 0%, #3a2a5a 50%, #b48cff 100%); }
+  .cv10 { background: linear-gradient(135deg, #1a1208 0%, #6b3d0d 50%, #f0a040 100%); }
+  .cv11 { background: linear-gradient(150deg, #0a1418 0%, #1d4a5e 50%, #6cc0e0 100%); }
+  .cv12 { background: linear-gradient(135deg, #1a0a1a 0%, #4d1d4d 50%, #d070d0 100%); }
+  .cv13 { background: linear-gradient(170deg, #0a0e1a 0%, #1a3a6e 50%, #4a90e2 100%); }
+  .cv14 { background: linear-gradient(140deg, #1f1a0a 0%, #5a4a1d 50%, #f0d070 100%); }
+  .cv15 { background: linear-gradient(160deg, #0a1a0a 0%, #1d5a2e 50%, #70e090 100%); }
+  .cv16 { background: linear-gradient(135deg, #1a0a0a 0%, #5a1d1d 50%, #ff8080 100%); }
+  .cv17 { background: linear-gradient(150deg, #0a0a1a 0%, #2a2a5a 50%, #8080ff 100%); }
+  .cv18 { background: linear-gradient(130deg, #1a0d0a 0%, #5a2d1d 50%, #ff9970 100%); }
+  .cv19 { background: linear-gradient(170deg, #0a181a 0%, #1d4a5a 50%, #70d0e0 100%); }
+  .cv20 { background: linear-gradient(135deg, #1a0a18 0%, #5a1d4a 50%, #ff70c0 100%); }
+  .cv21 { background: linear-gradient(140deg, #181a0a 0%, #4a5a1d 50%, #c0e070 100%); }
+  .cv22 { background: linear-gradient(155deg, #0a141a 0%, #1d3a5a 50%, #70a0e0 100%); }
+  .cv23 { background: linear-gradient(145deg, #1a140a 0%, #5a3a1d 50%, #e0a070 100%); }
+  .cv24 { background: linear-gradient(125deg, #0a1a14 0%, #1d5a3d 50%, #70e0a8 100%); }
+
+  /* Cover decorative noise / shine */
+  .cover::before {
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 30% 20%, hsla(0 0% 100% / 0.18), transparent 50%),
+      radial-gradient(circle at 80% 90%, hsla(0 0% 0% / 0.4), transparent 60%);
+    pointer-events:none;
+  }
+  .cover::after {
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(to top, hsla(0 0% 0% / 0.85) 0%, hsla(0 0% 0% / 0.25) 35%, transparent 60%);
+    pointer-events:none;
+  }
+
+  /* Status strip */
+  .strip { height:2px; }
+  .s-ongoing { background: var(--ongoing); box-shadow: 0 0 12px var(--ongoing); }
+  .s-completed { background: var(--completed); box-shadow: 0 0 12px var(--completed); }
+  .s-licensed { background: var(--licensed); box-shadow: 0 0 12px var(--licensed); }
+  .s-cancelled { background: var(--cancelled); box-shadow: 0 0 12px var(--cancelled); }
+  .s-hiatus { background: var(--hiatus); box-shadow: 0 0 12px var(--hiatus); }
+  .s-disabled { background: var(--disabled); }
+
+  /* Card */
+  .card {
+    position:relative; border-radius: 10px; overflow: hidden;
+    background: var(--bg-card); border:1px solid var(--line);
+    transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, border-color .25s ease;
+    will-change: transform;
+  }
+  .card:hover {
+    transform: scale(1.045);
+    box-shadow: 0 0 0 1px hsla(346.8 77.2% 49.8% / 0.5), 0 0 32px hsla(346.8 77.2% 49.8% / 0.25), 0 18px 40px rgba(0,0,0,.5);
+    border-color: transparent;
+    z-index:2;
+  }
+  .card .quick {
+    opacity:0; transform: translateY(8px);
+    transition: opacity .2s ease, transform .25s ease;
+  }
+  .card:hover .quick { opacity:1; transform: translateY(0); }
+
+  /* Hero */
+  .hero {
+    position:relative; overflow:hidden;
+    border-radius: 18px;
+    border:1px solid var(--line);
+    height: 420px;
+    isolation:isolate;
+  }
+  .hero-backdrop {
+    position:absolute; inset:-40px;
+    filter: blur(40px) saturate(140%);
+    transform: scale(1.15);
+    transition: opacity .55s ease;
+  }
+  .hero-veil {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(900px 600px at 85% -10%, hsla(346.8 77.2% 49.8% / 0.42), transparent 60%),
+      linear-gradient(90deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.3) 75%, rgba(0,0,0,.55) 100%),
+      linear-gradient(180deg, rgba(0,0,0,.1) 0%, rgba(0,0,0,.55) 100%);
+  }
+  .hero-grain {
+    position:absolute; inset:0; opacity:.06; mix-blend-mode:overlay; pointer-events:none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.7'/></svg>");
+  }
+
+  /* Pulse dot */
+  .pulse-dot {
+    width:8px; height:8px; border-radius:9999px; background: var(--ongoing);
+    box-shadow: 0 0 0 0 var(--ongoing);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 hsla(142 71% 45% / 0.6); }
+    70% { box-shadow: 0 0 0 10px hsla(142 71% 45% / 0); }
+    100% { box-shadow: 0 0 0 0 hsla(142 71% 45% / 0); }
+  }
+
+  /* Buttons */
+  .btn-pink {
+    background: var(--pink); color: white; font-weight: 600;
+    box-shadow: 0 8px 24px hsla(346.8 77.2% 49.8% / 0.35), inset 0 1px 0 hsla(0 0% 100% / 0.18);
+    transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .btn-pink:hover { transform: translateY(-1px); box-shadow: 0 12px 28px hsla(346.8 77.2% 49.8% / 0.5), inset 0 1px 0 hsla(0 0% 100% / 0.18); }
+  .btn-ghost {
+    background: hsla(0 0% 100% / 0.04); color: var(--fg);
+    border:1px solid var(--line-strong);
+    transition: all .18s ease;
+  }
+  .btn-ghost:hover { background: hsla(0 0% 100% / 0.08); border-color: hsla(0 0% 100% / 0.22); }
+
+  /* Stagger entry */
+  .grid-item {
+    opacity:0; transform: translateY(14px);
+    animation: rise .55s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes rise { to { opacity:1; transform: translateY(0); } }
+
+  /* Crossfade */
+  .crossfade { transition: opacity .35s ease, transform .35s ease; }
+  .crossfade.out { opacity: 0; transform: translateY(-6px); }
+
+  /* Spotlight content fade */
+  .sp-fade { transition: opacity .45s ease, transform .45s ease; }
+  .sp-fade.out { opacity: 0; transform: translateY(8px); }
+
+  /* Description gradient fade */
+  .desc-fade {
+    position:relative;
+    max-height: 4.5em;
+    overflow:hidden;
+    line-height:1.5;
+  }
+  .desc-fade::after {
+    content:""; position:absolute; bottom:0; left:0; right:0; height:1.6em;
+    background: linear-gradient(to bottom, transparent, rgba(0,0,0,.9));
+  }
+
+  /* Segmented */
+  .seg { background: hsla(0 0% 100% / 0.04); border:1px solid var(--line); border-radius: 8px; padding:2px; display:inline-flex; gap:2px; }
+  .seg button { padding:5px 10px; font-size:11px; border-radius:6px; color: var(--fg-muted); transition: all .15s ease; }
+  .seg button.active { background: hsla(0 0% 100% / 0.08); color: var(--fg); }
+
+  /* Dropdown look-alike */
+  .drop {
+    background: hsla(0 0% 100% / 0.03); border:1px solid var(--line);
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; color: var(--fg-muted);
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .drop:hover { background: hsla(0 0% 100% / 0.06); color: var(--fg); }
+
+  /* Masonry */
+  .masonry { columns: 6 220px; column-gap: 18px; }
+  .masonry .card { break-inside: avoid; margin-bottom: 18px; display:block; }
+  @media (max-width: 1400px) { .masonry { columns: 5 220px; } }
+  @media (max-width: 1100px) { .masonry { columns: 4 200px; } }
+  @media (max-width: 820px)  { .masonry { columns: 3 160px; } }
+  @media (max-width: 560px)  { .masonry { columns: 2 140px; } }
+
+  /* Modal */
+  .modal-bg {
+    background: hsla(0 0% 0% / 0.6);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+  }
+  .modal-card {
+    background: hsla(240 10% 8% / 0.85);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border:1px solid var(--line-strong);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px hsla(346.8 77.2% 49.8% / 0.18);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background: hsla(0 0% 100% / 0.08); border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsla(0 0% 100% / 0.16); }
+
+  /* Hero dots strip */
+  .dot-thumb {
+    width: 56px; height: 80px; border-radius: 6px; overflow:hidden; position:relative;
+    border:1px solid hsla(0 0% 100% / 0.12);
+    cursor:pointer; transition: all .2s ease; opacity:.55;
+  }
+  .dot-thumb:hover { opacity: .95; transform: translateX(-2px); border-color: hsla(0 0% 100% / 0.3); }
+  .dot-thumb.active {
+    opacity:1; border-color: var(--pink);
+    box-shadow: 0 0 0 1px var(--pink), 0 0 16px hsla(346.8 77.2% 49.8% / 0.5);
+    transform: translateX(-4px);
+  }
+  .dot-thumb::after {
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(to top, rgba(0,0,0,.6), transparent 60%);
+  }
+
+  /* Tag chip */
+  .chip {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    background: hsla(0 0% 100% / 0.06);
+    border: 1px solid hsla(0 0% 100% / 0.08);
+    color: var(--fg-muted);
+    letter-spacing: .02em;
+  }
+  .chip-pink {
+    background: hsla(346.8 77.2% 49.8% / 0.14);
+    border-color: hsla(346.8 77.2% 49.8% / 0.32);
+    color: hsl(346.8 90% 75%);
+  }
+
+  /* Provider mini-badge */
+  .prov {
+    font-size: 9.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    padding: 2px 6px; border-radius: 4px;
+    background: hsla(0 0% 0% / 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: hsl(0 0% 90%);
+    border: 1px solid hsla(0 0% 100% / 0.12);
+  }
+
+  /* Attention dots */
+  .att {
+    width: 8px; height: 8px; border-radius:9999px;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .att-amber { background: var(--amber); color: var(--amber); animation: blink 1.6s ease-in-out infinite; }
+  .att-pause { background: hsl(0 0% 55%); color: hsl(0 0% 55%); }
+  @keyframes blink {
+    0%, 100% { opacity:1; }
+    50% { opacity:.45; }
+  }
+
+  /* Status pill */
+  .status-pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 4px 10px; border-radius: 9999px;
+    font-size: 11px; font-weight: 500;
+    background: hsla(0 0% 100% / 0.06);
+    border:1px solid hsla(0 0% 100% / 0.1);
+  }
+
+  /* heart icon states */
+  .heart-btn {
+    width:30px; height:30px; border-radius:9999px;
+    display:flex; align-items:center; justify-content:center;
+    background: hsla(0 0% 0% / 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border:1px solid hsla(0 0% 100% / 0.12);
+    transition: all .15s ease;
+  }
+  .heart-btn:hover { background: hsla(0 0% 0% / 0.75); transform: scale(1.08); }
+
+  /* Eyebrow */
+  .eyebrow {
+    font-size: 11px; letter-spacing: .28em; font-weight: 700;
+    color: hsl(346.8 90% 70%);
+    text-transform: uppercase;
+  }
+
+  /* Quick add cluster */
+  .quick-cluster {
+    position: absolute; left:8px; right:8px; bottom: 8px;
+    display:flex; gap:6px; justify-content:center;
+  }
+  .quick-btn {
+    flex:1; font-size: 11px; font-weight:600;
+    padding:6px 0; border-radius: 6px;
+    background: hsla(0 0% 0% / 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border:1px solid hsla(0 0% 100% / 0.18);
+    color: var(--fg);
+    display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  }
+  .quick-btn.primary {
+    background: var(--pink); border-color: var(--pink); color:white;
+    box-shadow: 0 0 18px hsla(346.8 77.2% 49.8% / 0.5);
+  }
+  .quick-btn:hover { background: hsla(0 0% 0% / 0.9); }
+  .quick-btn.primary:hover { background: hsl(346.8 77.2% 55%); }
+
+  /* Search input focus glow */
+  .search-input:focus { outline:none; border-color: hsla(346.8 77.2% 49.8% / 0.5); box-shadow: 0 0 0 3px hsla(346.8 77.2% 49.8% / 0.12); }
+
+  /* Smooth view crossfade */
+  .view {
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  .view.hidden-view { display: none; }
+  .view.fading { opacity: 0; transform: translateY(8px); }
+
+  /* Source dropdown row */
+  .flag {
+    width:18px; height:12px; border-radius:2px; overflow:hidden; display:inline-block;
+    background: linear-gradient(180deg, #fff 0 50%, #b00 50% 100%);
+    border:1px solid hsla(0 0% 100% / 0.1);
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ==================== COMMAND BAR ==================== -->
+<header class="cmdbar sticky top-0 z-50 h-14 flex items-center px-5 gap-5">
+  <!-- Logo + section pills -->
+  <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 mr-3">
+      <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: linear-gradient(135deg, var(--pink), hsl(326 77% 45%)); box-shadow: 0 0 18px hsla(346.8 77.2% 49.8% / 0.5);">
+        <i data-lucide="swords" class="w-4 h-4 text-white"></i>
+      </div>
+      <span class="font-bold tracking-tight text-[15px]">Kaizoku</span>
+    </div>
+    <nav class="flex items-center gap-1" id="nav-pills">
+      <button class="pill pill-active text-[13px] px-3 py-1.5 rounded-md text-white/90" data-view="library">Library</button>
+      <button class="pill text-[13px] px-3 py-1.5 rounded-md text-white/55 flex items-center gap-1.5">
+        Queue
+        <span class="text-[10px] bg-white/10 text-white/70 rounded px-1.5 py-0.5 font-medium">12</span>
+      </button>
+      <button class="pill text-[13px] px-3 py-1.5 rounded-md text-white/55" data-view="browse">Browse</button>
+      <button class="pill text-[13px] px-3 py-1.5 rounded-md text-white/55">Sources</button>
+    </nav>
+  </div>
+
+  <!-- Search -->
+  <div class="flex-1 max-w-2xl mx-auto relative">
+    <i data-lucide="search" class="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2"></i>
+    <input id="search" class="search-input w-full h-9 pl-9 pr-20 rounded-lg bg-white/[0.04] border border-white/10 text-[13px] placeholder-white/35" placeholder="Search series, sources, tags…" />
+    <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-white/45 bg-white/[0.06] border border-white/10 rounded px-1.5 py-0.5">⌘K</kbd>
+  </div>
+
+  <!-- Right -->
+  <div class="flex items-center gap-2">
+    <button class="w-9 h-9 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/65" title="Theme">
+      <i data-lucide="moon" class="w-4 h-4"></i>
+    </button>
+    <button class="w-9 h-9 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/65 relative">
+      <i data-lucide="bell" class="w-4 h-4"></i>
+      <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--pink);"></span>
+    </button>
+    <div class="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-[13px] text-white" style="background: linear-gradient(135deg, hsl(346.8 70% 50%), hsl(280 60% 45%));">K</div>
+  </div>
+</header>
+
+<!-- ==================== RIBBON ==================== -->
+<div id="ribbon-lib" class="ribbon sticky top-14 z-40 h-12 flex items-center px-5 gap-2.5 ribbon-view">
+  <button class="drop" data-status="all"><span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>Status: All<span class="text-white/40">86</span><i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="tag" class="w-3.5 h-3.5"></i>Genre<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="database" class="w-3.5 h-3.5"></i>Sources<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>Recently updated<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <div class="ml-auto flex items-center gap-2.5">
+    <div class="seg" id="size-seg">
+      <button data-size="xs">XS</button>
+      <button data-size="sm">S</button>
+      <button class="active" data-size="md">M</button>
+      <button data-size="lg">L</button>
+      <button data-size="xl">XL</button>
+    </div>
+    <button class="btn-pink h-9 px-4 rounded-lg text-[13px] flex items-center gap-2" id="open-add">
+      <i data-lucide="plus" class="w-4 h-4"></i>Add Series
+    </button>
+  </div>
+</div>
+
+<div id="ribbon-browse" class="ribbon sticky top-14 z-40 h-12 px-5 gap-2.5 ribbon-view hidden items-center">
+  <button class="drop">
+    <span class="flag"></span>
+    MangaDex
+    <i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i>
+  </button>
+  <button class="drop"><i data-lucide="globe" class="w-3.5 h-3.5"></i>Language: EN<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="tags" class="w-3.5 h-3.5"></i>Tags<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>Trending<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <button class="drop"><i data-lucide="layers" class="w-3.5 h-3.5"></i>Latest chapters<i data-lucide="chevron-down" class="w-3 h-3 opacity-60"></i></button>
+  <div class="ml-auto flex items-center gap-2.5">
+    <div class="seg">
+      <button data-size="xs">XS</button>
+      <button data-size="sm">S</button>
+      <button class="active" data-size="md">M</button>
+      <button data-size="lg">L</button>
+      <button data-size="xl">XL</button>
+    </div>
+    <button class="btn-ghost h-9 px-3 rounded-lg text-[13px] flex items-center gap-2">
+      <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>Filters
+    </button>
+  </div>
+</div>
+
+<!-- ==================== MAIN ==================== -->
+<main class="px-5 pt-6 pb-24 max-w-[1640px] mx-auto">
+
+  <!-- Sync status indicator -->
+  <div class="hidden md:flex items-center justify-end gap-3 text-[12px] text-white/45 mb-4">
+    <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full pulse-dot"></span>4 active downloads</span>
+    <span class="w-px h-4 bg-white/10"></span>
+    <span>Last sync 2m ago</span>
+  </div>
+
+  <!-- ============= LIBRARY VIEW ============= -->
+  <section id="view-library" class="view">
+
+    <!-- HERO -->
+    <div class="hero mb-8" id="hero-lib">
+      <div class="hero-backdrop cv1" id="hero-bd-lib"></div>
+      <div class="hero-veil"></div>
+      <div class="hero-grain"></div>
+
+      <div class="relative h-full flex items-center px-10 gap-10 z-10">
+        <!-- Floating cover -->
+        <div id="hero-cover-lib" class="cover relative cv1 sp-fade" style="width: 200px; height: 280px; border-radius: 12px; flex-shrink: 0; box-shadow: 0 40px 80px rgba(0,0,0,.7), 0 0 0 1px hsla(0 0% 100% / 0.06);">
+          <div class="strip absolute top-0 left-0 right-0 s-ongoing"></div>
+          <div class="absolute bottom-3 left-3 right-3">
+            <div class="text-[10px] font-semibold tracking-wider text-white/70 mb-1">CHAINSAW MAN</div>
+            <div class="text-[10px] text-white/50">Tatsuki Fujimoto</div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 max-w-2xl sp-fade" id="hero-content-lib">
+          <div class="eyebrow mb-2 flex items-center gap-2">
+            <i data-lucide="sparkles" class="w-3 h-3"></i>
+            <span>SPOTLIGHT · From your library</span>
+          </div>
+          <h1 class="text-5xl font-extrabold tracking-tight leading-[1.05] mb-4" id="hero-title-lib">Chainsaw Man</h1>
+          <div class="flex flex-wrap items-center gap-3 mb-4 text-[13px]" id="hero-meta-lib">
+            <span class="status-pill"><span class="pulse-dot"></span>Ongoing</span>
+            <span class="text-white/55"><b class="text-white/90">157</b> chapters tracked</span>
+            <span class="w-1 h-1 rounded-full bg-white/20"></span>
+            <span class="text-white/55"><b class="text-white/90">3</b> active sources</span>
+            <span class="w-1 h-1 rounded-full bg-white/20"></span>
+            <span class="text-white/55"><i data-lucide="download" class="w-3.5 h-3.5 inline -mt-0.5"></i> Downloaded 3h ago</span>
+          </div>
+          <p class="desc-fade text-[14px] text-white/65 mb-5" id="hero-desc-lib">
+            Denji is a young man trapped in poverty, working off his deceased father's debt by harvesting devil corpses with his pet devil-dog Pochita. After a brutal betrayal, Pochita merges with him — granting Denji the power to transform parts of his body into chainsaws. A pulpy, blood-soaked descent into devil-hunting bureaucracy, doomed romance, and existential dread.
+          </p>
+          <div class="flex flex-wrap items-center gap-2 mb-5" id="hero-tags-lib">
+            <span class="chip chip-pink">Action</span>
+            <span class="chip">Supernatural</span>
+            <span class="chip">Dark</span>
+            <span class="chip">Shounen</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button class="btn-pink h-10 px-5 rounded-lg text-[13px] flex items-center gap-2">
+              <i data-lucide="external-link" class="w-4 h-4"></i>Open series
+            </button>
+          </div>
+        </div>
+
+        <!-- Right thumb nav -->
+        <div class="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20" id="hero-dots-lib">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Section label -->
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold tracking-tight">Your Library</h2>
+        <p class="text-[12.5px] text-white/45 mt-0.5">86 series tracked across 5 sources · 4 downloading now</p>
+      </div>
+      <div class="flex items-center gap-2 text-[12px] text-white/45">
+        <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+        <span>Masonry view</span>
+      </div>
+    </div>
+
+    <!-- Masonry -->
+    <div class="masonry" id="grid-lib"></div>
+  </section>
+
+  <!-- ============= BROWSE VIEW ============= -->
+  <section id="view-browse" class="view hidden-view">
+
+    <!-- HERO -->
+    <div class="hero mb-8" id="hero-br">
+      <div class="hero-backdrop cv9" id="hero-bd-br"></div>
+      <div class="hero-veil"></div>
+      <div class="hero-grain"></div>
+
+      <div class="relative h-full flex items-center px-10 gap-10 z-10">
+        <div id="hero-cover-br" class="cover relative cv9 sp-fade" style="width: 200px; height: 280px; border-radius: 12px; flex-shrink: 0; box-shadow: 0 40px 80px rgba(0,0,0,.7), 0 0 0 1px hsla(0 0% 100% / 0.06);">
+          <div class="strip absolute top-0 left-0 right-0 s-ongoing"></div>
+          <div class="absolute bottom-3 left-3 right-3">
+            <div class="text-[10px] font-semibold tracking-wider text-white/70 mb-1">DANDADAN</div>
+            <div class="text-[10px] text-white/50">Yukinobu Tatsu</div>
+          </div>
+        </div>
+
+        <div class="flex-1 max-w-2xl sp-fade" id="hero-content-br">
+          <div class="eyebrow mb-2 flex items-center gap-2">
+            <i data-lucide="compass" class="w-3 h-3"></i>
+            <span>DISCOVER · From your sources</span>
+          </div>
+          <h1 class="text-5xl font-extrabold tracking-tight leading-[1.05] mb-4" id="hero-title-br">Dandadan</h1>
+          <div class="flex flex-wrap items-center gap-3 mb-4 text-[13px]" id="hero-meta-br">
+            <span class="status-pill"><span class="pulse-dot"></span>Ongoing</span>
+            <span class="text-white/55"><b class="text-white/90">189</b> chapters available</span>
+            <span class="w-1 h-1 rounded-full bg-white/20"></span>
+            <span class="text-white/55">Source: <b class="text-white/90">MangaDex</b></span>
+            <span class="w-1 h-1 rounded-full bg-white/20"></span>
+            <span class="text-white/55"><i data-lucide="flame" class="w-3.5 h-3.5 inline -mt-0.5" style="color: var(--pink);"></i> Trending #2</span>
+          </div>
+          <p class="desc-fade text-[14px] text-white/65 mb-5" id="hero-desc-br">
+            Momo Ayase and Ken Takakura argue over the existence of ghosts versus aliens — until both turn out to be real. The result is a gleeful, kinetic horror-romance crammed with kaiju brawls, occult chases, and one of the most expressive panel-to-panel rhythms in modern Shueisha. Trending up after its anime adaptation hit.
+          </p>
+          <div class="flex flex-wrap items-center gap-2 mb-5" id="hero-tags-br">
+            <span class="chip chip-pink">Supernatural</span>
+            <span class="chip">Comedy</span>
+            <span class="chip">Romance</span>
+            <span class="chip">Action</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button class="btn-pink h-10 px-5 rounded-lg text-[13px] flex items-center gap-2" id="open-add-2">
+              <i data-lucide="plus" class="w-4 h-4"></i>Add to library
+            </button>
+          </div>
+        </div>
+
+        <div class="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20" id="hero-dots-br"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold tracking-tight">Latest across your sources</h2>
+        <p class="text-[12.5px] text-white/45 mt-0.5">Fresh picks from MangaDex, Comick, Weebcentral, Bato, and Asura</p>
+      </div>
+      <div class="flex items-center gap-3 text-[12px] text-white/45">
+        <span class="flex items-center gap-1.5"><i data-lucide="heart" class="w-3.5 h-3.5 text-red-400"></i>In library</span>
+        <span class="flex items-center gap-1.5"><i data-lucide="heart" class="w-3.5 h-3.5 text-yellow-400"></i>Requested</span>
+      </div>
+    </div>
+
+    <div class="masonry" id="grid-br"></div>
+  </section>
+</main>
+
+<!-- ==================== MODAL ==================== -->
+<div id="modal" class="fixed inset-0 z-[100] modal-bg hidden items-center justify-center p-4">
+  <div class="modal-card max-w-lg w-full rounded-2xl p-8">
+    <div class="flex items-start gap-4 mb-5">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: var(--pink-soft); border:1px solid hsla(346.8 77.2% 49.8% / 0.35);">
+        <i data-lucide="plus" class="w-5 h-5" style="color: var(--pink);"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-xl font-bold mb-1">Add a new series</h3>
+        <p class="text-[13px] text-white/55">Search across all enabled sources, or paste a direct link to a MangaDex / Comick / Asura page.</p>
+      </div>
+      <button id="close-modal" class="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/60">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="relative mb-3">
+      <i data-lucide="search" class="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2"></i>
+      <input class="search-input w-full h-11 pl-10 pr-3 rounded-lg bg-white/[0.04] border border-white/10 text-[14px]" placeholder="Search title or paste URL…" autofocus />
+    </div>
+    <div class="text-[12px] text-white/45 mb-5">Or pick from <a class="text-pink-400" href="#">trending today →</a></div>
+    <div class="flex items-center gap-2">
+      <button class="btn-ghost h-10 px-4 rounded-lg text-[13px] flex-1">Cancel</button>
+      <button class="btn-pink h-10 px-4 rounded-lg text-[13px] flex-1 flex items-center justify-center gap-2"><i data-lucide="sparkles" class="w-4 h-4"></i>Add Series</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCRIPT ==================== -->
+<script>
+  // -------- Data --------
+  const SERIES = [
+    { id:1,  title:"Chainsaw Man",     author:"Tatsuki Fujimoto",  cover:"cv1",  status:"ongoing",   providers:["MangaDex","Comick"],            tracked:157, latest:"#157", last:"3h ago",  sources:3, hasUnknown:false, paused:false, tags:["Action","Supernatural","Dark","Shounen"],
+      desc:"Denji is a young man trapped in poverty, working off his deceased father's debt by harvesting devil corpses with his pet devil-dog Pochita. After a brutal betrayal, Pochita merges with him — granting Denji the power to transform parts of his body into chainsaws. A pulpy, blood-soaked descent into devil-hunting bureaucracy, doomed romance, and existential dread." },
+    { id:2,  title:"Jujutsu Kaisen",   author:"Gege Akutami",      cover:"cv4",  status:"completed", providers:["MangaDex","Weebcentral"],       tracked:271, latest:"#271", last:"1d ago",  sources:2, hasUnknown:false, paused:false, tags:["Action","Supernatural","Shounen"],
+      desc:"Yuji Itadori swallows a cursed finger to save his classmates and becomes the unwilling host of Ryomen Sukuna, King of Curses. The series builds out a dense modern-occult Tokyo of sorcerers, domain expansions, and grief — culminating in the most dissected manga ending of the decade." },
+    { id:3,  title:"Vagabond",         author:"Takehiko Inoue",    cover:"cv3",  status:"hiatus",    providers:["MangaDex","Bato"],              tracked:327, latest:"#327", last:"never",   sources:2, hasUnknown:true,  paused:false, tags:["Historical","Drama","Seinen"],
+      desc:"A loose retelling of the life of Miyamoto Musashi, Inoue's ink-and-brush masterpiece is half samurai epic, half meditation on what it means to keep walking. On indefinite hiatus since 2015 — every fan still hoping for a return." },
+    { id:4,  title:"Berserk",          author:"Kentaro Miura",     cover:"cv4",  status:"ongoing",   providers:["MangaDex","Comick","Bato"],     tracked:374, latest:"#374", last:"2w ago",  sources:3, hasUnknown:false, paused:false, tags:["Dark Fantasy","Seinen","Horror"],
+      desc:"The towering grim-fantasy that defined a genre. Following Miura's passing, the manga continues under Studio Gaga and Kouji Mori — a careful, reverent extension of the Black Swordsman's journey." },
+    { id:5,  title:"Vinland Saga",     author:"Makoto Yukimura",   cover:"cv5",  status:"ongoing",   providers:["MangaDex"],                     tracked:212, latest:"#212", last:"5d ago",  sources:1, hasUnknown:false, paused:true,  tags:["Historical","Seinen","Drama"],
+      desc:"Thorfinn's voyage from vengeful Viking child to pacifist farmer-explorer is one of manga's most ambitious moral arcs. A patient, dirt-under-the-fingernails epic about the cost of violence and the slow shape of redemption." },
+    { id:6,  title:"Solo Leveling",    author:"Chugong",           cover:"cv6",  status:"completed", providers:["Asura","Comick"],               tracked:201, latest:"#201", last:"4d ago",  sources:2, hasUnknown:false, paused:false, tags:["Action","Fantasy","Manhwa"] },
+    { id:7,  title:"Spy x Family",     author:"Tatsuya Endo",      cover:"cv7",  status:"ongoing",   providers:["MangaDex"],                     tracked:108, latest:"#108", last:"8h ago",  sources:1, hasUnknown:false, paused:false, tags:["Comedy","Action","Slice of Life"] },
+    { id:8,  title:"Frieren",          author:"Kanehito Yamada",   cover:"cv8",  status:"ongoing",   providers:["MangaDex","Weebcentral"],       tracked:138, latest:"#138", last:"12h ago", sources:2, hasUnknown:false, paused:false, tags:["Fantasy","Adventure","Seinen"],
+      desc:"A thousand-year-old elf mage outlives the hero's party that ended the Demon King — and only afterward begins to understand what it meant to know them. Quietly devastating. Probably the most beautiful manga running right now." },
+    { id:9,  title:"Dandadan",         author:"Yukinobu Tatsu",    cover:"cv9",  status:"ongoing",   providers:["MangaDex","Comick"],            tracked:189, latest:"#189", last:"2h ago",  sources:2, hasUnknown:true,  paused:false, tags:["Supernatural","Comedy","Romance","Action"],
+      desc:"Momo Ayase and Ken Takakura argue over the existence of ghosts versus aliens — until both turn out to be real. A gleeful, kinetic horror-romance with some of the most expressive paneling in modern Shueisha." },
+    { id:10, title:"Kaiju No. 8",      author:"Naoya Matsumoto",   cover:"cv10", status:"ongoing",   providers:["MangaDex"],                     tracked:128, latest:"#128", last:"6h ago",  sources:1, hasUnknown:false, paused:false, tags:["Action","Sci-Fi","Shounen"] },
+    { id:11, title:"Blue Lock",        author:"Muneyuki Kaneshiro",cover:"cv11", status:"ongoing",   providers:["MangaDex","Bato"],              tracked:289, latest:"#289", last:"1d ago",  sources:2, hasUnknown:false, paused:false, tags:["Sports","Drama","Shounen"] },
+    { id:12, title:"Oshi no Ko",       author:"Aka Akasaka",       cover:"cv12", status:"completed", providers:["MangaDex","Comick"],            tracked:166, latest:"#166", last:"3w ago",  sources:2, hasUnknown:false, paused:false, tags:["Drama","Mystery","Supernatural"],
+      desc:"A reincarnation thriller dressed up as an idol manga. Aka Akasaka's follow-up to Kaguya-sama uses the entertainment industry as a scalpel to study fame, grief, and parasocial obsession. Polarizing ending — singular vibe." },
+    { id:13, title:"One Piece",        author:"Eiichiro Oda",      cover:"cv13", status:"ongoing",   providers:["MangaDex","Comick","Weebcentral"], tracked:1126, latest:"#1126", last:"1h ago", sources:3, hasUnknown:false, paused:false, tags:["Adventure","Action","Shounen"] },
+    { id:14, title:"Hunter x Hunter",  author:"Yoshihiro Togashi", cover:"cv14", status:"hiatus",    providers:["MangaDex","Bato"],              tracked:410, latest:"#410", last:"never",   sources:2, hasUnknown:true,  paused:false, tags:["Adventure","Action","Shounen"] },
+    { id:15, title:"Witch Hat Atelier",author:"Kamome Shirahama",  cover:"cv15", status:"ongoing",   providers:["MangaDex"],                     tracked:81,  latest:"#81",  last:"4d ago",  sources:1, hasUnknown:false, paused:false, tags:["Fantasy","Adventure","Seinen"],
+      desc:"Kamome Shirahama's gilded fantasy about a girl who shouldn't be able to do magic — and the cost of letting her try. Every panel is illuminated like a children's book; every arc is sharper than it looks." },
+    { id:16, title:"Made in Abyss",    author:"Akihito Tsukushi",  cover:"cv16", status:"ongoing",   providers:["MangaDex","Comick"],            tracked:67,  latest:"#67",  last:"2w ago",  sources:2, hasUnknown:false, paused:true,  tags:["Adventure","Horror","Mystery"] },
+    { id:17, title:"Sakamoto Days",    author:"Yuto Suzuki",       cover:"cv17", status:"ongoing",   providers:["MangaDex"],                     tracked:189, latest:"#189", last:"3h ago",  sources:1, hasUnknown:false, paused:false, tags:["Action","Comedy","Shounen"] },
+    { id:18, title:"Akane-banashi",    author:"Yuki Suenaga",      cover:"cv18", status:"ongoing",   providers:["MangaDex","Comick"],            tracked:122, latest:"#122", last:"9h ago",  sources:2, hasUnknown:false, paused:false, tags:["Slice of Life","Drama","Shounen"] },
+    { id:19, title:"Bleach: TYBW",     author:"Tite Kubo",         cover:"cv19", status:"completed", providers:["MangaDex"],                     tracked:686, latest:"#686", last:"1mo ago", sources:1, hasUnknown:false, paused:false, tags:["Action","Supernatural","Shounen"] },
+    { id:20, title:"Mashle",           author:"Hajime Komoto",     cover:"cv20", status:"completed", providers:["MangaDex","Weebcentral"],       tracked:162, latest:"#162", last:"2mo ago", sources:2, hasUnknown:false, paused:false, tags:["Comedy","Action","Shounen"] },
+    { id:21, title:"Kagurabachi",      author:"Takeru Hokazono",   cover:"cv21", status:"ongoing",   providers:["MangaDex","Comick","Bato"],     tracked:68,  latest:"#68",  last:"4h ago",  sources:3, hasUnknown:true,  paused:false, tags:["Action","Supernatural","Shounen"] },
+    { id:22, title:"Goodbye, Eri",     author:"Tatsuki Fujimoto",  cover:"cv22", status:"completed", providers:["MangaDex"],                     tracked:1,   latest:"#1",   last:"6mo ago", sources:1, hasUnknown:false, paused:false, tags:["Drama","One-shot","Seinen"] },
+    { id:23, title:"Look Back",        author:"Tatsuki Fujimoto",  cover:"cv23", status:"completed", providers:["MangaDex","Comick"],            tracked:1,   latest:"#1",   last:"1y ago",  sources:2, hasUnknown:false, paused:false, tags:["Drama","One-shot","Slice of Life"] },
+    { id:24, title:"Heavenly Delusion",author:"Masakazu Ishiguro", cover:"cv24", status:"ongoing",   providers:["MangaDex","Bato"],              tracked:67,  latest:"#67",  last:"1w ago",  sources:2, hasUnknown:false, paused:true,  tags:["Sci-Fi","Mystery","Seinen"] },
+  ];
+
+  // Browse mock — "not in library" candidates with discover state
+  const DISCOVER = [
+    { id:101, title:"Dandadan",            author:"Yukinobu Tatsu",   cover:"cv9",  status:"ongoing", providers:["MangaDex"],            latest:"#189", trending:"#2", state:"none",
+      tags:["Supernatural","Comedy","Romance","Action"],
+      desc:"Momo Ayase and Ken Takakura argue over the existence of ghosts versus aliens — until both turn out to be real. A gleeful, kinetic horror-romance with some of the most expressive paneling in modern Shueisha." },
+    { id:102, title:"Boy's Abyss",         author:"Ryo Minenami",     cover:"cv7",  status:"ongoing", providers:["MangaDex","Comick"],   latest:"#180", trending:"#11", state:"none",
+      tags:["Psychological","Drama","Seinen"],
+      desc:"A bleak, beautifully drawn drama about teenagers caught in cycles of family dysfunction in a dead-end mountain town. Minenami's lines are clean and merciless." },
+    { id:103, title:"The Summer Hikaru Died", author:"Mokumokuren", cover:"cv5",  status:"ongoing", providers:["MangaDex","Comick"],   latest:"#52",  trending:"#5",  state:"library",
+      tags:["Horror","Mystery","Supernatural"],
+      desc:"Yoshiki realizes his lifelong best friend Hikaru died on the mountain — and something else came back wearing him. A queer, hushed horror that's gone from cult favorite to anime breakout." },
+    { id:104, title:"Sousou no Frieren",   author:"Kanehito Yamada",  cover:"cv8",  status:"ongoing", providers:["MangaDex","Weebcentral"], latest:"#138", trending:"#1", state:"library",
+      tags:["Fantasy","Adventure","Seinen"],
+      desc:"A thousand-year-old elf mage outlives the hero's party that ended the Demon King — and only afterward begins to understand what it meant to know them." },
+    { id:105, title:"Mato Seihei no Slave",author:"Takahiro Seguchi", cover:"cv20", status:"ongoing", providers:["MangaDex"],            latest:"#142", trending:"—",  state:"none", tags:["Action","Fantasy"] },
+    { id:106, title:"Wind Breaker",        author:"Satoru Nii",       cover:"cv11", status:"ongoing", providers:["MangaDex","Comick"],   latest:"#163", trending:"#18",state:"none", tags:["Action","Shounen"] },
+    { id:107, title:"Ao no Hako",          author:"Kouji Miura",      cover:"cv13", status:"ongoing", providers:["MangaDex"],            latest:"#177", trending:"#14",state:"requests", tags:["Romance","Sports","Shounen"] },
+    { id:108, title:"Mission: Yozakura Family", author:"Hitsuji Gondaira", cover:"cv1", status:"ongoing", providers:["MangaDex","Comick"], latest:"#249", trending:"—", state:"none", tags:["Action","Comedy"] },
+    { id:109, title:"Sakamoto Days",       author:"Yuto Suzuki",      cover:"cv17", status:"ongoing", providers:["MangaDex"],            latest:"#189", trending:"#8", state:"library", tags:["Action","Comedy"] },
+    { id:110, title:"Centaurs",            author:"Ryo Sumiyoshi",    cover:"cv3",  status:"ongoing", providers:["MangaDex","Bato"],     latest:"#34",  trending:"—",  state:"none", tags:["Fantasy","Action"] },
+    { id:111, title:"Ranger Reject",       author:"Negi Haruba",      cover:"cv4",  status:"ongoing", providers:["MangaDex","Comick"],   latest:"#125", trending:"#19",state:"none", tags:["Action","Supernatural"] },
+    { id:112, title:"Kowloon Generic Romance", author:"Jun Mayuzuki", cover:"cv2",  status:"ongoing", providers:["MangaDex"],            latest:"#79",  trending:"—",  state:"requests", tags:["Romance","Sci-Fi","Mystery"] },
+    { id:113, title:"Hirayasumi",          author:"Keigo Shinzo",     cover:"cv15", status:"ongoing", providers:["MangaDex","Bato"],     latest:"#62",  trending:"—",  state:"none", tags:["Slice of Life","Seinen"] },
+    { id:114, title:"Ayashimon",           author:"Yuji Kaku",        cover:"cv16", status:"completed", providers:["MangaDex"],          latest:"#33",  trending:"—",  state:"none", tags:["Action","Supernatural"] },
+    { id:115, title:"Ghost Reaper Girl",   author:"Akissa Saike",     cover:"cv12", status:"completed", providers:["MangaDex","Comick"], latest:"#48",  trending:"—",  state:"none", tags:["Action","Supernatural"] },
+    { id:116, title:"Choujin X",           author:"Sui Ishida",       cover:"cv14", status:"ongoing", providers:["MangaDex","Bato"],     latest:"#52",  trending:"#23",state:"none", tags:["Action","Sci-Fi","Seinen"] },
+    { id:117, title:"Mission Yozakura",    author:"Hitsuji Gondaira", cover:"cv10", status:"ongoing", providers:["MangaDex"],            latest:"#249", trending:"—",  state:"none", tags:["Action","Comedy"] },
+    { id:118, title:"Kowloon",             author:"Various",          cover:"cv19", status:"ongoing", providers:["Asura"],               latest:"#21",  trending:"—",  state:"none", tags:["Sci-Fi","Romance"] },
+    { id:119, title:"Hell's Paradise",     author:"Yuji Kaku",        cover:"cv18", status:"completed", providers:["MangaDex","Comick"], latest:"#127", trending:"—",  state:"library", tags:["Action","Supernatural","Dark"] },
+    { id:120, title:"Astro Royale",        author:"Ken Wakui",        cover:"cv22", status:"ongoing", providers:["MangaDex"],            latest:"#28",  trending:"—",  state:"none", tags:["Action","Shounen"] },
+    { id:121, title:"Marriagetoxin",       author:"Joumyaku",         cover:"cv24", status:"ongoing", providers:["MangaDex","Comick"],   latest:"#102", trending:"—",  state:"none", tags:["Romance","Comedy"] },
+    { id:122, title:"Ichinose Hat-trick",  author:"Riichiro Inagaki", cover:"cv21", status:"ongoing", providers:["MangaDex"],            latest:"#41",  trending:"—",  state:"none", tags:["Drama","Mystery"] },
+    { id:123, title:"Tougen Anki",         author:"Yura Urushibara",  cover:"cv6",  status:"ongoing", providers:["MangaDex","Asura"],    latest:"#138", trending:"#28",state:"none", tags:["Action","Supernatural"] },
+    { id:124, title:"Drowning Sorrows in Raging Fire", author:"Various", cover:"cv23", status:"ongoing", providers:["Asura"],            latest:"#88",  trending:"—",  state:"requests", tags:["Romance","Drama","Manhua"] },
+  ];
+
+  // -------- Spotlight rotation pools (computed by recency) --------
+  // Library: top 5 series by most recent activity (lastChangeUTC proxy via `last` string).
+  // Browse: top 5 freshest items from configured sources that are NOT already in the library.
+  function relMinutes(s) {
+    if (!s || s === "never") return Number.POSITIVE_INFINITY;
+    const m = s.match(/^(\d+)\s*(m|h|d|w|mo|y)/i);
+    if (!m) return Number.POSITIVE_INFINITY;
+    const n = parseInt(m[1], 10);
+    const u = m[2].toLowerCase();
+    const mult = { m: 1, h: 60, d: 1440, w: 10080, mo: 43200, y: 525600 }[u] || 1;
+    return n * mult;
+  }
+  const SPOT_LIB = [...SERIES]
+    .sort((a, b) => relMinutes(a.last) - relMinutes(b.last))
+    .slice(0, 5)
+    .map(s => s.id);
+  const SPOT_BR = DISCOVER
+    .filter(d => d.state !== "library")
+    .slice(0, 5)
+    .map(d => d.id);
+
+  // -------- Helpers --------
+  const STATUS_COLOR = { ongoing:"s-ongoing", completed:"s-completed", licensed:"s-licensed", cancelled:"s-cancelled", hiatus:"s-hiatus", disabled:"s-disabled" };
+  const STATUS_LABEL = { ongoing:"Ongoing", completed:"Completed", licensed:"Licensed", cancelled:"Cancelled", hiatus:"On Hiatus", disabled:"Disabled" };
+  const STATUS_DOT = { ongoing:"var(--ongoing)", completed:"var(--completed)", licensed:"var(--licensed)", cancelled:"var(--cancelled)", hiatus:"var(--hiatus)", disabled:"var(--disabled)" };
+
+  // Card sizes by segmented control
+  const CARD_HEIGHTS = {
+    xs: [150, 180, 160, 175, 155],
+    sm: [200, 240, 210, 230, 200],
+    md: [260, 300, 280, 320, 260],
+    lg: [320, 360, 340, 380, 330],
+    xl: [380, 430, 400, 450, 390],
+  };
+  let currentSize = "md";
+
+  function libraryCard(s, idx) {
+    const h = CARD_HEIGHTS[currentSize][idx % 5];
+    const strip = STATUS_COLOR[s.status];
+    const provider = s.providers[0];
+    return `
+      <article class="card grid-item" style="animation-delay:${(idx % 20) * 28}ms;">
+        <div class="strip ${strip}"></div>
+        <div class="cover relative ${s.cover}" style="height:${h}px;">
+          <div class="absolute top-2 left-2 flex items-center gap-1.5 z-10">
+            <span class="prov">${provider}</span>
+            ${s.providers.length > 1 ? `<span class="prov" style="opacity:.7">+${s.providers.length - 1}</span>` : ""}
+          </div>
+          <div class="absolute top-2 right-2 flex items-center gap-1 z-10">
+            ${s.hasUnknown ? `<span class="att att-amber" title="Unknown chapters"></span>` : ""}
+            ${s.paused ? `<span class="att att-pause" title="Downloads paused"></span>` : ""}
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 p-3 z-10">
+            <div class="text-[13.5px] font-semibold leading-tight line-clamp-2 mb-1">${s.title}</div>
+            <div class="flex items-center justify-between text-[10.5px] text-white/55">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:${STATUS_DOT[s.status]};"></span>
+                ${STATUS_LABEL[s.status]}
+              </span>
+              <span>${s.latest} · ${s.last}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function browseCard(d, idx) {
+    const h = CARD_HEIGHTS[currentSize][idx % 5];
+    const strip = STATUS_COLOR[d.status];
+    const provider = d.providers[0];
+    let heartIcon, heartTone;
+    if (d.state === "library") { heartIcon = "heart"; heartTone = "text-red-400 fill-red-400"; }
+    else if (d.state === "requests") { heartIcon = "heart"; heartTone = "text-yellow-400 fill-yellow-400"; }
+    else { heartIcon = "heart"; heartTone = "text-white/60"; }
+    return `
+      <article class="card grid-item" style="animation-delay:${(idx % 20) * 28}ms;">
+        <div class="strip ${strip}"></div>
+        <div class="cover relative ${d.cover}" style="height:${h}px;">
+          <div class="absolute top-2 left-2 flex items-center gap-1.5 z-10">
+            <span class="prov">${provider}</span>
+            ${d.providers.length > 1 ? `<span class="prov" style="opacity:.7">+${d.providers.length - 1}</span>` : ""}
+          </div>
+          <button class="heart-btn absolute top-2 right-2 z-10" title="${d.state === 'library' ? 'In library' : d.state === 'requests' ? 'Requested' : 'Add to library'}">
+            <i data-lucide="${heartIcon}" class="w-3.5 h-3.5 ${heartTone}"></i>
+          </button>
+          ${d.trending !== "—" ? `<div class="absolute top-10 left-2 z-10 chip chip-pink flex items-center gap-1" style="font-size:9.5px;"><i data-lucide="flame" class="w-2.5 h-2.5"></i>Trending ${d.trending}</div>` : ""}
+          <div class="absolute bottom-0 left-0 right-0 p-3 z-10">
+            <div class="text-[13.5px] font-semibold leading-tight line-clamp-2 mb-1">${d.title}</div>
+            <div class="flex items-center justify-between text-[10.5px] text-white/55">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:${STATUS_DOT[d.status]};"></span>
+                ${STATUS_LABEL[d.status]}
+              </span>
+              <span>${d.latest}</span>
+            </div>
+          </div>
+          <div class="quick quick-cluster z-20">
+            <button class="quick-btn primary" onclick="event.stopPropagation();openModal();"><i data-lucide="plus" class="w-3 h-3"></i>Add</button>
+            <button class="quick-btn"><i data-lucide="send" class="w-3 h-3"></i>Request</button>
+            <button class="quick-btn"><i data-lucide="eye" class="w-3 h-3"></i>Peek</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderLibrary() {
+    const el = document.getElementById("grid-lib");
+    el.innerHTML = SERIES.map((s, i) => libraryCard(s, i)).join("");
+    lucide.createIcons();
+  }
+  function renderBrowse() {
+    const el = document.getElementById("grid-br");
+    el.innerHTML = DISCOVER.map((d, i) => browseCard(d, i)).join("");
+    lucide.createIcons();
+  }
+
+  // -------- Hero rendering --------
+  function setHeroLib(idx) {
+    const id = SPOT_LIB[idx];
+    const s = SERIES.find(x => x.id === id);
+    if (!s) return;
+    const bd = document.getElementById("hero-bd-lib");
+    const cover = document.getElementById("hero-cover-lib");
+    const content = document.getElementById("hero-content-lib");
+    content.classList.add("out");
+    cover.classList.add("out");
+    setTimeout(() => {
+      bd.className = "hero-backdrop " + s.cover;
+      cover.className = "cover relative sp-fade " + s.cover;
+      cover.innerHTML = `
+        <div class="strip absolute top-0 left-0 right-0 ${STATUS_COLOR[s.status]}"></div>
+        <div class="absolute bottom-3 left-3 right-3">
+          <div class="text-[10px] font-semibold tracking-wider text-white/70 mb-1">${s.title.toUpperCase()}</div>
+          <div class="text-[10px] text-white/50">${s.author}</div>
+        </div>
+      `;
+      document.getElementById("hero-title-lib").textContent = s.title;
+      document.getElementById("hero-meta-lib").innerHTML = `
+        <span class="status-pill">${s.status === 'ongoing' ? '<span class="pulse-dot"></span>' : `<span class="w-1.5 h-1.5 rounded-full" style="background:${STATUS_DOT[s.status]};"></span>`}${STATUS_LABEL[s.status]}</span>
+        <span class="text-white/55"><b class="text-white/90">${s.tracked}</b> chapters tracked</span>
+        <span class="w-1 h-1 rounded-full bg-white/20"></span>
+        <span class="text-white/55"><b class="text-white/90">${s.sources}</b> active sources</span>
+        <span class="w-1 h-1 rounded-full bg-white/20"></span>
+        <span class="text-white/55"><i data-lucide="download" class="w-3.5 h-3.5 inline -mt-0.5"></i> Downloaded ${s.last}</span>
+      `;
+      document.getElementById("hero-desc-lib").textContent = s.desc || "A series in your library — automatically tracked across configured sources, with new chapters detected and downloaded as they appear.";
+      document.getElementById("hero-tags-lib").innerHTML = (s.tags || []).map((t, i) => `<span class="chip ${i === 0 ? 'chip-pink' : ''}">${t}</span>`).join("");
+      content.classList.remove("out");
+      cover.classList.remove("out");
+      lucide.createIcons();
+    }, 350);
+    document.querySelectorAll("#hero-dots-lib .dot-thumb").forEach((d, i) => d.classList.toggle("active", i === idx));
+  }
+
+  function setHeroBr(idx) {
+    const id = SPOT_BR[idx];
+    const d = DISCOVER.find(x => x.id === id);
+    if (!d) return;
+    const bd = document.getElementById("hero-bd-br");
+    const cover = document.getElementById("hero-cover-br");
+    const content = document.getElementById("hero-content-br");
+    content.classList.add("out");
+    cover.classList.add("out");
+    setTimeout(() => {
+      bd.className = "hero-backdrop " + d.cover;
+      cover.className = "cover relative sp-fade " + d.cover;
+      cover.innerHTML = `
+        <div class="strip absolute top-0 left-0 right-0 ${STATUS_COLOR[d.status]}"></div>
+        <div class="absolute bottom-3 left-3 right-3">
+          <div class="text-[10px] font-semibold tracking-wider text-white/70 mb-1">${d.title.toUpperCase()}</div>
+          <div class="text-[10px] text-white/50">${d.author}</div>
+        </div>
+      `;
+      document.getElementById("hero-title-br").textContent = d.title;
+      document.getElementById("hero-meta-br").innerHTML = `
+        <span class="status-pill">${d.status === 'ongoing' ? '<span class="pulse-dot"></span>' : `<span class="w-1.5 h-1.5 rounded-full" style="background:${STATUS_DOT[d.status]};"></span>`}${STATUS_LABEL[d.status]}</span>
+        <span class="text-white/55"><b class="text-white/90">${d.latest.replace('#','')}</b> chapters available</span>
+        <span class="w-1 h-1 rounded-full bg-white/20"></span>
+        <span class="text-white/55">Source: <b class="text-white/90">${d.providers[0]}</b></span>
+        ${d.trending !== "—" ? `<span class="w-1 h-1 rounded-full bg-white/20"></span><span class="text-white/55"><i data-lucide="flame" class="w-3.5 h-3.5 inline -mt-0.5" style="color: var(--pink);"></i> Trending ${d.trending}</span>` : ""}
+      `;
+      document.getElementById("hero-desc-br").textContent = d.desc || "Surfaced from your configured sources. Add to your library to start automatic chapter tracking and downloads.";
+      document.getElementById("hero-tags-br").innerHTML = (d.tags || []).map((t, i) => `<span class="chip ${i === 0 ? 'chip-pink' : ''}">${t}</span>`).join("");
+      content.classList.remove("out");
+      cover.classList.remove("out");
+      lucide.createIcons();
+    }, 350);
+    document.querySelectorAll("#hero-dots-br .dot-thumb").forEach((d, i) => d.classList.toggle("active", i === idx));
+  }
+
+  // Build dot strips
+  function buildDots() {
+    const libDots = document.getElementById("hero-dots-lib");
+    libDots.innerHTML = SPOT_LIB.map((id, i) => {
+      const s = SERIES.find(x => x.id === id);
+      return `<div class="dot-thumb ${s.cover} ${i === 0 ? 'active' : ''}" data-idx="${i}" title="${s.title}"></div>`;
+    }).join("");
+    libDots.querySelectorAll(".dot-thumb").forEach(d => {
+      d.addEventListener("click", () => {
+        clearInterval(autoLib);
+        setHeroLib(parseInt(d.dataset.idx));
+        autoLib = setInterval(() => { libIdx = (libIdx + 1) % SPOT_LIB.length; setHeroLib(libIdx); }, 8000);
+        libIdx = parseInt(d.dataset.idx);
+      });
+    });
+
+    const brDots = document.getElementById("hero-dots-br");
+    brDots.innerHTML = SPOT_BR.map((id, i) => {
+      const d = DISCOVER.find(x => x.id === id);
+      return `<div class="dot-thumb ${d.cover} ${i === 0 ? 'active' : ''}" data-idx="${i}" title="${d.title}"></div>`;
+    }).join("");
+    brDots.querySelectorAll(".dot-thumb").forEach(d => {
+      d.addEventListener("click", () => {
+        clearInterval(autoBr);
+        setHeroBr(parseInt(d.dataset.idx));
+        autoBr = setInterval(() => { brIdx = (brIdx + 1) % SPOT_BR.length; setHeroBr(brIdx); }, 8000);
+        brIdx = parseInt(d.dataset.idx);
+      });
+    });
+  }
+
+  // -------- View toggle --------
+  function setView(view) {
+    const lib = document.getElementById("view-library");
+    const br = document.getElementById("view-browse");
+    const ribLib = document.getElementById("ribbon-lib");
+    const ribBr = document.getElementById("ribbon-browse");
+    // Drive the command-bar section pills' active state
+    document.querySelectorAll("#nav-pills [data-view]").forEach(b => {
+      const isActive = b.dataset.view === view;
+      b.classList.toggle("pill-active", isActive);
+      b.classList.toggle("text-white/90", isActive);
+      b.classList.toggle("text-white/55", !isActive);
+    });
+
+    if (view === "library") {
+      br.classList.add("fading");
+      setTimeout(() => {
+        br.classList.add("hidden-view");
+        lib.classList.remove("hidden-view");
+        lib.classList.add("fading");
+        requestAnimationFrame(() => lib.classList.remove("fading"));
+      }, 320);
+      ribBr.classList.add("hidden"); ribBr.classList.remove("flex");
+      ribLib.classList.remove("hidden"); ribLib.classList.add("flex");
+    } else {
+      lib.classList.add("fading");
+      setTimeout(() => {
+        lib.classList.add("hidden-view");
+        br.classList.remove("hidden-view");
+        br.classList.add("fading");
+        requestAnimationFrame(() => br.classList.remove("fading"));
+      }, 320);
+      ribLib.classList.add("hidden"); ribLib.classList.remove("flex");
+      ribBr.classList.remove("hidden"); ribBr.classList.add("flex");
+    }
+  }
+
+  // -------- Card-size segmented controls --------
+  document.querySelectorAll(".seg").forEach(seg => {
+    seg.querySelectorAll("button").forEach(b => {
+      b.addEventListener("click", () => {
+        seg.querySelectorAll("button").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        currentSize = b.dataset.size;
+        renderLibrary();
+        renderBrowse();
+      });
+    });
+  });
+
+  // -------- Status pill toggles --------
+  document.querySelectorAll("[data-status]").forEach(p => {
+    if (p.dataset.status === "all") p.classList.add("pill-active");
+    p.addEventListener("click", () => {
+      document.querySelectorAll("[data-status]").forEach(x => x.classList.remove("pill-active"));
+      p.classList.add("pill-active");
+      p.style.background = "hsla(346.8 77.2% 49.8% / 0.18)";
+      p.style.borderColor = "hsla(346.8 77.2% 49.8% / 0.4)";
+      p.style.color = "hsl(346.8 90% 78%)";
+      // reset others
+      document.querySelectorAll("[data-status]").forEach(x => { if (x !== p) { x.style.background = ""; x.style.borderColor = ""; x.style.color = ""; }});
+    });
+  });
+
+  // -------- Modal --------
+  function openModal() {
+    const m = document.getElementById("modal");
+    m.classList.remove("hidden");
+    m.classList.add("flex");
+  }
+  function closeModal() {
+    const m = document.getElementById("modal");
+    m.classList.add("hidden");
+    m.classList.remove("flex");
+  }
+  document.getElementById("open-add").addEventListener("click", openModal);
+  document.getElementById("open-add-2").addEventListener("click", openModal);
+  document.getElementById("close-modal").addEventListener("click", closeModal);
+  document.getElementById("modal").addEventListener("click", (e) => {
+    if (e.target.id === "modal") closeModal();
+  });
+
+  // -------- Cmd+K --------
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      document.getElementById("search").focus();
+    }
+    if (e.key === "Escape") closeModal();
+  });
+
+  // -------- View toggle wires (command-bar section pills) --------
+  document.querySelectorAll("#nav-pills [data-view]").forEach(b => {
+    b.addEventListener("click", () => setView(b.dataset.view));
+  });
+
+  // -------- Auto-rotate hero --------
+  let libIdx = 0, brIdx = 0;
+  let autoLib, autoBr;
+
+  // -------- Init --------
+  renderLibrary();
+  renderBrowse();
+  buildDots();
+  lucide.createIcons();
+  autoLib = setInterval(() => { libIdx = (libIdx + 1) % SPOT_LIB.length; setHeroLib(libIdx); }, 8000);
+  autoBr  = setInterval(() => { brIdx  = (brIdx  + 1) % SPOT_BR.length;  setHeroBr(brIdx); },  8000);
+</script>
+</body>
+</html>

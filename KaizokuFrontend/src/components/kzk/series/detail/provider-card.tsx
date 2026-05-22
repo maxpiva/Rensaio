@@ -228,7 +228,7 @@ export const ProviderCard = ({
         isDisabled ? "opacity-60" : ""
       } ${isUnknown ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}`}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap sm:gap-4">
         {/* Thumbnail */}
         <div className="shrink-0">
           <img
@@ -306,7 +306,7 @@ export const ProviderCard = ({
 
         {/* Right controls */}
         {canEdit && (
-          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/40 pt-3 sm:w-auto sm:shrink-0 sm:flex-nowrap sm:flex-row sm:items-center sm:border-t-0 sm:pt-0">
             {!isUnknown && (
               <>
                 <div className="flex flex-wrap items-center gap-1">
@@ -349,7 +349,7 @@ export const ProviderCard = ({
             )}
 
             {/* Icon button cluster */}
-            <div className="flex items-center gap-1 sm:border-l sm:border-border/40 sm:pl-2">
+            <div className="ml-auto flex items-center gap-1 sm:ml-0 sm:border-l sm:border-border/40 sm:pl-2">
               {!isUnknown && !provider.isUninstalled && (
                 <button
                   type="button"

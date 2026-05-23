@@ -44,6 +44,7 @@ export interface AddSeriesState {
   fullSeries: FullSeries[];
   originalAugmentedResponse?: AugmentedResponse; // Store the original response for final submission
   storagePath?: string; // User-edited storage path
+  startChapter?: number; // User-facing "Start Chapter" - chapters before this will be skipped
 }
 
 export interface AddSeriesProps {

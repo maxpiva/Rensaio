@@ -91,14 +91,16 @@ export function AddSeriesSteps({
           throw new Error('Original augmented response not found');
         }
           const finalAugmentedResponse: AugmentedResponse = {
-          ...formState.originalAugmentedResponse,
-          series: selectedSeries,
-          // Use edited storage path if available, otherwise use original
-          storageFolderPath: formState.storagePath || formState.originalAugmentedResponse.storageFolderPath,
-          // For Add Sources mode, ensure these are set
-          existingSeries: isAddSourcesMode || formState.originalAugmentedResponse.existingSeries,
-          existingSeriesId: (isAddSourcesMode && seriesId) ? seriesId : formState.originalAugmentedResponse.existingSeriesId
-        };
+            ...formState.originalAugmentedResponse,
+            series: selectedSeries,
+            // Use edited storage path if available, otherwise use original
+            storageFolderPath: formState.storagePath || formState.originalAugmentedResponse.storageFolderPath,
+            // For Add Sources mode, ensure these are set
+            existingSeries: isAddSourcesMode || formState.originalAugmentedResponse.existingSeries,
+            existingSeriesId: (isAddSourcesMode && seriesId) ? seriesId : formState.originalAugmentedResponse.existingSeriesId,
+            // Pass through the start chapter value (user-facing "Start Chapter" mapped to backend's "StartChapter")
+            startChapter: formState.startChapter
+          };
         
         await addSeries.mutateAsync(finalAugmentedResponse);
         

@@ -560,7 +560,7 @@ public static class SeriesExtensions
             .SelectMany(a => a.Chapters.Where(b => !string.IsNullOrEmpty(b.Filename) && !b.IsDeleted))
             .Max(a => a.Number);
         if (startChapter.HasValue && (continueAfterChapter == null || startChapter > continueAfterChapter))
-            continueAfterChapter = startChapter - .1m;
+            continueAfterChapter = startChapter - 1m;
         decimal? maxStPossible = providers.Where(a => a.IsStorage).SelectMany(a => a.Chapters).Max(a => a.Number);
         foreach (SeriesProviderEntity s in providers)
         {

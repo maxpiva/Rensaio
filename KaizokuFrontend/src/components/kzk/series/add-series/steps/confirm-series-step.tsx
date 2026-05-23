@@ -477,6 +477,15 @@ export function ConfirmSeriesStep({
   const [selectedCategory, setSelectedCategory] = React.useState<string>("");  // State for editable storage path
   const [editableStoragePath, setEditableStoragePath] = React.useState<string>("");
   
+  // Handler for start chapter changes
+  const handleStartChapterChange = React.useCallback((value: string) => {
+    const parsed = value === "" ? undefined : parseInt(value, 10);
+    setFormState((prev: AddSeriesState) => ({
+      ...prev,
+      startChapter: parsed && !isNaN(parsed) ? parsed : undefined
+    }));
+  }, [setFormState]);
+  
   // Ref to track if category was manually changed by user
   const categoryManuallyChanged = React.useRef<boolean>(false);
 
@@ -630,6 +639,28 @@ export function ConfirmSeriesStep({
                 </Select>
               </div>
             )}
+            {/* Start Chapter - allows user to skip chapters before this number */}
+            <div className="w-full sm:w-32">
+              <Label htmlFor="start-chapter" className="text-sm font-medium">
+                Start Chapter
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Input
+                    id="start-chapter"
+                    type="number"
+                    step={1}
+                    value={formState.startChapter ?? ""}
+                    onChange={(e) => handleStartChapterChange(e.target.value)}
+                    placeholder="No limit"
+                    className="mt-1 bg-card mb-2 text-xs sm:text-sm"
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Only download chapters from this number onward.<br />Leave empty to download all chapters.</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         )}      <div
           ref={scrollContainerRef}

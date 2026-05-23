@@ -401,6 +401,21 @@ public class ImportCommandService
                                             }
                                         }
                                     }
+                                    
+                                    // If no Mihon extension matched and provider has a real name,
+                                    // create a user-based (non-Mihon) provider to preserve the metadata
+                                    if (left.ContainsKey(p))
+                                    {
+                                        _logger.LogInformation("Creating user-based source for '{Title}' provider {Provider} ({Lang}/{Scanlator}) as no matching extension was found.",
+                                            p.Title, p.Provider, p.Language, p.Scanlator);
+                                        SeriesProviderEntity userProvider = SeriesProviderEntity.CreateUserBased(
+                                            p.Provider, p.Scanlator, p.Language, p.Title);
+                                        userProvider.SeriesId = s.Id;
+                                        userProvider.AssignArchives(left[p]);
+                                        _db.SeriesProviders.Add(userProvider);
+                                        s.Sources.Add(userProvider);
+                                        left.Remove(p);
+                                    }
                                 }
                             }
                         }

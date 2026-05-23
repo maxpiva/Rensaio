@@ -36,4 +36,25 @@ public class SeriesProviderEntity : ProviderSummaryBase, IBridgeItemInfo, IThumb
     public bool IsUninstalled { get; set; }
     public List<Chapter> Chapters { get; set; } = [];
 
+    /// <summary>
+    /// Creates a new user-based (non-Mihon) provider entity.
+    /// Used when matching unknown chapters to a user-defined source.
+    /// </summary>
+    public static SeriesProviderEntity CreateUserBased(string provider, string scanlator, string language, string title = "")
+    {
+        return new SeriesProviderEntity
+        {
+            Id = Guid.NewGuid(),
+            Provider = provider,
+            Scanlator = scanlator ?? string.Empty,
+            Language = language,
+            Title = title,
+            IsUnknown = false,
+            IsLocal = true,
+            IsStorage = false,
+            IsDisabled = false,
+            IsUninstalled = false,
+            Chapters = new List<Chapter>()
+        };
+    }
 }

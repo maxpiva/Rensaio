@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Globe } from "lucide-react";
+import { Globe, Plus } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { type ProviderMatch, type ProviderMatchChapter, type MatchInfo } from "@/lib/api/types";
+import { type ProviderMatch, type ProviderMatchChapter, type MatchInfo, NEW_PROVIDER_SENTINEL } from "@/lib/api/types";
 
 // Memoized row component to prevent unnecessary re-renders
 const ChapterRow = memo(({
@@ -73,6 +73,8 @@ const ChapterRow = memo(({
   );
 });
 
+ChapterRow.displayName = 'ChapterRow';
+
 interface ProviderMatchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -91,19 +93,29 @@ export function ProviderMatchDialog({
   isLoading = false,
   isLoadingData = false,
   deletedProviderStates = {}
-}: ProviderMatchDialogProps) {  const [chapters, setChapters] = useState<ProviderMatchChapter[]>([]);
+}: ProviderMatchDialogProps) {
+  const [chapters, setChapters] = useState<ProviderMatchChapter[]>([]);
   const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<Set<number>>(new Set());
   const [selectedMatchInfoId, setSelectedMatchInfoId] = useState<string>("");
   const [rangeStart, setRangeStart] = useState<string>("");
-  const [rangeStep, setRangeStep] = useState<string>("1");  const [isPainting, setIsPainting] = useState<boolean>(false);
+  const [rangeStep, setRangeStep] = useState<string>("1");
+  const [isPainting, setIsPainting] = useState<boolean>(false);
   const [paintMode, setPaintMode] = useState<'select' | 'deselect'>('select');
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null);
-  
+
+  // New provider creation state
+  const [showNewProviderForm, setShowNewProviderForm] = useState(false);
+  const [newProviderName, setNewProviderName] = useState("");
+  const [newProviderScanlator, setNewProviderScanlator] = useState("");
+  const [newProviderLanguage, setNewProviderLanguage] = useState("en");
+
   // Use a ref to track painting state for auto-scroll interval
   const isPaintingRef = useRef<boolean>(false);
   // Track the last painted index to fill gaps when dragging quickly
-  const lastPaintedIndexRef = useRef<number | null>(null);// Initialize state when providerMatch changes
+  const lastPaintedIndexRef = useRef<number | null>(null);
+
+  // Initialize state when providerMatch changes
   useEffect(() => {
     // Handle both lowercase and uppercase property names from backend
     const chapters = providerMatch?.chapters || (providerMatch as any)?.Chapters;
@@ -113,6 +125,10 @@ export function ProviderMatchDialog({
       setSelectedMatchInfoId("");
       setRangeStart("");
       setRangeStep("1");
+      setShowNewProviderForm(false);
+      setNewProviderName("");
+      setNewProviderScanlator("");
+      setNewProviderLanguage("en");
     }
   }, [providerMatch]);
 
@@ -126,6 +142,7 @@ export function ProviderMatchDialog({
       }
     }
   }, [selectedChapterIndexes, chapters]);
+
   const handleChapterChange = useCallback((index: number, field: keyof ProviderMatchChapter, value: string | number | null) => {
     setChapters(prev => {
       const updatedChapters = [...prev];
@@ -154,7 +171,9 @@ export function ProviderMatchDialog({
       lastPaintedIndexRef.current = index;
       return newSelection;
     });
-  }, []);  const handleMouseEnter = useCallback((index: number) => {
+  }, []);
+
+  const handleMouseEnter = useCallback((index: number) => {
     if (!isPainting) return;
     
     setSelectedChapterIndexes(prev => {
@@ -189,6 +208,7 @@ export function ProviderMatchDialog({
       return newSelection;
     });
   }, [isPainting, paintMode]);
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPainting || !scrollContainer) return;
 
@@ -246,7 +266,9 @@ export function ProviderMatchDialog({
         setAutoScrollInterval(null);
       }
     }
-  }, [isPainting, scrollContainer, autoScrollInterval]);  const handleMouseUp = useCallback(() => {
+  }, [isPainting, scrollContainer, autoScrollInterval]);
+
+  const handleMouseUp = useCallback(() => {
     setIsPainting(false);
     isPaintingRef.current = false;
     lastPaintedIndexRef.current = null;
@@ -254,8 +276,11 @@ export function ProviderMatchDialog({
       clearInterval(autoScrollInterval);
       setAutoScrollInterval(null);
     }
-  }, [autoScrollInterval]);// Add global mouse up listener
-  useEffect(() => {    const handleGlobalMouseUp = () => {
+  }, [autoScrollInterval]);
+
+  // Add global mouse up listener
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
       setIsPainting(false);
       isPaintingRef.current = false;
       lastPaintedIndexRef.current = null;
@@ -291,6 +316,7 @@ export function ProviderMatchDialog({
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
   }, [open, chapters]);
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedChapterIndexes(new Set(chapters.map((_, index) => index)));
@@ -336,7 +362,35 @@ export function ProviderMatchDialog({
       } as ProviderMatchChapter;
     });
     
-    setChapters(updatedChapters);  };
+    setChapters(updatedChapters);
+  };
+
+  // Handle selection of "Create New Provider" from the dropdown
+  const handleProviderSelect = useCallback((value: string) => {
+    if (value === "__new__") {
+      setShowNewProviderForm(true);
+      setSelectedMatchInfoId("");
+    } else {
+      setSelectedMatchInfoId(value);
+      setShowNewProviderForm(false);
+    }
+  }, []);
+
+  // Confirm creation of new provider
+  const handleNewProviderConfirm = useCallback(() => {
+    if (!newProviderName.trim()) return;
+    // Use the sentinel as the matchInfoId - the backend will create the provider
+    setSelectedMatchInfoId(NEW_PROVIDER_SENTINEL);
+    setShowNewProviderForm(false);
+  }, [newProviderName]);
+
+  // Cancel new provider creation
+  const handleNewProviderCancel = useCallback(() => {
+    setShowNewProviderForm(false);
+    setNewProviderName("");
+    setNewProviderScanlator("");
+    setNewProviderLanguage("en");
+  }, []);
 
   // Get the correct property names (handle both cases)
   const backendChapters = providerMatch?.chapters || (providerMatch as any)?.Chapters;
@@ -354,10 +408,19 @@ export function ProviderMatchDialog({
   }, [backendMatchInfos, deletedProviderStates]);
 
   const getMatchInfo = useCallback((matchInfoId: string | null | undefined): any => {
+    // Handle the sentinel (new provider) case
+    if (matchInfoId === NEW_PROVIDER_SENTINEL) {
+      return {
+        id: NEW_PROVIDER_SENTINEL,
+        provider: newProviderName || "New Provider",
+        scanlator: newProviderScanlator,
+        language: newProviderLanguage
+      };
+    }
     // Use filtered available match infos instead of backend match infos
     if (!matchInfoId || !availableMatchInfos) return null;
     return availableMatchInfos.find((m: any) => m.id === matchInfoId);
-  }, [availableMatchInfos]);
+  }, [availableMatchInfos, newProviderName, newProviderScanlator, newProviderLanguage]);
 
   const getProviderName = useCallback((matchInfoId: string | null | undefined): string => {
     const matchInfo = getMatchInfo(matchInfoId);
@@ -396,15 +459,39 @@ export function ProviderMatchDialog({
     );
   }, [getMatchInfo]);
 
-  const canSave = chapters.every(chapter => chapter.matchInfoId);
+  // A chapter is valid if it has a matchInfoId or is assigned to the sentinel (new provider)
+  const canSave = chapters.every(chapter => {
+    if (!chapter.matchInfoId) return false;
+    if (chapter.matchInfoId === NEW_PROVIDER_SENTINEL) {
+      // When using sentinel, ensure we have provider metadata
+      return newProviderName.trim().length > 0;
+    }
+    return true;
+  });
 
   const handleSave = () => {
     if (!providerMatch || !canSave) return;
 
+    // Build the matchInfos list, including the sentinel entry if needed
+    const hasNewProvider = chapters.some(ch => ch.matchInfoId === NEW_PROVIDER_SENTINEL);
+    let matchInfos = backendMatchInfos ? [...backendMatchInfos] : [];
+
+    if (hasNewProvider) {
+      // Add the sentinel MatchInfo so the backend knows what provider to create
+      matchInfos.push({
+        id: NEW_PROVIDER_SENTINEL,
+        provider: newProviderName,
+        scanlator: newProviderScanlator,
+        language: newProviderLanguage
+      });
+    }
+
     const updatedMatch: ProviderMatch = {
       ...providerMatch,
+      matchInfos,
       chapters
-    };    onSave(updatedMatch);
+    };
+    onSave(updatedMatch);
   };
 
   return (
@@ -422,14 +509,16 @@ export function ProviderMatchDialog({
               <div className="text-sm text-muted-foreground mt-2">Please wait while we fetch the sources information.</div>
             </div>
           </div>
-        ) : !providerMatch || !backendChapters || !availableMatchInfos ? (
+        ) : !providerMatch || !backendChapters ? (
           <div className="flex-1 flex items-center justify-center min-h-64">
             <div className="text-center">
               <div className="text-lg font-medium text-red-500">Failed to load match data</div>
               <div className="text-sm text-muted-foreground mt-2">Please try again.</div>
             </div>
-          </div>        ) : (
-          <div className="flex-1 flex flex-col gap-4 min-h-0">            {/* Selection controls */}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col gap-4 min-h-0">
+            {/* Selection controls */}
            {
            /* Upper scrollable area with chapter rows */}<div className="flex-1 border rounded-md min-h-0">
               <div className="p-3 border-b bg-muted/50">
@@ -443,13 +532,15 @@ export function ProviderMatchDialog({
                   <div className="w-[20%]">Source</div>
                   <div className="w-[10%]">Number</div>
                 </div>
-              </div>              <div 
+              </div>
+              <div 
                 className="h-[70vh] overflow-y-auto" 
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 ref={setScrollContainer}
               >
-                <div className="p-2 select-none">                  {chapters.map((chapter, index) => (
+                <div className="p-2 select-none">
+                  {chapters.map((chapter, index) => (
                     <ChapterRow
                       key={index}
                       chapter={chapter}
@@ -466,58 +557,123 @@ export function ProviderMatchDialog({
             </div>
 
             {/* Bottom control area */}
-            <div className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium">Providers:</Label>                <Select value={selectedMatchInfoId} onValueChange={setSelectedMatchInfoId}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select source">
-                      {selectedMatchInfoId && renderProviderWithFlag(selectedMatchInfoId)}
-                    </SelectValue>
-                  </SelectTrigger>                  <SelectContent>
-                    {availableMatchInfos?.filter((matchInfo: any) => matchInfo.id).map((matchInfo: any) => (
-                      <SelectItem key={matchInfo.id} value={matchInfo.id}>
-                        {renderProviderWithFlag(matchInfo.id)}
+            <div className="flex flex-col gap-3 p-3 border rounded-md bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium">Providers:</Label>
+                  <Select 
+                    value={selectedMatchInfoId === NEW_PROVIDER_SENTINEL ? "__new__" : selectedMatchInfoId} 
+                    onValueChange={handleProviderSelect}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select source">
+                        {selectedMatchInfoId && renderProviderWithFlag(selectedMatchInfoId)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableMatchInfos?.filter((matchInfo: any) => matchInfo.id).map((matchInfo: any) => (
+                        <SelectItem key={matchInfo.id} value={matchInfo.id}>
+                          {renderProviderWithFlag(matchInfo.id)}
+                        </SelectItem>
+                      )) || []}
+                      <SelectItem value="__new__">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Plus size={16} />
+                          <span>Create New Provider</span>
+                        </div>
                       </SelectItem>
-                    )) || []}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={handleMatchSelected}
-                  disabled={!selectedMatchInfoId || selectedChapterIndexes.size === 0}
-                  size="sm"
-                >
-                  Match
-                </Button>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleMatchSelected}
+                    disabled={!selectedMatchInfoId || selectedChapterIndexes.size === 0 || selectedMatchInfoId === "__new__"}
+                    size="sm"
+                  >
+                    Match
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium">Range Fill:</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Start"
+                    value={rangeStart}
+                    onChange={(e) => setRangeStart(e.target.value)}
+                    className="w-20 h-8"
+                  />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Step"
+                    value={rangeStep}
+                    onChange={(e) => setRangeStep(e.target.value)}
+                    className="w-20 h-8"
+                  />
+                  <Button
+                    onClick={handleFillRange}
+                    disabled={!rangeStart || !rangeStep || selectedChapterIndexes.size === 0}
+                    size="sm"
+                  >
+                    Fill
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium">Range Fill:</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="Start"
-                  value={rangeStart}
-                  onChange={(e) => setRangeStart(e.target.value)}
-                  className="w-20 h-8"
-                />                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="Step"
-                  value={rangeStep}
-                  onChange={(e) => setRangeStep(e.target.value)}
-                  className="w-20 h-8"
-                />
-                <Button
-                  onClick={handleFillRange}
-                  disabled={!rangeStart || !rangeStep || selectedChapterIndexes.size === 0}
-                  size="sm"
-                >
-                  Fill
-                </Button>
-              </div>
+              {/* New provider creation form - shown when "Create New Provider" is selected */}
+              {showNewProviderForm && (
+                <div className="flex items-center gap-4 p-3 bg-background border rounded-md">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">Name</Label>
+                    <Input
+                      placeholder="Provider name"
+                      value={newProviderName}
+                      onChange={(e) => setNewProviderName(e.target.value)}
+                      className="h-8 w-44"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">Scanlator</Label>
+                    <Input
+                      placeholder="Scanlator (optional)"
+                      value={newProviderScanlator}
+                      onChange={(e) => setNewProviderScanlator(e.target.value)}
+                      className="h-8 w-36"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">Language</Label>
+                    <Input
+                      placeholder="en"
+                      value={newProviderLanguage}
+                      onChange={(e) => setNewProviderLanguage(e.target.value)}
+                      className="h-8 w-20"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2 mt-auto">
+                    <Button
+                      onClick={handleNewProviderConfirm}
+                      disabled={!newProviderName.trim()}
+                      size="sm"
+                      variant="default"
+                    >
+                      Create
+                    </Button>
+                    <Button
+                      onClick={handleNewProviderCancel}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}        <DialogFooter>
+        )}
+        <DialogFooter>
           <div className="flex items-center text-sm text-muted-foreground mr-auto">
             ({selectedChapterIndexes.size} of {chapters.length} selected)
           </div>

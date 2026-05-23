@@ -34,7 +34,8 @@ namespace KaizokuBackend.Services.Series
         }
 
         /// <summary>
-        /// Gets a provider match by provider ID for unknown providers
+        /// Gets a provider match by provider ID for unknown providers.
+        /// Returns both Mihon-linked and user-based providers as potential match targets.
         /// </summary>
         /// <param name="providerId">The provider's unique identifier</param>
         /// <param name="token">Cancellation token</param>
@@ -44,14 +45,13 @@ namespace KaizokuBackend.Services.Series
 
             SeriesProviderEntity? provider = await _db.SeriesProviders.Where(a => a.Id == providerId).AsNoTracking()
                 .FirstOrDefaultAsync(token).ConfigureAwait(false);
-            if (provider == null || (!string.IsNullOrWhiteSpace(provider.MihonId) && !provider.IsUnknown))
+            if (provider == null || !provider.IsUnknown)
                 return null;
             
+            // Include ALL non-unknown providers on the same series (both Mihon-linked and user-based)
             List<SeriesProviderEntity> providers = await _db.SeriesProviders
-                .Where(a => a.SeriesId == provider.SeriesId && !a.IsUnknown && !string.IsNullOrWhiteSpace(a.MihonId)).AsNoTracking().ToListAsync(token)
+                .Where(a => a.SeriesId == provider.SeriesId && !a.IsUnknown).AsNoTracking().ToListAsync(token)
                 .ConfigureAwait(false);
-            if (providers.Count == 0)
-                return null;
             
             ProviderMatchDto m = new ProviderMatchDto
             {
@@ -71,8 +71,13 @@ namespace KaizokuBackend.Services.Series
             return m;
         }
 
+        private static readonly Guid NewProviderSentinel = Guid.Empty;
+
         /// <summary>
-        /// Sets a provider match by moving chapters from unknown provider to known providers
+        /// Sets a provider match by moving chapters from unknown provider to known providers.
+        /// Supports both existing providers and creating new user-based providers.
+        /// When a MatchInfo has Id == Guid.Empty, a new user-based provider is created
+        /// using the MatchInfo's provider/scanlator/language metadata.
         /// </summary>
         /// <param name="pm">The provider match object</param>
         /// <param name="token">Cancellation token</param>
@@ -90,25 +95,73 @@ namespace KaizokuBackend.Services.Series
             if (series == null)
                 return false;
             
-            Dictionary<Guid, SeriesProviderEntity> minfo =
-                pm.MatchInfos.ToDictionary(a => a.Id, a => series.Sources.First(b => b.Id == a.Id));
+            // Build dictionary of existing providers, excluding any sentinel entries
+            Dictionary<Guid, SeriesProviderEntity> minfo = new();
+            List<MatchInfoDto> newProviderInfos = new();
+            foreach (MatchInfoDto matchInfo in pm.MatchInfos)
+            {
+                if (matchInfo.Id == NewProviderSentinel)
+                {
+                    newProviderInfos.Add(matchInfo);
+                }
+                else
+                {
+                    minfo[matchInfo.Id] = series.Sources.First(b => b.Id == matchInfo.Id);
+                }
+            }
             
             bool update = false;
+            SeriesProviderEntity? newProvider = null;
             foreach (ProviderMatchChapterDto chap in pm.Chapters)
             {
                 if (chap.MatchInfoId == null)
                     continue;
                 
-                SeriesProviderEntity mi = minfo[chap.MatchInfoId.Value];
-                Chapter? ch = unknown.Chapters.FirstOrDefault(a => Path.GetFileNameWithoutExtension(a.Filename) == chap.Filename);
-                Chapter? dst = mi.Chapters.FirstOrDefault(a => a.Number == chap.ChapterNumber);
+                SeriesProviderEntity? targetProvider;
+                bool isNewProvider = false;
                 
-                if (ch != null && dst != null)
+                if (chap.MatchInfoId.Value == NewProviderSentinel)
                 {
-                    decimal? maxChap = mi.Chapters.Max(c => c.Number);
-                    string filename = ArchiveHelperService.MakeFileNameSafe(mi.Provider, mi.Scanlator, mi.Title,
-                        mi.Language, dst.Number, dst.Name, maxChap);
+                    // Use the first new provider info to create the user-based provider
+                    MatchInfoDto? newProviderInfo = newProviderInfos.FirstOrDefault();
+                    if (newProviderInfo == null)
+                        continue;
+                    
+                    if (newProvider == null)
+                    {
+                        newProvider = SeriesProviderEntity.CreateUserBased(
+                            newProviderInfo.Provider,
+                            newProviderInfo.Scanlator,
+                            newProviderInfo.Language
+                        );
+                        newProvider.SeriesId = series.Id;
+                        series.Sources.Add(newProvider);
+                        _db.SeriesProviders.Add(newProvider);
+                    }
+                    
+                    targetProvider = newProvider;
+                    isNewProvider = true;
+                }
+                else
+                {
+                    if (!minfo.TryGetValue(chap.MatchInfoId.Value, out targetProvider))
+                        continue;
+                }
+                
+                Chapter? ch = unknown.Chapters.FirstOrDefault(a => Path.GetFileNameWithoutExtension(a.Filename) == chap.Filename);
+                if (ch == null)
+                    continue;
+                
+                if (isNewProvider)
+                {
+                    // For a new provider, add the chapter directly
+                    targetProvider.Chapters.Add(ch);
+                    
+                    // Rename file to match the target provider naming convention
                     string? extension = Path.GetExtension(ch.Filename);
+                    decimal? maxChap = targetProvider.Chapters.Max(c => c.Number);
+                    string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
+                        targetProvider.Title, targetProvider.Language, ch.Number, ch.Name, maxChap);
                     string newFilename = filename + extension;
                     string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
                     string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
@@ -119,24 +172,50 @@ namespace KaizokuBackend.Services.Series
                         {
                             if (originalPath != newPath)
                                 File.Move(originalPath, newPath, true);
-                            _db.Touch(mi, a => a.Chapters);
-                            dst.Filename = newFilename;
-                            dst.DownloadDate = ch.DownloadDate;
-                            dst.ShouldDownload = false;
-                            update = true;
-                            unknown.Chapters.Remove(ch);
+                            ch.Filename = newFilename;
+                            ch.ShouldDownload = false;
                         }
                         catch (Exception e)
                         {
                             _logger.LogError(e, "Error renaming file from {originalPath} to {newPath}", originalPath, newPath);
                         }
                     }
-                    else
+                }
+                else
+                {
+                    // For existing providers, follow the original pattern
+                    Chapter? dst = targetProvider.Chapters.FirstOrDefault(a => a.Number == chap.ChapterNumber);
+                    if (ch != null && dst != null)
                     {
-                        update = true;
-                        unknown.Chapters.Remove(ch);
+                        decimal? maxChap = targetProvider.Chapters.Max(c => c.Number);
+                        string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
+                            targetProvider.Title, targetProvider.Language, dst.Number, dst.Name, maxChap);
+                        string? extension = Path.GetExtension(ch.Filename);
+                        string newFilename = filename + extension;
+                        string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
+                        string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
+                        
+                        if (File.Exists(originalPath))
+                        {
+                            try
+                            {
+                                if (originalPath != newPath)
+                                    File.Move(originalPath, newPath, true);
+                                _db.Touch(targetProvider, a => a.Chapters);
+                                dst.Filename = newFilename;
+                                dst.DownloadDate = ch.DownloadDate;
+                                dst.ShouldDownload = false;
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogError(e, "Error renaming file from {originalPath} to {newPath}", originalPath, newPath);
+                            }
+                        }
                     }
                 }
+                
+                unknown.Chapters.Remove(ch);
+                update = true;
             }
 
             if (unknown.Chapters.Count == 0)

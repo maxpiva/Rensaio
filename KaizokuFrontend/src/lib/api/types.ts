@@ -1,3 +1,6 @@
+// Sentinel GUID used to signal creation of a new user-based provider in the match flow
+export const NEW_PROVIDER_SENTINEL = "00000000-0000-0000-0000-000000000000";
+
 export interface Chapter {
   name?: string;
   number?: number;

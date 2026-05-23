@@ -65,6 +65,23 @@ public class EditableSettingsDto
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public NsfwVisibility NsfwVisibility { get; set; } = NsfwVisibility.HideByDefault;
 
+    // --- Health Monitoring Thresholds ---
+
+    [JsonPropertyName("releaseCadenceMultiplierYellow")]
+    public double ReleaseCadenceMultiplierYellow { get; set; } = 2.0;
+
+    [JsonPropertyName("releaseCadenceMultiplierRed")]
+    public double ReleaseCadenceMultiplierRed { get; set; } = 5.0;
+
+    [JsonPropertyName("releaseCadenceDefaultDays")]
+    public int ReleaseCadenceDefaultDays { get; set; } = 7;
+
+    [JsonPropertyName("providerErrorYellowHours")]
+    public int ProviderErrorYellowHours { get; set; } = 48;
+
+    [JsonPropertyName("providerErrorRedHours")]
+    public int ProviderErrorRedHours { get; set; } = 168;
+
 }
 public enum NsfwVisibility
 {

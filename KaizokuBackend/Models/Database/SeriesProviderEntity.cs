@@ -37,6 +37,31 @@ public class SeriesProviderEntity : ProviderSummaryBase, IBridgeItemInfo, IThumb
     public List<Chapter> Chapters { get; set; } = [];
 
     /// <summary>
+    /// The last time an error occurred while fetching chapters from this provider.
+    /// </summary>
+    public DateTime? LastErrorDate { get; set; }
+
+    /// <summary>
+    /// Number of consecutive errors since the last successful fetch.
+    /// </summary>
+    public int ConsecutiveErrorCount { get; set; }
+
+    /// <summary>
+    /// The last time chapters were successfully fetched from this provider.
+    /// </summary>
+    public DateTime? LastSuccessfulFetchDate { get; set; }
+
+    /// <summary>
+    /// The last time the series metadata (status, description, etc.) was refreshed from the extension.
+    /// </summary>
+    public DateTime? LastSeriesInfoRefreshDate { get; set; }
+
+    /// <summary>
+    /// The last known series status reported by the extension, used for change detection.
+    /// </summary>
+    public SeriesStatus? LastKnownStatus { get; set; }
+
+    /// <summary>
     /// Creates a new user-based (non-Mihon) provider entity.
     /// Used when matching unknown chapters to a user-defined source.
     /// </summary>

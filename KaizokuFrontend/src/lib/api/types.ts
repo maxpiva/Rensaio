@@ -106,6 +106,60 @@ export enum SeriesStatus {
   DISABLED = 7,
 }
 
+export enum HealthStatusLevel {
+  Green = 0,
+  Yellow = 1,
+  Red = 2,
+}
+
+export enum HealthStatusTargetType {
+  Series = 0,
+  Provider = 1,
+}
+
+export interface SeriesHealth {
+  seriesId: string;
+  seriesTitle: string;
+  seriesThumbnail?: string;
+  level: HealthStatusLevel;
+  message: string;
+  lastChapterDate?: string;
+  daysWithoutRelease?: number;
+  providers: SmallProviderHealth[];
+}
+
+export interface ProviderHealth {
+  providerId: string;
+  providerName: string;
+  scanlator: string;
+  language: string;
+  level: HealthStatusLevel;
+  message: string;
+  lastErrorDate?: string;
+  consecutiveErrors: number;
+  isMihonInstalled: boolean;
+  affectedSeries: SeriesHealth[];
+}
+
+export interface SmallProviderHealth {
+  providerId: string;
+  providerName: string;
+  language: string;
+  level: HealthStatusLevel;
+}
+
+export interface StatusSummary {
+  totalYellowSeries: number;
+  totalRedSeries: number;
+  totalYellowProviders: number;
+  totalRedProviders: number;
+}
+
+export interface ClearAlertRequest {
+  targetType: HealthStatusTargetType;
+  targetId: string;
+}
+
 export enum NsfwVisibility {
   AlwaysHide = "AlwaysHide",
   HideByDefault = "HideByDefault",

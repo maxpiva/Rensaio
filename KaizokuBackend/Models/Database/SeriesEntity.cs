@@ -48,6 +48,9 @@ namespace KaizokuBackend.Models.Database
         [JsonPropertyName("startFromChapter")]
         public decimal? StartFromChapter { get; set; }
 
+        [JsonPropertyName("lastChapterDate")]
+        public DateTime? LastChapterDate { get; set; }
+
         public virtual ICollection<SeriesProviderEntity> Sources { get; set; } = [];
     }
 }

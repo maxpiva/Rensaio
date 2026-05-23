@@ -79,6 +79,7 @@ namespace KaizokuBackend.Data
         public DbSet<JobEntity> Jobs { get; set; }
         public DbSet<EnqueueEntity> Queues { get; set; }
         public DbSet<LatestSerieEntity> LatestSeries { get; set; }
+        public DbSet<HealthStatusEntity> HealthStatuses { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -97,6 +98,7 @@ namespace KaizokuBackend.Data
                 entity.Property(s => s.Status).IsRequired();
                 entity.Property(s => s.ChapterCount).IsRequired();
                 entity.Property(s => s.PauseDownloads).IsRequired();
+                entity.Property(s => s.LastChapterDate).IsRequired(false);
                 entity.Property(s => s.Genre)
                     .HasConversion(
                         v => string.Join(',', v),
@@ -141,6 +143,11 @@ namespace KaizokuBackend.Data
                 entity.Property(sp => sp.IsDisabled).IsRequired();
                 entity.Property(sp => sp.IsUninstalled).IsRequired();
                 entity.Property(sp => sp.Status).IsRequired();
+                entity.Property(sp => sp.LastErrorDate).IsRequired(false);
+                entity.Property(sp => sp.ConsecutiveErrorCount).HasDefaultValue(0).IsRequired();
+                entity.Property(sp => sp.LastSuccessfulFetchDate).IsRequired(false);
+                entity.Property(sp => sp.LastSeriesInfoRefreshDate).IsRequired(false);
+                entity.Property(sp => sp.LastKnownStatus).IsRequired(false);
                 entity.Property(sp => sp.Chapters)
                      .HasConversion(
                          v => JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = false }),
@@ -307,6 +314,22 @@ namespace KaizokuBackend.Data
                     .HasDatabaseName("IX_Enqueue_JobType_ExtraKey");
                 entity.HasIndex(e => e.GroupKey).HasDatabaseName("IX_Enqueue_GroupKey");
                 entity.HasIndex(e => e.FinishedDate).HasDatabaseName("IX_Enqueue_FinishedDate");
+            });
+
+            modelBuilder.Entity<HealthStatusEntity>(entity =>
+            {
+                entity.HasKey(h => h.Id);
+                entity.Property(h => h.TargetType).IsRequired().HasConversion<int>();
+                entity.Property(h => h.TargetId).IsRequired();
+                entity.Property(h => h.Level).IsRequired().HasConversion<int>();
+                entity.Property(h => h.Message).IsRequired();
+                entity.Property(h => h.AffectedSeriesJson).IsRequired(false);
+                entity.Property(h => h.CreatedAt).IsRequired();
+                entity.Property(h => h.ResolvedAt).IsRequired(false);
+                entity.Property(h => h.IsActive).IsRequired().HasDefaultValue(true);
+                entity.HasIndex(h => new { h.TargetType, h.TargetId }).HasDatabaseName("IX_HealthStatus_Target");
+                entity.HasIndex(h => h.IsActive).HasDatabaseName("IX_HealthStatus_IsActive");
+                entity.HasIndex(h => h.Level).HasDatabaseName("IX_HealthStatus_Level");
             });
         }
     }

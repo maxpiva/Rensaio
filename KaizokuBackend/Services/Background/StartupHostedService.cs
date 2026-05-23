@@ -128,6 +128,12 @@ namespace KaizokuBackend.Services.Background
                 {
                     await jobManagement.ScheduleRecurringJobAsync(JobType.DailyUpdate, (string?)null,null, null,false, TimeSpan.FromDays(1),Priority.Normal, cancellationToken).ConfigureAwait(false);
                 }
+                // Schedule health status check job (runs every hour)
+                var statusJobs = await jobManagement.GetRecurringJobsByTypeAsync(JobType.StatusCheck, cancellationToken).ConfigureAwait(false);
+                if (statusJobs.Count == 0)
+                {
+                    await jobManagement.ScheduleRecurringJobAsync(JobType.StatusCheck, (string?)null, null, null, false, TimeSpan.FromHours(1), Priority.Normal, cancellationToken).ConfigureAwait(false);
+                }
                 _workerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var workerToken = _workerCts.Token;
                 _workerTasks.Add(StartWorker<JobQueueHostedService>(workerToken));

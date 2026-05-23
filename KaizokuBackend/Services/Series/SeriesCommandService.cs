@@ -385,7 +385,8 @@ namespace KaizokuBackend.Services.Series
         /// </summary>
         public async Task<JobResult> GetChaptersAsync(Guid seriesProvider, CancellationToken token = default)
         {
-            SeriesProviderEntity? serie = await _db.SeriesProviders.Where(s => s.Id == seriesProvider).AsNoTracking().FirstOrDefaultAsync(token).ConfigureAwait(false);
+            // Load TRACKING entities (no AsNoTracking) so we can save error/refresh data
+            SeriesProviderEntity? serie = await _db.SeriesProviders.FirstOrDefaultAsync(s => s.Id == seriesProvider, token).ConfigureAwait(false);
             if (serie == null)
             {
                 _logger.LogWarning("Series Provider {SeriesProvider} no longer exists", seriesProvider);
@@ -401,8 +402,14 @@ namespace KaizokuBackend.Services.Series
                 _logger.LogWarning("Series Provider {SeriesProvider} has no longer valid Mihon Id", seriesProvider);
                 return JobResult.Failed;
             }
-            var series = await _db.Series.Include(a => a.Sources).Where(s => s.Id == serie.SeriesId).AsNoTracking().FirstAsync(token).ConfigureAwait(false);
-            List<ParsedChapter>? chapterData;
+
+            Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources)
+                .FirstOrDefaultAsync(s => s.Id == serie.SeriesId, token).ConfigureAwait(false);
+            if (series == null)
+            {
+                _logger.LogWarning("Series {SeriesId} for Provider {SeriesProvider} not found", serie.SeriesId, seriesProvider);
+                return JobResult.Delete;
+            }
 
             ISourceInterop src;
             try
@@ -412,24 +419,125 @@ namespace KaizokuBackend.Services.Series
             catch (Exception e)
             {
                 _logger.LogError(e, "Unable to get Chapter from {mihonProviderId}", serie.MihonProviderId);
+                // Track the error on the provider
+                serie.LastErrorDate = DateTime.UtcNow;
+                serie.ConsecutiveErrorCount++;
+                _db.Touch(serie, a => a.LastErrorDate);
+                _db.Touch(serie, a => a.ConsecutiveErrorCount);
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
                 return JobResult.Failed;
             }
             
             string provider = src.Name + " (" + src.Language + ")";
             _logger.LogInformation("Getting chapters from Series {series} Provider {provider}", serie.Title, provider);
-            chapterData = await _mihon.MihonErrorWrapperAsync(
-                     () => src.GetChaptersAsync(serie.ToManga()!, token),
-                     "Unable to get Chapters from {series} from {provider}", serie.Title, provider).ConfigureAwait(false);
-            if (chapterData == null)
-                return JobResult.Failed;
-            if (chapterData.Count == 0)
+            List<ParsedChapter>? chapterData;
+            try
             {
-                _logger.LogWarning("Series {series} from Provider {provider} has no chapters.", serie.Title, provider);
+                chapterData = await _mihon.MihonErrorWrapperAsync(
+                    () => src.GetChaptersAsync(serie.ToManga()!, token),
+                    "Unable to get Chapters from {series} from {provider}", serie.Title, provider).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Track the error on the provider
+                serie.LastErrorDate = DateTime.UtcNow;
+                serie.ConsecutiveErrorCount++;
+                _db.Touch(serie, a => a.LastErrorDate);
+                _db.Touch(serie, a => a.ConsecutiveErrorCount);
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
                 return JobResult.Failed;
             }
+
+            if (chapterData == null || chapterData.Count == 0)
+            {
+                _logger.LogWarning("Series {series} from Provider {provider} has no chapters.", serie.Title, provider);
+                // If chapters returned empty, it might still be a valid state but we shouldn't flag as error
+                // Only track as error if it was a connection/parsing failure, not empty results
+                return JobResult.Failed;
+            }
+
+            // Success — reset error tracking
+            serie.ConsecutiveErrorCount = 0;
+            serie.LastSuccessfulFetchDate = DateTime.UtcNow;
+            _db.Touch(serie, a => a.ConsecutiveErrorCount);
+            _db.Touch(serie, a => a.LastSuccessfulFetchDate);
+
+            // Refresh series metadata (status, description, etc.) from the extension
+            try
+            {
+                var extensionManga = await _mihon.MihonErrorWrapperAsync(
+                    () => src.GetDetailsAsync(serie.ToManga()!, token),
+                    "Unable to get Details from {series} from {provider}", serie.Title, provider).ConfigureAwait(false);
+
+                if (extensionManga != null)
+                {
+                    SeriesStatus newStatus = (SeriesStatus)(int)extensionManga.Status;
+                    bool statusChanged = newStatus != serie.LastKnownStatus;
+
+                    // Update the series-level metadata
+                    if (!string.IsNullOrEmpty(extensionManga.Title))
+                        series.Title = extensionManga.Title;
+                    if (!string.IsNullOrEmpty(extensionManga.Artist))
+                        series.Artist = extensionManga.Artist;
+                    if (!string.IsNullOrEmpty(extensionManga.Author))
+                        series.Author = extensionManga.Author;
+                    if (!string.IsNullOrEmpty(extensionManga.Description))
+                        series.Description = extensionManga.Description;
+                    if (!string.IsNullOrEmpty(extensionManga.Genre))
+                        series.Genre = extensionManga.Genre.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                    series.Status = newStatus;
+
+                    // Update provider-level metadata
+                    serie.Status = newStatus;
+                    serie.LastKnownStatus = newStatus;
+                    serie.LastSeriesInfoRefreshDate = DateTime.UtcNow;
+                    _db.Touch(serie, a => a.Status);
+                    _db.Touch(serie, a => a.LastKnownStatus);
+                    _db.Touch(serie, a => a.LastSeriesInfoRefreshDate);
+
+                    // If the series was completed/cancelled/hiatus, clear any active health alert
+                    if (newStatus == SeriesStatus.COMPLETED ||
+                        newStatus == SeriesStatus.CANCELLED ||
+                        newStatus == SeriesStatus.ON_HIATUS ||
+                        newStatus == SeriesStatus.PUBLISHING_FINISHED)
+                    {
+                        var existingAlert = await _db.HealthStatuses
+                            .FirstOrDefaultAsync(h => h.TargetType == HealthStatusTargetType.Series
+                                && h.TargetId == series.Id && h.IsActive, token).ConfigureAwait(false);
+                        if (existingAlert != null)
+                        {
+                            existingAlert.IsActive = false;
+                            existingAlert.ResolvedAt = DateTime.UtcNow;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Metadata refresh is best-effort; don't fail the entire chapter fetch
+                _logger.LogWarning(ex, "Failed to refresh metadata for {series} from {provider}", serie.Title, provider);
+            }
+
+            // Update LastChapterDate on the series entity
+            if (chapterData.Count > 0)
+            {
+                DateTime? latestChapterDate = chapterData
+                    .Where(c => c.DateUpload != default)
+                    .Max(c => c.DateUpload.DateTime);
+
+                if (latestChapterDate.HasValue)
+                {
+                    if (series.LastChapterDate == null || latestChapterDate > series.LastChapterDate)
+                    {
+                        series.LastChapterDate = latestChapterDate;
+                    }
+                }
+            }
+
+            await _db.SaveChangesAsync(token).ConfigureAwait(false);
+
             List<ChapterDownload> chaps = series.GenerateDownloadsFromChapterData(serie, chapterData);
             return await _downloadCommand.QueueChapterDownloadsAsync(serie, chaps, token).ConfigureAwait(false);
-
         }
        // Private helper methods
         private async Task<Models.Database.SeriesEntity?> FindExistingSeriesAsync(AugmentedResponseDto ProviderSeriesDetails,

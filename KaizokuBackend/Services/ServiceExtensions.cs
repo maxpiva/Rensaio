@@ -62,6 +62,7 @@ namespace KaizokuBackend.Services
             services.TryAddScoped<ThumbCacheService>();
             services.TryAddScoped<ArchiveHelperService>();
             services.TryAddScoped<DailyService>();
+            services.TryAddScoped<Status.StatusEvaluationService>();
             services.TryAddScoped<MihonBridgeService>();
             services.TryAddScoped<MigrationService>();
             services.TryAddScoped<NouisanceFixer20ExtraLarge>();

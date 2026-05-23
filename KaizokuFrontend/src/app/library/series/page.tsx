@@ -25,7 +25,6 @@ import { usePermission } from "@/hooks/use-permission";
 import { DownloadsPanel } from "@/components/kzk/series/detail/downloads-panel";
 import { SeriesHero } from "@/components/kzk/series/detail/series-hero";
 import { SourcesSection } from "@/components/kzk/series/detail/sources-section";
-import { LibraryStatsCard } from "@/components/kzk/series/detail/library-stats-card";
 import { SeriesRibbon } from "@/components/kzk/series/detail/series-ribbon";
 import { ChapterList } from "@/components/kzk/series/detail/chapter-list";
 
@@ -885,6 +884,8 @@ function SeriesPageContent() {
         return { text: 'No Images', color: 'text-yellow-600' };
       case ArchiveResult.NotFound:
         return { text: 'Not Found', color: 'text-red-600' };
+      case ArchiveResult.Unreadable:
+        return { text: 'Unreadable (skipped)', color: 'text-yellow-600' };
       default:
         return { text: 'Unknown', color: 'text-gray-600' };
     }
@@ -1181,14 +1182,10 @@ function SeriesPageContent() {
             <ChapterList seriesId={series.id} canEditSeries={canEdit} />
           </div>
 
-          {/* Right rail — Downloads + Stats (pinned on desktop) */}
+          {/* Right rail — Downloads (pinned on desktop) */}
           {/* 112px = h-14 command bar (56) + h-12 ribbon (48) + 8px gap */}
           <aside className="col-span-12 lg:col-span-4 min-w-0 space-y-6 lg:sticky lg:top-[112px] lg:self-start">
             <DownloadsPanel seriesId={series.id} isDeleting={isDeleting} />
-            <LibraryStatsCard
-              series={series}
-              activeProvidersCount={visibleProviders.filter(p => !providerDisabledStates[p.id]).length}
-            />
           </aside>
         </div>
 

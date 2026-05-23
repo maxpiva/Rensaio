@@ -67,10 +67,110 @@ namespace KaizokuBackend.Services.Series
             // Check for truncated title and try to recover the full name from the source
             await TryRecoverTruncatedTitleAsync(series, token).ConfigureAwait(false);
 
+            // Reconcile chapters whose DB Filename is empty against files actually on disk.
+            // This recovers from prior states where Cleanup wiped Filename (e.g. due to a
+            // transient read failure that has since resolved) but the file remained.
+            await ReconcileOrphanedFilesAsync(series, basePath, token).ConfigureAwait(false);
+
             List<Chapter> chaps = series.Sources.SelectMany(a => a.Chapters)
                 .Where(a => !string.IsNullOrEmpty(a.Filename)).ToList();
 
             return GetIntegrityResult(basePath, chaps);
+        }
+
+        /// <summary>
+        /// Scans the series storage folder and re-links any archive whose basename matches
+        /// the expected filename for a chapter whose DB <c>Filename</c> is currently empty.
+        /// This is a recovery path for chapters incorrectly marked as missing — for example
+        /// after a previous Cleanup ran while a file was temporarily locked or an SMB share
+        /// hiccuped, causing the archive to be classified as <c>NotAnArchive</c> and its
+        /// DB row blanked.
+        /// </summary>
+        private async Task ReconcileOrphanedFilesAsync(SeriesEntity series, string basePath, CancellationToken token)
+        {
+            if (!Directory.Exists(basePath))
+                return;
+
+            HashSet<string> filesOnDisk;
+            try
+            {
+                filesOnDisk = Directory.EnumerateFiles(basePath)
+                    .Select(Path.GetFileName)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Select(n => n!)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enumerate storage folder for reconciliation: {Path}", basePath);
+                return;
+            }
+
+            if (filesOnDisk.Count == 0)
+                return;
+
+            // Basenames already claimed by another chapter row — avoid double-linking.
+            HashSet<string> alreadyLinked = series.Sources
+                .SelectMany(s => s.Chapters)
+                .Select(c => c.Filename)
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Select(f => f!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            bool update = false;
+            string[] candidateExtensions = { ".cbz", ".cbr", ".zip", ".rar", ".7z", ".tar" };
+
+            foreach (SeriesProviderEntity sp in series.Sources)
+            {
+                if (sp.IsUnknown)
+                    continue;
+
+                decimal? maxChap = sp.Chapters.Count > 0 ? sp.Chapters.Max(c => c.Number) : null;
+
+                foreach (Chapter ch in sp.Chapters.Where(c => !c.IsDeleted && string.IsNullOrEmpty(c.Filename)))
+                {
+                    string safeName = ArchiveHelperService.MakeFileNameSafe(
+                        sp.Provider, sp.Scanlator, series.Title, sp.Language, ch.Number, ch.Name, maxChap);
+
+                    string? match = null;
+                    foreach (string ext in candidateExtensions)
+                    {
+                        string candidate = safeName + ext;
+                        if (filesOnDisk.Contains(candidate) && !alreadyLinked.Contains(candidate))
+                        {
+                            match = candidate;
+                            break;
+                        }
+                    }
+
+                    if (match == null)
+                        continue;
+
+                    ch.Filename = match;
+                    ch.ShouldDownload = false;
+                    ch.IsDeleted = false;
+                    if (ch.DownloadDate == null)
+                    {
+                        try
+                        {
+                            ch.DownloadDate = File.GetLastWriteTimeUtc(Path.Combine(basePath, match));
+                        }
+                        catch
+                        {
+                            // Non-fatal — leave DownloadDate null if we cannot stat the file.
+                        }
+                    }
+                    alreadyLinked.Add(match);
+                    _db.Touch(sp, c => c.Chapters);
+                    update = true;
+                    _logger.LogInformation(
+                        "Reconciled orphaned file \"{File}\" → series {Series} provider {Provider} chapter {Chapter}",
+                        match, series.Title, sp.Provider, ch.Number);
+                }
+            }
+
+            if (update)
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -95,9 +195,21 @@ namespace KaizokuBackend.Services.Series
 
             foreach (ArchiveIntegrityResultDto r in sr.BadFiles)
             {
-                if (r.Result == ArchiveResult.NoImages || r.Result == ArchiveResult.NotAnArchive)
+                // Unreadable means the archive could not be opened — likely a transient
+                // I/O issue (locked file, share hiccup) rather than corruption. Skip
+                // entirely so we do not delete a healthy file or wipe its DB linkage.
+                if (r.Result == ArchiveResult.Unreadable)
                 {
-                    string finalName = Path.Combine(basePath, r.Filename);
+                    _logger.LogInformation(
+                        "Skipping unreadable file during cleanup (transient failure assumed): {File}",
+                        Path.Combine(basePath, r.Filename));
+                    continue;
+                }
+
+                string finalName = Path.Combine(basePath, r.Filename);
+                bool isDeletable = r.Result == ArchiveResult.NoImages || r.Result == ArchiveResult.NotAnArchive;
+                if (isDeletable)
+                {
                     try
                     {
                         File.Delete(finalName);
@@ -107,9 +219,18 @@ namespace KaizokuBackend.Services.Series
                         _logger.LogWarning("Unable to delete file {finalName}", finalName);
                     }
                 }
-                Chapter? chapter = chaps.FirstOrDefault(a => a.Filename == r.Filename);
 
-                
+                // Only sever the DB → file link when the file is genuinely gone from disk.
+                // If the delete failed (or was skipped) and the file still exists, leaving
+                // Filename intact preserves the user's ability to recover without losing
+                // the chapter history.
+                if (File.Exists(finalName))
+                {
+                    _logger.LogWarning(
+                        "File still exists after cleanup attempt — preserving DB linkage: {File}", finalName);
+                    continue;
+                }
+
                 foreach (SeriesProviderEntity s in series.Sources)
                 {
                     foreach (Chapter ch in s.Chapters.Where(a => a.Filename == r.Filename))

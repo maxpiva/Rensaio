@@ -545,6 +545,7 @@ export enum ArchiveResult {
   NotAnArchive = 'NotAnArchive',
   NoImages = 'NoImages',
   NotFound = 'NotFound',
+  Unreadable = 'Unreadable',
 }
 
 export enum ErrorDownloadAction {

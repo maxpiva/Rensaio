@@ -228,7 +228,7 @@ export const ProviderCard = ({
         isDisabled ? "opacity-60" : ""
       } ${isUnknown ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}`}
     >
-      <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap sm:gap-4">
+      <div className="flex flex-wrap items-start gap-3 lg:flex-nowrap lg:gap-4">
         {/* Thumbnail */}
         <div className="shrink-0">
           <img
@@ -306,7 +306,7 @@ export const ProviderCard = ({
 
         {/* Right controls */}
         {canEdit && (
-          <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/40 pt-3 sm:w-auto sm:shrink-0 sm:flex-nowrap sm:flex-row sm:items-center sm:border-t-0 sm:pt-0">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/40 pt-3 lg:w-auto lg:shrink-0 lg:flex-nowrap lg:flex-row lg:items-center lg:border-t-0 lg:pt-0">
             {!isUnknown && (
               <>
                 <div className="flex flex-wrap items-center gap-1">
@@ -330,7 +330,7 @@ export const ProviderCard = ({
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground sm:border-l sm:border-border/40 sm:pl-2">
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground lg:border-l lg:border-border/40 lg:pl-2">
                   <span className="uppercase tracking-wide">After Ch.</span>
                   <input
                     type="number"
@@ -349,7 +349,7 @@ export const ProviderCard = ({
             )}
 
             {/* Icon button cluster */}
-            <div className="ml-auto flex items-center gap-1 sm:ml-0 sm:border-l sm:border-border/40 sm:pl-2">
+            <div className="ml-auto flex items-center gap-1 lg:ml-0 lg:border-l lg:border-border/40 lg:pl-2">
               {!isUnknown && !provider.isUninstalled && (
                 <button
                   type="button"

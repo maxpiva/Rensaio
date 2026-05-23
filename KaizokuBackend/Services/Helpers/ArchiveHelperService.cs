@@ -199,13 +199,36 @@ namespace KaizokuBackend.Services.Helpers
         }
 
         /// <summary>
-        /// Gets a list of file names from an archive without knowing the archive type
+        /// Gets a list of file names from an archive without knowing the archive type.
+        /// Backwards-compatible wrapper around <see cref="TryGetArchiveFileNames"/> that
+        /// discards the success flag. Callers that need to distinguish a genuinely empty
+        /// archive from an unreadable one (e.g. integrity checks) should call
+        /// <see cref="TryGetArchiveFileNames"/> directly.
         /// </summary>
         /// <param name="archivePath">Path to the archive file</param>
         /// <returns>List of file names in the archive, or empty list if archive is not supported</returns>
         public static List<string> GetArchiveFileNames(string archivePath)
         {
+            return TryGetArchiveFileNames(archivePath, out _);
+        }
+
+        /// <summary>
+        /// Gets a list of file names from an archive without knowing the archive type, and
+        /// reports whether the read attempt succeeded.
+        /// </summary>
+        /// <param name="archivePath">Path to the archive file</param>
+        /// <param name="readSucceeded">
+        /// <c>true</c> when the archive was opened and enumerated without throwing (the
+        /// list may still be empty if the archive genuinely has no entries).
+        /// <c>false</c> when both opening strategies threw an exception, meaning the
+        /// returned list is unreliable and the file should be treated as unreadable
+        /// rather than as a malformed archive.
+        /// </param>
+        /// <returns>List of file names in the archive, or empty list if archive is not supported</returns>
+        public static List<string> TryGetArchiveFileNames(string archivePath, out bool readSucceeded)
+        {
             var fileNames = new List<string>();
+            readSucceeded = false;
 
             if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath))
             {
@@ -227,6 +250,7 @@ namespace KaizokuBackend.Services.Helpers
                         fileNames.Add(entry.Key);
                     }
                 }
+                readSucceeded = true;
             }
             catch
             {
@@ -245,10 +269,14 @@ namespace KaizokuBackend.Services.Helpers
                             fileNames.Add(reader.Entry.Key);
                         }
                     }
+                    readSucceeded = true;
                 }
                 catch
                 {
-                    // If both methods fail, return empty list
+                    // Both opening strategies threw — likely a locked file, I/O error,
+                    // or genuinely unsupported format. We cannot tell the difference,
+                    // so report failure and let the caller decide.
+                    readSucceeded = false;
                     return new List<string>();
                 }
             }
@@ -317,7 +345,13 @@ namespace KaizokuBackend.Services.Helpers
         {
             if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath))
                 return ArchiveResult.NotFound;
-            var fileNames = GetArchiveFileNames(archivePath);
+            var fileNames = TryGetArchiveFileNames(archivePath, out bool readSucceeded);
+            // A read failure (locked file, transient I/O, unsupported container) is
+            // distinct from a genuinely empty archive — never let a transient failure
+            // be interpreted as "not an archive", which would trigger destructive
+            // cleanup of files that may still be perfectly valid on disk.
+            if (!readSucceeded)
+                return ArchiveResult.Unreadable;
             if (fileNames.Count == 0)
                 return ArchiveResult.NotAnArchive;
             if (ArchiveItContainsImages(fileNames))

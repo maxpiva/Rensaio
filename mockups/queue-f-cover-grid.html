@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaizoku — Queue · Cover Grid (Mockup F)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Geist', 'ui-sans-serif', 'system-ui'],
+          serif: ['Fraunces', 'ui-serif', 'Georgia'],
+        },
+        colors: {
+          bg:        'hsl(20 14.3% 4.1%)',
+          card:      'hsl(24 9.8% 10%)',
+          elevated:  'hsl(24 9.8% 13%)',
+          border:    'hsla(0 0% 100% / 0.06)',
+          hairline:  'hsla(0 0% 100% / 0.04)',
+          muted:     'hsl(240 5% 64.9%)',
+          dim:       'hsl(240 5% 44%)',
+          primary:   'hsl(346.8 77.2% 49.8%)',
+          good:      'hsl(142 70% 45%)',
+          warn:      'hsl(38 92% 50%)',
+          bad:       'hsl(0 72% 51%)',
+        },
+      }
+    }
+  }
+</script>
+<style>
+  :root {
+    --bg: hsl(20 14.3% 4.1%);
+    --card: hsl(24 9.8% 10%);
+    --elevated: hsl(24 9.8% 13%);
+    --border: hsla(0 0% 100% / 0.06);
+    --hairline: hsla(0 0% 100% / 0.04);
+    --muted: hsl(240 5% 64.9%);
+    --primary: hsl(346.8 77.2% 49.8%);
+    --good: hsl(142 70% 45%);
+    --warn: hsl(38 92% 50%);
+    --bad: hsl(0 72% 51%);
+  }
+  html, body { background: var(--bg); }
+  body {
+    font-family: 'Geist', ui-sans-serif, system-ui, -apple-system;
+    color: hsl(0 0% 98%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Section caps */
+  .section-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(240 5% 54%);
+    font-weight: 500;
+  }
+
+  /* Cover cards */
+  .cover-card {
+    position: relative;
+    border-radius: 0.625rem;
+    overflow: hidden;
+    background: var(--card);
+    border: 1px solid var(--border);
+    transition: transform 180ms cubic-bezier(0.2,0,0,1), border-color 180ms ease, background 180ms ease;
+  }
+  .cover-card:hover {
+    transform: translateY(-2px);
+    border-color: hsla(0,0%,100%,0.12);
+    background: var(--elevated);
+  }
+  .cover-card .cover {
+    position: relative;
+    aspect-ratio: 2 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .cover-card .cover::after {
+    /* subtle vignette */
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+  }
+  .cover-card:hover .cover-img {
+    filter: brightness(1.06);
+  }
+  .cover-img {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: filter 180ms ease;
+  }
+  .cover-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 2.4rem;
+    line-height: 1;
+    color: rgba(255,255,255,0.92);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+    letter-spacing: -0.02em;
+  }
+
+  /* Cover background palettes — flat tones, manga-cover-ish */
+  .bg-opc { background: linear-gradient(155deg, hsl(15 70% 38%), hsl(15 70% 22%)); }
+  .bg-csm { background: linear-gradient(155deg, hsl(0 65% 32%), hsl(0 70% 18%)); }
+  .bg-jjk { background: linear-gradient(155deg, hsl(270 30% 28%), hsl(270 30% 14%)); }
+  .bg-fri { background: linear-gradient(155deg, hsl(190 35% 38%), hsl(200 35% 22%)); }
+  .bg-vin { background: linear-gradient(155deg, hsl(35 30% 32%), hsl(30 30% 16%)); }
+  .bg-ber { background: linear-gradient(155deg, hsl(0 0% 22%), hsl(0 0% 10%)); }
+  .bg-sol { background: linear-gradient(155deg, hsl(220 45% 32%), hsl(220 50% 16%)); }
+  .bg-spy { background: linear-gradient(155deg, hsl(345 50% 38%), hsl(345 55% 22%)); }
+  .bg-dan { background: linear-gradient(155deg, hsl(300 40% 32%), hsl(300 40% 16%)); }
+  .bg-kai { background: linear-gradient(155deg, hsl(210 40% 32%), hsl(210 40% 16%)); }
+  .bg-sak { background: linear-gradient(155deg, hsl(45 55% 38%), hsl(40 55% 22%)); }
+  .bg-blu { background: linear-gradient(155deg, hsl(215 60% 36%), hsl(215 60% 18%)); }
+  .bg-mha { background: linear-gradient(155deg, hsl(130 35% 32%), hsl(140 35% 16%)); }
+  .bg-hxh { background: linear-gradient(155deg, hsl(95 40% 34%), hsl(95 40% 18%)); }
+
+  /* Status pips */
+  .pip {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 7px; height: 7px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
+  }
+  .pip-good { background: var(--good); }
+  .pip-warn { background: var(--warn); }
+
+  /* Failed state */
+  .cover-card.failed {
+    border-color: hsla(0 72% 51% / 0.45);
+    background: hsla(0 72% 51% / 0.03);
+  }
+  .cover-card.failed:hover {
+    border-color: hsla(0 72% 51% / 0.7);
+  }
+  .cover-card.failed .cover::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 50%, hsla(0 72% 51% / 0.18) 100%);
+    pointer-events: none;
+  }
+
+  /* Active progress bar */
+  .progress-track {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: hsla(0,0%,100%,0.08);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--primary);
+    width: 62%;
+  }
+
+  /* Hover overlay (shown statically on one demo card) */
+  .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.82) 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 8px;
+    backdrop-filter: blur(2px);
+  }
+  .overlay-btn {
+    width: 100%;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid hsla(0,0%,100%,0.12);
+    background: hsla(0,0%,100%,0.06);
+    color: hsl(0 0% 96%);
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .overlay-btn:hover {
+    background: hsla(0,0%,100%,0.12);
+    border-color: hsla(0,0%,100%,0.22);
+  }
+  .overlay-btn.primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .overlay-btn.primary:hover {
+    background: hsl(346.8 77.2% 55%);
+  }
+
+  /* Filter chips */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.8125rem; font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: hsl(0 0% 82%);
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  .chip:hover { background: hsla(0,0%,100%,0.04); color: white; }
+  .chip .count {
+    font-size: 0.6875rem;
+    color: hsl(240 5% 54%);
+    font-variant-numeric: tabular-nums;
+  }
+  .chip.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .chip.active .count { color: hsla(255,255,255,0.85); }
+
+  /* Grid */
+  .cover-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+  @media (max-width: 1280px) { .cover-grid { grid-template-columns: repeat(6, minmax(0,1fr)); } }
+  @media (max-width: 900px)  { .cover-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  @media (max-width: 640px)  { .cover-grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; } }
+  @media (max-width: 420px)  { .cover-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; } }
+
+  /* Title / chapter text */
+  .card-meta {
+    padding: 8px 9px 10px;
+    border-top: 1px solid var(--hairline);
+  }
+  .card-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: hsl(0 0% 96%);
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: -0.005em;
+  }
+  .card-chapter {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: hsl(240 5% 58%);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-title.failed-text { color: hsl(0 72% 72%); }
+
+  /* Tiny dropdown look */
+  .control-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.8125rem; font-weight: 500;
+    color: hsl(0 0% 82%);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  }
+  .control-btn:hover {
+    background: hsla(0,0%,100%,0.04);
+    border-color: hsla(0,0%,100%,0.12);
+    color: white;
+  }
+  .text-btn {
+    font-size: 0.8125rem; font-weight: 500;
+    color: hsl(240 5% 64.9%);
+    padding: 6px 4px;
+    border-radius: 6px;
+    transition: color 140ms ease;
+  }
+  .text-btn:hover { color: white; }
+
+  /* Mockup label */
+  .mockup-label {
+    position: fixed;
+    top: 14px; right: 14px;
+    z-index: 50;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 9999px;
+    background: hsla(0,0%,100%,0.05);
+    border: 1px solid var(--border);
+    color: hsl(240 5% 70%);
+    backdrop-filter: blur(8px);
+  }
+
+  /* Sidebar */
+  .sidebar-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    color: hsl(240 5% 64.9%);
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .sidebar-link:hover { background: hsla(0,0%,100%,0.04); color: white; }
+  .sidebar-link.active {
+    background: hsla(0,0%,100%,0.05);
+    color: white;
+  }
+  .sidebar-link .icon { width: 14px; height: 14px; opacity: 0.8; }
+
+  /* Hide scrollbars subtly */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsla(0,0%,100%,0.06); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsla(0,0%,100%,0.12); }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<div class="mockup-label">Mockup F — Cover Grid</div>
+
+<div class="min-h-screen flex">
+  <!-- Sidebar -->
+  <aside class="hidden lg:flex w-[212px] shrink-0 flex-col border-r border-border h-screen sticky top-0 px-3 py-5">
+    <div class="px-2 mb-7 flex items-center gap-2">
+      <div class="w-7 h-7 rounded-md bg-primary/90 flex items-center justify-center text-white font-serif font-semibold">K</div>
+      <div class="text-[0.95rem] font-semibold tracking-tight">Kaizoku</div>
+    </div>
+
+    <nav class="flex flex-col gap-0.5">
+      <a class="sidebar-link" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>
+        Home
+      </a>
+      <a class="sidebar-link" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg>
+        Library
+      </a>
+      <a class="sidebar-link" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Browse
+      </a>
+      <a class="sidebar-link" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Sources
+      </a>
+      <a class="sidebar-link active" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        Queue
+      </a>
+      <a class="sidebar-link" href="#">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="mt-auto px-2 pt-4 border-t border-border">
+      <div class="text-[0.65rem] text-dim">v0.9.4 · 2026.05.22</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 min-w-0">
+    <div class="max-w-[1480px] mx-auto px-6 lg:px-10 py-8 lg:py-10">
+
+      <!-- Header -->
+      <header class="flex items-end justify-between gap-6 mb-7">
+        <div>
+          <h1 class="text-[1.7rem] lg:text-[2rem] font-semibold tracking-tight leading-none">Queue</h1>
+          <p class="mt-2 text-sm text-muted">Recently saved chapters · grouped by day</p>
+        </div>
+        <div class="hidden md:flex items-center gap-2">
+          <button class="control-btn">
+            Sort: Newest
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="text-btn">Clear completed</button>
+        </div>
+      </header>
+
+      <!-- Filters -->
+      <div class="flex items-center justify-between gap-4 mb-8 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="chip active">All <span class="count">35</span></button>
+          <button class="chip">Completed <span class="count">31</span></button>
+          <button class="chip">Failed <span class="count">3</span></button>
+          <button class="chip">Queued <span class="count">1</span></button>
+        </div>
+        <div class="md:hidden flex items-center gap-2">
+          <button class="control-btn">
+            Newest
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Today -->
+      <section class="mb-10">
+        <div class="flex items-center justify-between mb-3.5">
+          <div class="flex items-baseline gap-2">
+            <h2 class="section-label">Today</h2>
+            <span class="text-[0.65rem] text-dim font-medium">· 12</span>
+          </div>
+          <span class="text-[0.65rem] text-dim font-mono">Wed, May 22</span>
+        </div>
+
+        <div class="cover-grid">
+          <!-- ACTIVE card -->
+          <a href="#" class="cover-card">
+            <div class="cover bg-opc">
+              <div class="cover-img"><span class="cover-letter">O</span></div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">One Piece</div>
+              <div class="card-chapter">Ch. 1108</div>
+            </div>
+          </a>
+
+          <!-- HOVER demo with retry/remove overlay (uses a failed card for retry context) -->
+          <a href="#" class="cover-card failed">
+            <div class="cover bg-csm">
+              <div class="cover-img"><span class="cover-letter">C</span></div>
+              <div class="overlay">
+                <button class="overlay-btn primary">Retry</button>
+                <button class="overlay-btn">Remove</button>
+              </div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title failed-text">Chainsaw Man</div>
+              <div class="card-chapter">Ch. 169 · failed</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-jjk">
+              <div class="cover-img"><span class="cover-letter">J</span></div>
+              <span class="pip pip-good"></span>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Jujutsu Kaisen</div>
+              <div class="card-chapter">Ch. 264</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-fri">
+              <div class="cover-img"><span class="cover-letter">F</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Frieren</div>
+              <div class="card-chapter">Ch. 130</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-vin">
+              <div class="cover-img"><span class="cover-letter">V</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Vinland Saga</div>
+              <div class="card-chapter">Ch. 211</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-sol">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Solo Leveling</div>
+              <div class="card-chapter">Ch. 200</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-spy">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Spy x Family</div>
+              <div class="card-chapter">Ch. 102</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-dan">
+              <div class="cover-img"><span class="cover-letter">D</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Dandadan</div>
+              <div class="card-chapter">Ch. 167</div>
+            </div>
+          </a>
+
+          <!-- QUEUED card -->
+          <a href="#" class="cover-card">
+            <div class="cover bg-kai">
+              <div class="cover-img"><span class="cover-letter">K</span></div>
+              <span class="pip pip-warn"></span>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Kaiju No. 8</div>
+              <div class="card-chapter">Ch. 118 · queued</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-sak">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Sakamoto Days</div>
+              <div class="card-chapter">Ch. 178</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-blu">
+              <div class="cover-img"><span class="cover-letter">B</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Blue Lock</div>
+              <div class="card-chapter">Ch. 275</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-mha">
+              <div class="cover-img"><span class="cover-letter">M</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">My Hero Academia</div>
+              <div class="card-chapter">Ch. 423</div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Yesterday -->
+      <section class="mb-10">
+        <div class="flex items-center justify-between mb-3.5">
+          <div class="flex items-baseline gap-2">
+            <h2 class="section-label">Yesterday</h2>
+            <span class="text-[0.65rem] text-dim font-medium">· 8</span>
+          </div>
+          <span class="text-[0.65rem] text-dim font-mono">Tue, May 21</span>
+        </div>
+
+        <div class="cover-grid">
+          <a href="#" class="cover-card">
+            <div class="cover bg-hxh">
+              <div class="cover-img"><span class="cover-letter">H</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Hunter x Hunter</div>
+              <div class="card-chapter">Ch. 410</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-ber">
+              <div class="cover-img"><span class="cover-letter">B</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Berserk</div>
+              <div class="card-chapter">Ch. 376</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-opc">
+              <div class="cover-img"><span class="cover-letter">O</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">One Piece</div>
+              <div class="card-chapter">Ch. 1107</div>
+            </div>
+          </a>
+
+          <!-- FAILED card (no overlay) -->
+          <a href="#" class="cover-card failed">
+            <div class="cover bg-jjk">
+              <div class="cover-img"><span class="cover-letter">J</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title failed-text">Jujutsu Kaisen</div>
+              <div class="card-chapter">Ch. 263 · failed</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-fri">
+              <div class="cover-img"><span class="cover-letter">F</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Frieren</div>
+              <div class="card-chapter">Ch. 129</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-sak">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Sakamoto Days</div>
+              <div class="card-chapter">Ch. 177</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-blu">
+              <div class="cover-img"><span class="cover-letter">B</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Blue Lock</div>
+              <div class="card-chapter">Ch. 274</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-dan">
+              <div class="cover-img"><span class="cover-letter">D</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Dandadan</div>
+              <div class="card-chapter">Ch. 166</div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Last week -->
+      <section class="mb-12">
+        <div class="flex items-center justify-between mb-3.5">
+          <div class="flex items-baseline gap-2">
+            <h2 class="section-label">Last week</h2>
+            <span class="text-[0.65rem] text-dim font-medium">· 15</span>
+          </div>
+          <span class="text-[0.65rem] text-dim font-mono">May 12 – May 18</span>
+        </div>
+
+        <div class="cover-grid">
+          <a href="#" class="cover-card">
+            <div class="cover bg-vin">
+              <div class="cover-img"><span class="cover-letter">V</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Vinland Saga</div>
+              <div class="card-chapter">Ch. 210</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-sol">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Solo Leveling</div>
+              <div class="card-chapter">Ch. 199</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-mha">
+              <div class="cover-img"><span class="cover-letter">M</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">My Hero Academia</div>
+              <div class="card-chapter">Ch. 422</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-kai">
+              <div class="cover-img"><span class="cover-letter">K</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Kaiju No. 8</div>
+              <div class="card-chapter">Ch. 117</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-spy">
+              <div class="cover-img"><span class="cover-letter">S</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Spy x Family</div>
+              <div class="card-chapter">Ch. 101</div>
+            </div>
+          </a>
+
+          <!-- FAILED card -->
+          <a href="#" class="cover-card failed">
+            <div class="cover bg-csm">
+              <div class="cover-img"><span class="cover-letter">C</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title failed-text">Chainsaw Man</div>
+              <div class="card-chapter">Ch. 168 · failed</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-hxh">
+              <div class="cover-img"><span class="cover-letter">H</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Hunter x Hunter</div>
+              <div class="card-chapter">Ch. 409</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-ber">
+              <div class="cover-img"><span class="cover-letter">B</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Berserk</div>
+              <div class="card-chapter">Ch. 375</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-fri">
+              <div class="cover-img"><span class="cover-letter">F</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">Frieren</div>
+              <div class="card-chapter">Ch. 128</div>
+            </div>
+          </a>
+
+          <a href="#" class="cover-card">
+            <div class="cover bg-opc">
+              <div class="cover-img"><span class="cover-letter">O</span></div>
+            </div>
+            <div class="card-meta">
+              <div class="card-title">One Piece</div>
+              <div class="card-chapter">Ch. 1106</div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Footer hint -->
+      <div class="flex items-center justify-between border-t border-hairline pt-5 text-[0.7rem] text-dim">
+        <span>Showing 30 of 35 chapters</span>
+        <span class="font-mono">Auto-removes completed items after 30 days</span>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

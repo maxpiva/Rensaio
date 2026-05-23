@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaizoku — Queue · Command Center (Mockup A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Geist', 'ui-sans-serif', 'system-ui'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
+        },
+        colors: {
+          bg:        'hsl(20 14.3% 4.1%)',
+          card:      'hsl(24 9.8% 10%)',
+          elevated:  'hsl(24 9.8% 13%)',
+          border:    'hsla(0 0% 100% / 0.06)',
+          hairline:  'hsla(0 0% 100% / 0.04)',
+          muted:     'hsl(240 5% 64.9%)',
+          dim:       'hsl(240 5% 44%)',
+          primary:   'hsl(346.8 77.2% 49.8%)',
+          primaryDim:'hsl(346.8 77.2% 38%)',
+          good:      'hsl(142 70% 45%)',
+          warn:      'hsl(38 92% 50%)',
+          bad:       'hsl(0 72% 51%)',
+          info:      'hsl(210 90% 56%)',
+        },
+        boxShadow: {
+          card: '0 1px 0 hsla(0,0%,100%,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6)',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root {
+    --bg: hsl(20 14.3% 4.1%);
+    --card: hsl(24 9.8% 10%);
+    --elevated: hsl(24 9.8% 13%);
+    --border: hsla(0 0% 100% / 0.06);
+    --hairline: hsla(0 0% 100% / 0.04);
+    --muted: hsl(240 5% 64.9%);
+    --primary: hsl(346.8 77.2% 49.8%);
+    --good: hsl(142 70% 45%);
+    --warn: hsl(38 92% 50%);
+    --bad: hsl(0 72% 51%);
+    --info: hsl(210 90% 56%);
+  }
+  html, body { background: var(--bg); }
+  body {
+    font-family: 'Geist', ui-sans-serif, system-ui, -apple-system;
+    color: hsl(0 0% 98%);
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, hsla(346.8 77.2% 49.8% / 0.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, hsla(210 90% 56% / 0.04), transparent 60%),
+      linear-gradient(var(--bg), var(--bg));
+    background-attachment: fixed;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, hsla(0,0%,100%,0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, hsla(0,0%,100%,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: -1px -1px;
+  }
+  .num { font-family: 'JetBrains Mono', ui-monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  /* Pulsing live dot */
+  .pulse-dot { position: relative; }
+  .pulse-dot::before, .pulse-dot::after {
+    content: ''; position: absolute; inset: 0; border-radius: 9999px;
+    box-shadow: 0 0 0 0 currentColor; opacity: 0.6;
+    animation: pulse-ring 1.8s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+  .pulse-dot::after { animation-delay: 0.9s; }
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.55; }
+    80%,100% { transform: scale(2.4); opacity: 0; box-shadow: 0 0 0 8px transparent; }
+  }
+
+  /* Animated linear progress fill */
+  .bar-fill {
+    background: linear-gradient(
+      90deg,
+      hsl(346.8 77.2% 38%) 0%,
+      hsl(346.8 77.2% 55%) 50%,
+      hsl(346.8 77.2% 38%) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2.2s linear infinite;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-fill::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, hsla(0,0%,100%,0.25) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: sweep 2.4s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: 0 0; } }
+  @keyframes sweep { 0% { transform: translateX(-100%); } 60%,100% { transform: translateX(120%); } }
+
+  /* Segmented bar */
+  .seg { display: grid; grid-template-columns: repeat(40, 1fr); gap: 2px; height: 8px; }
+  .seg span { background: hsla(0,0%,100%,0.05); border-radius: 1px; }
+  .seg span.on {
+    background: linear-gradient(180deg, hsl(346.8 77.2% 55%), hsl(346.8 77.2% 42%));
+    box-shadow: 0 0 6px hsla(346.8 77.2% 49.8% / 0.6);
+  }
+  .seg span.head {
+    background: hsl(0 0% 98%);
+    box-shadow: 0 0 8px hsl(0 0% 98%);
+    animation: blip 1s ease-in-out infinite;
+  }
+  @keyframes blip { 50% { opacity: 0.4; } }
+
+  /* Radial progress (conic) */
+  .radial {
+    width: 56px; height: 56px; border-radius: 9999px;
+    background: conic-gradient(hsl(346.8 77.2% 49.8%) calc(var(--p) * 1%), hsla(0,0%,100%,0.07) 0);
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .radial::before {
+    content: ''; position: absolute; inset: 4px; border-radius: 9999px;
+    background: var(--elevated);
+    box-shadow: inset 0 0 0 1px hsla(0,0%,100%,0.05);
+  }
+  .radial > * { position: relative; z-index: 1; }
+  .radial.spin { animation: spin 8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Skeleton */
+  .skel {
+    background: linear-gradient(90deg, hsla(0,0%,100%,0.04), hsla(0,0%,100%,0.09), hsla(0,0%,100%,0.04));
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+    border-radius: 6px;
+  }
+
+  /* Sparkline */
+  .spark path { stroke-dasharray: 240; stroke-dashoffset: 240; animation: draw 2.6s ease-out forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* Tabs */
+  .tab { position: relative; }
+  .tab[data-active="true"]::after {
+    content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px;
+    background: hsl(346.8 77.2% 49.8%);
+    border-radius: 2px 2px 0 0;
+    box-shadow: 0 -4px 12px hsla(346.8 77.2% 49.8% / 0.5);
+  }
+
+  /* Card hover lift */
+  .row-card { transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+  .row-card:hover { transform: translateY(-1px); border-color: hsla(0,0%,100%,0.12); background: hsl(24 9.8% 12%); }
+
+  /* Drawer chevron */
+  details[open] .chev { transform: rotate(180deg); }
+  .chev { transition: transform .2s ease; }
+
+  /* Subtle scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsla(0,0%,100%,0.06); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsla(0,0%,100%,0.1); }
+
+  /* Tickers */
+  .tick { display: inline-block; min-width: 1ch; text-align: right; }
+  .blink { animation: blink 1.2s steps(2,end) infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+
+  /* Button base */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; transition: all .15s ease; }
+  .btn-ghost { color: var(--muted); }
+  .btn-ghost:hover { background: hsla(0,0%,100%,0.05); color: hsl(0 0% 98%); }
+  .btn-outline { border: 1px solid var(--border); color: hsl(0 0% 98%); background: transparent; }
+  .btn-outline:hover { background: hsla(0,0%,100%,0.04); border-color: hsla(0,0%,100%,0.14); }
+  .btn-danger:hover { background: hsla(0 72% 51% / 0.12); color: hsl(0 72% 65%); }
+  .btn-primary { background: hsl(346.8 77.2% 49.8%); color: white; }
+  .btn-primary:hover { background: hsl(346.8 77.2% 44%); }
+
+  /* Cover image gradient placeholders */
+  .cover {
+    aspect-ratio: 2/3;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px -6px rgba(0,0,0,0.7), inset 0 0 0 1px hsla(0,0%,100%,0.06);
+  }
+  .cover::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.6) 100%);
+  }
+  .cover .tag { position: absolute; bottom: 4px; left: 4px; right: 4px; z-index: 2; font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: white; }
+  .c1 { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+  .c2 { background: linear-gradient(135deg, #2d0a0a 0%, #4a0e0e 50%, #8b0000 100%); }
+  .c3 { background: linear-gradient(135deg, #1e1e2e 0%, #313244 50%, #45475a 100%); }
+  .c4 { background: linear-gradient(135deg, #f5e6d3 0%, #d4a574 50%, #8b4513 100%); }
+  .c5 { background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%); }
+  .c6 { background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #3f3f46 100%); }
+  .c7 { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #1e3a8a 100%); }
+  .c8 { background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #065f46 100%); }
+  .c9 { background: linear-gradient(135deg, #7c2d12 0%, #c2410c 50%, #ea580c 100%); }
+  .c10 { background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%); }
+  .c11 { background: linear-gradient(135deg, #831843 0%, #be185d 50%, #db2777 100%); }
+  .c12 { background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============== MOCKUP LABEL ============== -->
+<div class="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full bg-card/90 backdrop-blur border border-border text-[10px] font-medium tracking-wider uppercase text-muted shadow-card">
+  <span class="text-primary">Mockup A</span> <span class="text-dim">·</span> Command Center
+</div>
+
+<!-- ============== TOP NAV (light context) ============== -->
+<header class="sticky top-0 z-40 border-b border-border bg-bg/80 backdrop-blur-xl">
+  <div class="max-w-[1480px] mx-auto px-4 sm:px-6 h-14 flex items-center gap-6">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-md bg-primary grid place-items-center font-bold text-white text-sm">K</div>
+      <span class="font-semibold tracking-tight">Kaizoku</span>
+      <span class="text-dim text-xs ml-2">/</span>
+      <span class="text-muted text-sm">Queue</span>
+    </div>
+    <nav class="hidden md:flex items-center gap-1 text-sm text-muted ml-4">
+      <a class="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/5 transition">Library</a>
+      <a class="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/5 transition">Browse</a>
+      <a class="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/5 transition">Sources</a>
+      <a class="px-3 py-1.5 rounded-md text-white bg-white/5">Queue</a>
+      <a class="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/5 transition">Settings</a>
+    </nav>
+    <div class="ml-auto flex items-center gap-2">
+      <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-card border border-border text-xs">
+        <span class="relative inline-flex w-2 h-2 rounded-full bg-good text-good pulse-dot"></span>
+        <span class="text-muted">SYSTEM</span>
+        <span class="font-semibold text-good">ONLINE</span>
+        <span class="text-dim ml-1 num">·</span>
+        <span class="num text-muted">uptime <span class="text-white">14h 22m</span></span>
+      </div>
+      <button class="btn btn-outline" title="Refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1480px] mx-auto px-4 sm:px-6 py-6">
+
+  <!-- ============== HERO HEADER ============== -->
+  <section class="relative rounded-2xl border border-border bg-card overflow-hidden mb-6">
+    <div class="absolute inset-0 grid-bg opacity-60 pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full pointer-events-none"
+         style="background: radial-gradient(circle, hsla(346.8 77.2% 49.8% / 0.18), transparent 60%);"></div>
+
+    <div class="relative p-5 sm:p-6 flex flex-col lg:flex-row lg:items-end gap-6">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2 text-[11px] uppercase tracking-[0.18em] text-muted">
+          <span class="relative inline-flex w-1.5 h-1.5 rounded-full bg-primary text-primary pulse-dot"></span>
+          <span>Live Operations</span>
+          <span class="text-dim">·</span>
+          <span class="num">2026-05-22</span>
+          <span class="text-dim">·</span>
+          <span class="num">14:32:08 <span class="blink">_</span></span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">Download Queue</h1>
+        <p class="text-sm text-muted mt-1">Real-time status across all providers. <span class="text-white/80">4 workers</span> active · <span class="text-white/80">3 lanes</span> open.</p>
+      </div>
+
+      <!-- Throughput sparkline -->
+      <div class="flex items-center gap-4 lg:gap-6">
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-muted">Throughput · 60s</div>
+          <div class="num text-2xl font-semibold">8.4 <span class="text-sm text-muted">MB/s</span></div>
+        </div>
+        <svg class="spark" width="180" height="56" viewBox="0 0 180 56" fill="none">
+          <defs>
+            <linearGradient id="sg" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="hsl(346.8 77.2% 49.8%)" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="hsl(346.8 77.2% 49.8%)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,40 L15,32 L30,36 L45,22 L60,28 L75,12 L90,18 L105,8 L120,20 L135,14 L150,26 L165,18 L180,22"
+                stroke="hsl(346.8 77.2% 49.8%)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M0,40 L15,32 L30,36 L45,22 L60,28 L75,12 L90,18 L105,8 L120,20 L135,14 L150,26 L165,18 L180,22 L180,56 L0,56 Z" fill="url(#sg)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ============== METRICS STRIP ============== -->
+    <div class="relative border-t border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-border/60">
+      <!-- Active -->
+      <div class="p-4 sm:p-5 relative">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 7v5l3 3"/></svg>
+          Active
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold text-info">04</span>
+          <span class="text-xs text-muted">/ 4 lanes</span>
+        </div>
+        <div class="mt-2 seg" style="grid-template-columns: repeat(4, 1fr); height: 4px;">
+          <span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span>
+        </div>
+      </div>
+      <!-- Queued -->
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Queued
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold">37</span>
+          <span class="text-xs text-warn">+12 today</span>
+        </div>
+        <div class="mt-2 text-[11px] text-muted">est. <span class="num text-white">~18m</span> to drain</div>
+      </div>
+      <!-- Completed -->
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          Completed · 24h
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold text-good">218</span>
+          <span class="text-xs text-good">▲ 14%</span>
+        </div>
+        <div class="mt-2 text-[11px] text-muted"><span class="num text-white">1.42 GB</span> downloaded</div>
+      </div>
+      <!-- Failed -->
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          Failed · 24h
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold text-bad">06</span>
+          <button class="text-[11px] text-primary hover:underline">retry all</button>
+        </div>
+        <div class="mt-2 text-[11px] text-muted">last: <span class="num text-white">2m ago</span></div>
+      </div>
+      <!-- Throughput -->
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Throughput
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold">8.4</span>
+          <span class="text-xs text-muted">MB/s</span>
+        </div>
+        <div class="mt-2 text-[11px] text-muted">peak <span class="num text-white">12.1</span> · avg <span class="num text-white">6.8</span></div>
+      </div>
+      <!-- ETA -->
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 12 13 21 6"/><path d="M3 6v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6"/></svg>
+          ETA · all
+        </div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="num text-3xl font-semibold">22:14</span>
+        </div>
+        <div class="mt-2 text-[11px] text-muted">finishing at <span class="num text-white">14:54</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== TABS + ACTIONS ============== -->
+  <section class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+    <div class="flex items-center border-b border-border -mb-px overflow-x-auto">
+      <button class="tab px-4 py-2.5 text-sm font-medium text-white" data-active="true">
+        Active Downloads
+        <span class="ml-1.5 inline-flex items-center justify-center text-[10px] num px-1.5 py-0.5 rounded-full bg-info/15 text-info">4</span>
+      </button>
+      <button class="tab px-4 py-2.5 text-sm font-medium text-muted hover:text-white">
+        Queued
+        <span class="ml-1.5 inline-flex items-center justify-center text-[10px] num px-1.5 py-0.5 rounded-full bg-white/5 text-muted">37</span>
+      </button>
+      <button class="tab px-4 py-2.5 text-sm font-medium text-muted hover:text-white">
+        Completed
+        <span class="ml-1.5 inline-flex items-center justify-center text-[10px] num px-1.5 py-0.5 rounded-full bg-white/5 text-muted">218</span>
+      </button>
+      <button class="tab px-4 py-2.5 text-sm font-medium text-muted hover:text-white">
+        Failed
+        <span class="ml-1.5 inline-flex items-center justify-center text-[10px] num px-1.5 py-0.5 rounded-full bg-bad/15 text-bad">6</span>
+      </button>
+      <button class="tab px-4 py-2.5 text-sm font-medium text-muted hover:text-white">
+        Jobs
+        <span class="ml-1.5 inline-flex items-center justify-center text-[10px] num px-1.5 py-0.5 rounded-full bg-white/5 text-muted">12</span>
+      </button>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-outline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Pause all
+      </button>
+      <button class="btn btn-outline btn-danger">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Clear completed
+      </button>
+      <button class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        Add job
+      </button>
+    </div>
+  </section>
+
+  <!-- ============== MAIN GRID ============== -->
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+    <!-- ====== LEFT: ACTIVE DOWNLOADS ====== -->
+    <div class="xl:col-span-2 space-y-3">
+
+      <!-- Lane header -->
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted">
+          <span class="relative inline-flex w-1.5 h-1.5 rounded-full bg-info text-info pulse-dot"></span>
+          Active Lanes · <span class="text-white num">4</span>
+        </div>
+        <div class="text-[11px] text-dim num">refreshing every 1.0s</div>
+      </div>
+
+      <!-- ============ ACTIVE CARD 1 (radial) ============ -->
+      <article class="row-card relative rounded-xl border border-border bg-card p-4 shadow-card overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-info"></div>
+        <div class="flex gap-4">
+          <!-- Cover -->
+          <div class="w-16 sm:w-20 flex-shrink-0">
+            <div class="cover c2"><span class="tag">Ch. 1108</span></div>
+          </div>
+          <!-- Body -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <h3 class="font-semibold truncate">One Piece</h3>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/20">DOWNLOADING</span>
+                </div>
+                <p class="text-sm text-muted truncate">Ch. 1108 · The Ancient Kingdom's Will</p>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
+                  <span class="inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span>
+                  <span class="text-dim">·</span>
+                  <span>TCB Scans</span>
+                  <span class="text-dim">·</span>
+                  <span class="num">page <span class="text-white">14</span>/<span class="text-white">22</span></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="btn btn-ghost" title="Pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+                <button class="btn btn-ghost" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+
+            <!-- Radial + meta -->
+            <div class="mt-3 flex items-center gap-4">
+              <div class="radial spin" style="--p: 64;">
+                <div class="text-[11px] num font-semibold">64<span class="text-muted">%</span></div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-end justify-between gap-3 mb-1.5">
+                  <div class="num text-xs text-muted">3.2 / 5.0 MB</div>
+                  <div class="flex items-center gap-3 text-xs num">
+                    <span class="text-info">↓ 2.4 MB/s</span>
+                    <span class="text-muted">ETA <span class="text-white">0:08</span></span>
+                  </div>
+                </div>
+                <div class="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div class="bar-fill h-full rounded-full" style="width: 64%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============ ACTIVE CARD 2 (segmented) ============ -->
+      <article class="row-card relative rounded-xl border border-border bg-card p-4 shadow-card overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-info"></div>
+        <div class="flex gap-4">
+          <div class="w-16 sm:w-20 flex-shrink-0">
+            <div class="cover c9"><span class="tag">Ch. 165</span></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <h3 class="font-semibold truncate">Chainsaw Man</h3>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/20">DOWNLOADING</span>
+                </div>
+                <p class="text-sm text-muted truncate">Ch. 165 · Mountain Ash</p>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
+                  <span class="inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span>
+                  <span class="text-dim">·</span>
+                  <span>Official</span>
+                  <span class="text-dim">·</span>
+                  <span class="num">page <span class="text-white">8</span>/<span class="text-white">19</span></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="btn btn-ghost" title="Pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+                <button class="btn btn-ghost btn-danger" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+
+            <!-- Segmented progress -->
+            <div class="mt-3">
+              <div class="flex items-end justify-between gap-3 mb-1.5 text-xs num">
+                <div class="text-muted">1.8 / 4.2 MB · <span class="text-white">42%</span></div>
+                <div class="flex items-center gap-3">
+                  <span class="text-info">↓ 1.9 MB/s</span>
+                  <span class="text-muted">ETA <span class="text-white">0:14</span></span>
+                </div>
+              </div>
+              <div class="seg" id="seg-csm"></div>
+              <script>
+                (function(){
+                  const wrap = document.getElementById('seg-csm');
+                  const total = 40; const filled = Math.round(total * 0.42);
+                  for (let i = 0; i < total; i++) {
+                    const s = document.createElement('span');
+                    if (i < filled) s.classList.add('on');
+                    if (i === filled) s.classList.add('head');
+                    wrap.appendChild(s);
+                  }
+                })();
+              </script>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============ ACTIVE CARD 3 (linear standard) ============ -->
+      <article class="row-card relative rounded-xl border border-border bg-card p-4 shadow-card overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-info"></div>
+        <div class="flex gap-4">
+          <div class="w-16 sm:w-20 flex-shrink-0">
+            <div class="cover c10"><span class="tag">Ch. 261</span></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <h3 class="font-semibold truncate">Jujutsu Kaisen</h3>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/20">DOWNLOADING</span>
+                </div>
+                <p class="text-sm text-muted truncate">Ch. 261 · Human</p>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
+                  <span class="inline-flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaDex</span>
+                  <span class="text-dim">·</span>
+                  <span>TCB Scans</span>
+                  <span class="text-dim">·</span>
+                  <span class="num">page <span class="text-white">5</span>/<span class="text-white">23</span></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="btn btn-ghost" title="Pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+                <button class="btn btn-ghost btn-danger" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <div class="flex items-end justify-between gap-3 mb-1.5 text-xs num">
+                <div class="text-muted">0.9 / 4.1 MB · <span class="text-white">22%</span></div>
+                <div class="flex items-center gap-3">
+                  <span class="text-info">↓ 3.1 MB/s</span>
+                  <span class="text-muted">ETA <span class="text-white">0:21</span></span>
+                </div>
+              </div>
+              <div class="h-2 rounded-full bg-white/5 overflow-hidden">
+                <div class="bar-fill h-full rounded-full" style="width: 22%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============ ACTIVE CARD 4 (skeleton loading) ============ -->
+      <article class="row-card relative rounded-xl border border-border bg-card p-4 shadow-card overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-dim"></div>
+        <div class="flex gap-4">
+          <div class="w-16 sm:w-20 flex-shrink-0">
+            <div class="skel" style="aspect-ratio:2/3; border-radius:6px;"></div>
+          </div>
+          <div class="flex-1 min-w-0 space-y-2">
+            <div class="flex items-center gap-2">
+              <div class="skel h-4 w-40"></div>
+              <span class="text-[10px] num px-1.5 py-0.5 rounded bg-white/5 text-muted border border-border">CONNECTING…</span>
+            </div>
+            <div class="skel h-3 w-2/3"></div>
+            <div class="skel h-3 w-1/3"></div>
+            <div class="pt-2">
+              <div class="h-2 rounded-full bg-white/5 overflow-hidden">
+                <div class="h-full w-1/3 bar-fill rounded-full" style="opacity: 0.5;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============ ACTIVE CARD 5 (queued / waiting) ============ -->
+      <article class="row-card relative rounded-xl border border-border bg-card/60 p-4 shadow-card overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-warn"></div>
+        <div class="flex items-center gap-4">
+          <div class="w-12 flex-shrink-0">
+            <div class="cover c4"><span class="tag">Ch. 134</span></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+              <h3 class="font-medium text-sm truncate">Frieren: Beyond Journey's End</h3>
+              <span class="text-[10px] num px-1.5 py-0.5 rounded bg-warn/15 text-warn border border-warn/20">WAITING</span>
+            </div>
+            <div class="flex items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+              <span>MangaDex</span>
+              <span class="text-dim">·</span>
+              <span>Kiyo's Translations</span>
+              <span class="text-dim">·</span>
+              <span class="num">position <span class="text-white">#5</span> · starts in <span class="text-white">~2m</span></span>
+            </div>
+          </div>
+          <button class="btn btn-ghost text-xs" title="Promote">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
+            Move up
+          </button>
+          <button class="btn btn-ghost btn-danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- ====== RIGHT RAIL ====== -->
+    <aside class="space-y-5">
+
+      <!-- ====== NEXT UP ====== -->
+      <section class="rounded-xl border border-border bg-card shadow-card">
+        <header class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div class="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-warn"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h2 class="text-sm font-semibold">Next Up</h2>
+            <span class="text-[10px] num text-muted">queue · 37</span>
+          </div>
+          <button class="text-xs text-muted hover:text-white">view all →</button>
+        </header>
+        <ol class="divide-y divide-hairline">
+          <!-- next item -->
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">01</span>
+            <div class="w-8"><div class="cover c1"><span class="tag" style="font-size:7px">Ch. 312</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Vinland Saga</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 212</span> · MangaDex · Atelier of Garr</div>
+            </div>
+            <span class="text-[10px] num px-1.5 py-0.5 rounded bg-warn/15 text-warn border border-warn/20">NEXT</span>
+          </li>
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">02</span>
+            <div class="w-8"><div class="cover c5"><span class="tag" style="font-size:7px">Ch. 374</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Berserk</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 374</span> · Comick · Studio Gaga</div>
+            </div>
+            <span class="text-[10px] num text-muted">in 4m</span>
+          </li>
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">03</span>
+            <div class="w-8"><div class="cover c7"><span class="tag" style="font-size:7px">Ch. 200</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Solo Leveling</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 200</span> · Weebcentral · Webtoon</div>
+            </div>
+            <span class="text-[10px] num text-muted">in 6m</span>
+          </li>
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">04</span>
+            <div class="w-8"><div class="cover c11"><span class="tag" style="font-size:7px">Ch. 105</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Spy x Family</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 105</span> · MangaPlus · Official</div>
+            </div>
+            <div class="flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-warn"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+              <span class="text-[10px] num text-warn">SCHEDULED</span>
+            </div>
+          </li>
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">05</span>
+            <div class="w-8"><div class="cover c3"><span class="tag" style="font-size:7px">Ch. 172</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Dandadan</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 172</span> · MangaPlus · Drake Scans</div>
+            </div>
+            <span class="text-[10px] num text-muted">in 9m</span>
+          </li>
+          <li class="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition">
+            <span class="num text-[10px] text-dim w-5 text-right">06</span>
+            <div class="w-8"><div class="cover c8"><span class="tag" style="font-size:7px">Ch. 124</span></div></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">Kaiju No. 8</div>
+              <div class="text-[11px] text-muted truncate"><span>Ch. 124</span> · MangaPlus · Official</div>
+            </div>
+            <span class="text-[10px] num text-muted">in 12m</span>
+          </li>
+        </ol>
+        <footer class="px-4 py-2.5 border-t border-border text-[11px] text-muted flex items-center justify-between">
+          <span class="num">+ 31 more queued</span>
+          <button class="text-primary hover:underline">manage queue</button>
+        </footer>
+      </section>
+
+      <!-- ====== FAILED + RETRY ====== -->
+      <section class="rounded-xl border border-border bg-card shadow-card">
+        <header class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div class="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-bad"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <h2 class="text-sm font-semibold">Recent Failures</h2>
+            <span class="text-[10px] num px-1.5 py-0.5 rounded-full bg-bad/15 text-bad">6</span>
+          </div>
+          <button class="btn btn-ghost text-xs text-primary hover:text-white">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            Retry all
+          </button>
+        </header>
+        <ul class="divide-y divide-hairline">
+          <li class="p-4 group hover:bg-white/[0.02] transition">
+            <div class="flex items-start gap-3">
+              <div class="w-9 flex-shrink-0"><div class="cover c6"><span class="tag" style="font-size:7px">Ch. 374</span></div></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="text-sm font-medium truncate">Berserk</div>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-bad/15 text-bad border border-bad/20">FAILED</span>
+                </div>
+                <div class="text-[11px] text-muted mt-0.5">Ch. 374 · Comick · Studio Gaga</div>
+                <div class="text-[11px] text-bad/80 mt-1.5 font-mono truncate">Error 503 · provider timeout after 30s</div>
+                <div class="flex items-center gap-2 mt-2 text-[10px] text-dim">
+                  <span class="num">2m ago</span>
+                  <span>·</span>
+                  <span class="num">retry 2/3</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1">
+                <button class="btn btn-outline text-[11px]" title="Retry">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                  Retry
+                </button>
+                <button class="btn btn-ghost btn-danger" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+          </li>
+          <li class="p-4 group hover:bg-white/[0.02] transition">
+            <div class="flex items-start gap-3">
+              <div class="w-9 flex-shrink-0"><div class="cover c12"><span class="tag" style="font-size:7px">Ch. 089</span></div></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="text-sm font-medium truncate">Vagabond</div>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-bad/15 text-bad border border-bad/20">FAILED</span>
+                </div>
+                <div class="text-[11px] text-muted mt-0.5">Ch. 89 · MangaDex · Inoue Scans</div>
+                <div class="text-[11px] text-bad/80 mt-1.5 font-mono truncate">Error 404 · chapter source not found</div>
+                <div class="flex items-center gap-2 mt-2 text-[10px] text-dim">
+                  <span class="num">14m ago</span>
+                  <span>·</span>
+                  <span class="num">retry 1/3</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1">
+                <button class="btn btn-outline text-[11px]"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>Retry</button>
+                <button class="btn btn-ghost btn-danger"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+          </li>
+          <li class="p-4 group hover:bg-white/[0.02] transition">
+            <div class="flex items-start gap-3">
+              <div class="w-9 flex-shrink-0"><div class="cover c5"><span class="tag" style="font-size:7px">Ch. 042</span></div></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="text-sm font-medium truncate">Sakamoto Days</div>
+                  <span class="text-[10px] num px-1.5 py-0.5 rounded bg-bad/15 text-bad border border-bad/20">FAILED</span>
+                </div>
+                <div class="text-[11px] text-muted mt-0.5">Ch. 198 · Weebcentral · Suzuki Group</div>
+                <div class="text-[11px] text-bad/80 mt-1.5 font-mono truncate">Error · network unreachable</div>
+                <div class="flex items-center gap-2 mt-2 text-[10px] text-dim">
+                  <span class="num">1h ago</span>
+                  <span>·</span>
+                  <span class="num text-bad">retry 3/3 · max</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1">
+                <button class="btn btn-outline text-[11px]"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>Retry</button>
+                <button class="btn btn-ghost btn-danger"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+            </div>
+          </li>
+        </ul>
+        <footer class="px-4 py-2.5 border-t border-border text-[11px] text-muted flex items-center justify-between">
+          <span>+ 3 more failures</span>
+          <button class="hover:text-white">view full log →</button>
+        </footer>
+      </section>
+
+      <!-- ====== JOBS · EMPTY STATE ====== -->
+      <section class="rounded-xl border border-border bg-card shadow-card">
+        <header class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div class="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <h2 class="text-sm font-semibold">Scheduled Jobs</h2>
+          </div>
+          <button class="text-xs text-muted hover:text-white">manage →</button>
+        </header>
+        <div class="px-6 py-10 text-center">
+          <div class="mx-auto w-12 h-12 rounded-full border border-border grid place-items-center mb-3 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/></svg>
+          </div>
+          <h3 class="text-sm font-medium">No jobs scheduled</h3>
+          <p class="text-xs text-muted mt-1 max-w-[22ch] mx-auto">Create a recurring job to auto-check sources for new chapters.</p>
+          <button class="btn btn-primary mt-4 mx-auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            New job
+          </button>
+        </div>
+      </section>
+
+    </aside>
+
+  </section>
+
+  <!-- ============== BOTTOM: COMPLETED HISTORY DRAWER ============== -->
+  <details class="mt-6 rounded-xl border border-border bg-card shadow-card overflow-hidden" open>
+    <summary class="cursor-pointer list-none px-4 sm:px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition">
+      <div class="flex items-center gap-3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-good"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        <div>
+          <div class="text-sm font-semibold">Completed History</div>
+          <div class="text-[11px] text-muted">218 downloads today · 1.42 GB · avg 6.2 MB/file</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 text-[11px] text-muted">
+          <span class="num">last 24h</span>
+          <span class="inline-block w-px h-3 bg-border"></span>
+          <span class="num text-good">100% success on last 12</span>
+        </div>
+        <span class="chev text-muted">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </span>
+      </div>
+    </summary>
+
+    <div class="border-t border-border overflow-x-auto">
+      <table class="w-full text-sm min-w-[760px]">
+        <thead class="text-[10px] uppercase tracking-[0.14em] text-muted">
+          <tr class="border-b border-hairline">
+            <th class="text-left px-4 sm:px-5 py-2.5 font-medium">Series</th>
+            <th class="text-left px-3 py-2.5 font-medium">Chapter</th>
+            <th class="text-left px-3 py-2.5 font-medium">Provider</th>
+            <th class="text-left px-3 py-2.5 font-medium">Scanlator</th>
+            <th class="text-right px-3 py-2.5 font-medium">Size</th>
+            <th class="text-right px-3 py-2.5 font-medium">Time</th>
+            <th class="text-right px-4 sm:px-5 py-2.5 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-hairline">
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c2"></div></div>
+                <span class="font-medium">One Piece</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 1107</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span></td>
+            <td class="px-3 py-2.5 text-muted">TCB Scans</td>
+            <td class="px-3 py-2.5 text-right num">4.8 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:30</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost" title="Open"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost" title="View"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger" title="Remove"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c4"></div></div>
+                <span class="font-medium">Frieren</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 133</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaDex</span></td>
+            <td class="px-3 py-2.5 text-muted">Kiyo's TL</td>
+            <td class="px-3 py-2.5 text-right num">3.6 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:24</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c7"></div></div>
+                <span class="font-medium">Solo Leveling</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 199</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>Weebcentral</span></td>
+            <td class="px-3 py-2.5 text-muted">Webtoon</td>
+            <td class="px-3 py-2.5 text-right num">8.2 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:21</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c11"></div></div>
+                <span class="font-medium">Spy x Family</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 104</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span></td>
+            <td class="px-3 py-2.5 text-muted">Official</td>
+            <td class="px-3 py-2.5 text-right num">5.1 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:18</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c3"></div></div>
+                <span class="font-medium">Dandadan</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 171</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span></td>
+            <td class="px-3 py-2.5 text-muted">Drake Scans</td>
+            <td class="px-3 py-2.5 text-right num">4.2 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:11</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-white/[0.02]">
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6"><div class="cover c8"></div></div>
+                <span class="font-medium">Kaiju No. 8</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-muted">Ch. 123</td>
+            <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 text-xs"><span class="w-1 h-1 rounded-full bg-primary"></span>MangaPlus</span></td>
+            <td class="px-3 py-2.5 text-muted">Official</td>
+            <td class="px-3 py-2.5 text-right num">6.7 MB</td>
+            <td class="px-3 py-2.5 text-right num text-muted">14:04</td>
+            <td class="px-4 sm:px-5 py-2.5">
+              <div class="flex items-center justify-end gap-1">
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
+                <button class="btn btn-ghost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-ghost btn-danger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="border-t border-border px-4 sm:px-5 py-2.5 flex items-center justify-between text-[11px] text-muted">
+      <span class="num">showing 6 of 218</span>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-ghost">load more</button>
+        <button class="btn btn-outline">export CSV</button>
+      </div>
+    </div>
+  </details>
+
+  <!-- Footer status bar -->
+  <footer class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-muted">
+    <div class="flex items-center gap-3">
+      <span class="relative inline-flex w-1.5 h-1.5 rounded-full bg-good text-good pulse-dot"></span>
+      <span class="num">socket.io · connected</span>
+      <span class="text-dim">·</span>
+      <span class="num">ping 12ms</span>
+      <span class="text-dim">·</span>
+      <span class="num">worker pool 4/4</span>
+    </div>
+    <div class="num">Kaizoku v2.4.1 · build a8f3c1d</div>
+  </footer>
+
+</main>
+
+</body>
+</html>

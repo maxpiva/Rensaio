@@ -1,0 +1,1422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaizoku — Queue · Timeline Feed (Mockup B)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg:        'hsl(20 14.3% 4.1%)',
+          card:      'hsl(24 9.8% 10%)',
+          card2:     'hsl(24 9.8% 12%)',
+          border:    'hsla(0 0% 100% / 0.06)',
+          borders:   'hsla(0 0% 100% / 0.10)',
+          fg:        'hsl(0 0% 98%)',
+          muted:     'hsl(240 5% 64.9%)',
+          dim:       'hsl(240 5% 46%)',
+          primary:   'hsl(346.8 77.2% 49.8%)',
+          primarys:  'hsla(346.8 77.2% 49.8% / 0.15)',
+          destruct:  'hsl(0 72% 51%)',
+          warn:      'hsl(38 92% 50%)',
+          good:      'hsl(142 71% 45%)',
+          info:      'hsl(217 91% 60%)',
+        },
+        fontFamily: {
+          sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root {
+    --bg:        hsl(20 14.3% 4.1%);
+    --card:      hsl(24 9.8% 10%);
+    --card2:     hsl(24 9.8% 12%);
+    --border:    hsla(0 0% 100% / 0.06);
+    --borders:   hsla(0 0% 100% / 0.10);
+    --fg:        hsl(0 0% 98%);
+    --muted:     hsl(240 5% 64.9%);
+    --dim:       hsl(240 5% 46%);
+    --primary:   hsl(346.8 77.2% 49.8%);
+    --primarys:  hsla(346.8 77.2% 49.8% / 0.15);
+    --destruct:  hsl(0 72% 51%);
+    --destructs: hsla(0 72% 51% / 0.12);
+    --warn:      hsl(38 92% 50%);
+    --warns:     hsla(38 92% 50% / 0.12);
+    --good:      hsl(142 71% 45%);
+    --goods:     hsla(142 71% 45% / 0.12);
+    --info:      hsl(217 91% 60%);
+    --infos:     hsla(217 91% 60% / 0.12);
+  }
+  html, body { background: var(--bg); color: var(--fg); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-feature-settings: "ss01","cv11"; letter-spacing: -0.005em; }
+  .mono { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, monospace; }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsla(0 0% 100% / 0.06); border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: hsla(0 0% 100% / 0.12); }
+
+  /* Sticky glassy bar */
+  .glass {
+    background: hsla(20 14.3% 4.1% / 0.78);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Status rail */
+  .rail { width: 3px; border-radius: 2px; align-self: stretch; }
+  .rail-downloading { background: linear-gradient(180deg, hsl(217 91% 60%), hsl(217 91% 50%)); box-shadow: 0 0 12px hsla(217 91% 60% / 0.55); }
+  .rail-queued      { background: hsl(240 5% 36%); }
+  .rail-completed   { background: hsl(142 71% 45%); box-shadow: 0 0 8px hsla(142 71% 45% / 0.35); }
+  .rail-failed      { background: hsl(0 72% 51%); box-shadow: 0 0 10px hsla(0 72% 51% / 0.45); }
+  .rail-waiting     { background: hsl(38 92% 50%); box-shadow: 0 0 8px hsla(38 92% 50% / 0.35); }
+  .rail-scheduled   { background: repeating-linear-gradient(180deg, hsl(38 92% 50%) 0 6px, transparent 6px 12px); }
+
+  /* Pulsing dot for active download */
+  @keyframes pulseDot {
+    0%   { box-shadow: 0 0 0 0   hsla(217 91% 60% / 0.55); }
+    70%  { box-shadow: 0 0 0 8px hsla(217 91% 60% / 0); }
+    100% { box-shadow: 0 0 0 0   hsla(217 91% 60% / 0); }
+  }
+  .pulse-dot { animation: pulseDot 1.6s ease-out infinite; }
+
+  /* Progress bar shimmer */
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .shimmer {
+    position: relative; overflow: hidden;
+  }
+  .shimmer::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, hsla(0 0% 100% / 0.18), transparent);
+    animation: shimmer 1.8s linear infinite;
+  }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1.2s linear infinite; }
+
+  /* Timeline spine */
+  .spine {
+    position: absolute;
+    left: 14px;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, var(--border) 8%, var(--border) 92%, transparent);
+  }
+
+  /* Section node */
+  .node {
+    width: 28px; height: 28px;
+    border-radius: 999px;
+    display: grid; place-items: center;
+    background: var(--card);
+    border: 1px solid var(--borders);
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  /* Event card */
+  .event {
+    display: grid;
+    grid-template-columns: 4px 56px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 12px;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  .event:hover {
+    border-color: var(--borders);
+    background: var(--card2);
+  }
+  .event:hover .row-actions { opacity: 1; transform: translateX(0); }
+  .row-actions { opacity: 0; transform: translateX(4px); transition: opacity .18s ease, transform .18s ease; }
+
+  /* Pill */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.2;
+    color: var(--muted);
+    background: hsla(0 0% 100% / 0.035);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .pill svg { width: 11px; height: 11px; }
+  .pill.dot::before { content:''; width:5px; height:5px; border-radius:999px; background: currentColor; }
+
+  /* Chip */
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 11px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .chip:hover { background: hsla(0 0% 100% / 0.04); color: var(--fg); }
+  .chip.active { background: hsla(0 0% 100% / 0.06); color: var(--fg); border-color: var(--borders); }
+  .chip .count { font-size: 11px; padding: 1px 6px; border-radius: 5px; background: hsla(0 0% 100% / 0.06); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip.active .count { background: var(--primarys); color: hsl(346.8 80% 75%); }
+
+  /* Icon button */
+  .icon-btn {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: 7px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: all .15s ease;
+    cursor: pointer;
+  }
+  .icon-btn:hover { background: hsla(0 0% 100% / 0.06); color: var(--fg); border-color: var(--border); }
+  .icon-btn.danger:hover { background: var(--destructs); color: hsl(0 90% 70%); border-color: hsla(0 72% 51% / 0.25); }
+  .icon-btn.warn:hover { background: var(--warns); color: hsl(38 92% 65%); border-color: hsla(38 92% 50% / 0.25); }
+
+  /* Mini thumbnail */
+  .thumb {
+    width: 56px; height: 78px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .thumb-art {
+    width: 100%; height: 100%;
+    display:grid; place-items:center;
+    color: hsla(0 0% 100% / 0.5);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+
+  /* Series thumbnail variants */
+  .art-onepiece     { background: linear-gradient(135deg, hsl(0 75% 35%), hsl(20 90% 45%)); }
+  .art-chainsaw     { background: linear-gradient(135deg, hsl(15 80% 30%), hsl(0 70% 22%)); }
+  .art-jjk          { background: linear-gradient(135deg, hsl(260 50% 22%), hsl(220 60% 30%)); }
+  .art-frieren      { background: linear-gradient(135deg, hsl(160 40% 35%), hsl(200 50% 40%)); }
+  .art-vinland      { background: linear-gradient(135deg, hsl(210 40% 28%), hsl(35 30% 35%)); }
+  .art-berserk      { background: linear-gradient(135deg, hsl(0 0% 12%), hsl(0 60% 18%)); }
+  .art-solo         { background: linear-gradient(135deg, hsl(270 60% 30%), hsl(220 70% 40%)); }
+  .art-spy          { background: linear-gradient(135deg, hsl(345 70% 45%), hsl(280 50% 35%)); }
+  .art-dandadan     { background: linear-gradient(135deg, hsl(290 60% 35%), hsl(180 50% 30%)); }
+  .art-kaiju        { background: linear-gradient(135deg, hsl(120 40% 22%), hsl(60 50% 30%)); }
+  .art-sakamoto     { background: linear-gradient(135deg, hsl(0 70% 40%), hsl(40 60% 35%)); }
+  .art-bluelock     { background: linear-gradient(135deg, hsl(220 80% 35%), hsl(190 70% 40%)); }
+
+  /* Mini progress */
+  .bar {
+    height: 4px;
+    border-radius: 99px;
+    background: hsla(0 0% 100% / 0.06);
+    overflow: hidden;
+    position: relative;
+  }
+  .bar > span {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, hsl(217 91% 55%), hsl(217 91% 65%));
+    border-radius: 99px;
+  }
+
+  /* Sidebar stat */
+  .stat-card {
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .stat-card:hover { border-color: var(--borders); background: var(--card2); }
+
+  /* Sparkline path */
+  .sparkline path { stroke: var(--primary); stroke-width: 1.5; fill: none; }
+  .sparkline .fill { fill: url(#sparkfill); stroke: none; }
+
+  /* Tabs */
+  .tab {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .tab:hover { color: var(--fg); }
+  .tab.active { color: var(--fg); border-color: var(--primary); }
+  .tab .count {
+    font-size: 11px; padding: 1px 6px; border-radius: 5px;
+    background: hsla(0 0% 100% / 0.06); color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .tab.active .count { background: var(--primarys); color: hsl(346.8 80% 75%); }
+
+  /* Search input */
+  .search {
+    background: hsla(0 0% 100% / 0.035);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .search:focus-within { border-color: hsla(0 0% 100% / 0.18); background: hsla(0 0% 100% / 0.05); }
+
+  /* Status icon backgrounds */
+  .status-ico {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .si-down  { background: var(--infos);    color: hsl(217 91% 70%); }
+  .si-queue { background: hsla(0 0% 100% / 0.06); color: var(--muted); }
+  .si-done  { background: var(--goods);    color: hsl(142 60% 60%); }
+  .si-fail  { background: var(--destructs);color: hsl(0 90% 72%); }
+  .si-wait  { background: var(--warns);    color: hsl(38 92% 65%); }
+
+  /* Mockup label */
+  .mockup-label {
+    background: var(--primarys);
+    color: hsl(346.8 80% 80%);
+    border: 1px solid hsla(346.8 77.2% 49.8% / 0.3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+
+  /* Section header */
+  .section-h {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 0 10px 0;
+  }
+  .section-h .line {
+    flex: 1; height: 1px; background: var(--border);
+  }
+  .section-h h3 {
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .section-h .num {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10.5px;
+    color: var(--dim);
+    padding: 2px 6px;
+    background: hsla(0 0% 100% / 0.04);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+  }
+
+  /* Failed card subtle tint */
+  .event.failed {
+    background: linear-gradient(180deg, hsla(0 72% 51% / 0.04), transparent 60%), var(--card);
+  }
+  .event.failed:hover {
+    background: linear-gradient(180deg, hsla(0 72% 51% / 0.06), transparent 60%), var(--card2);
+  }
+
+  /* Downloading card subtle tint */
+  .event.now {
+    background: linear-gradient(180deg, hsla(217 91% 60% / 0.04), transparent 50%), var(--card);
+  }
+
+  /* Mobile sidebar collapse */
+  @media (max-width: 1100px) {
+    .sidebar { display: none; }
+    .main-col { grid-column: span 12 / span 12 !important; }
+  }
+  @media (max-width: 720px) {
+    .event { grid-template-columns: 4px 48px 1fr; }
+    .row-actions { display: none; }
+    .meta-row .pill.hide-sm { display: none; }
+    .thumb { width: 48px; height: 66px; }
+    .topbar-tools .desktop-only { display:none; }
+  }
+
+  /* Background grid noise */
+  .bgnoise::before {
+    content:''; position: fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, hsla(346.8 77.2% 49.8% / 0.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, hsla(217 91% 60% / 0.04), transparent 60%);
+  }
+
+  /* Kbd */
+  .kbd {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: hsla(0 0% 100% / 0.06);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* Live indicator */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .live-dot { animation: blink 1.6s ease-in-out infinite; }
+</style>
+</head>
+<body class="bgnoise">
+
+<!-- ==================== TOP BAR ==================== -->
+<header class="glass sticky top-0 z-40">
+  <div class="max-w-[1480px] mx-auto px-5 lg:px-8 py-3 flex items-center gap-4">
+    <!-- Logo / breadcrumb -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-md grid place-items-center" style="background: linear-gradient(135deg, var(--primary), hsl(330 80% 45%));">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="flex items-center gap-2 text-[13px]">
+        <span class="font-semibold tracking-tight">Kaizoku</span>
+        <span class="text-dim">/</span>
+        <span class="text-muted">Queue</span>
+      </div>
+    </div>
+
+    <span class="mockup-label hidden md:inline-flex ml-1">Mockup B — Timeline Feed</span>
+
+    <div class="flex-1"></div>
+
+    <!-- Live status -->
+    <div class="hidden md:flex items-center gap-2 text-[12px] text-muted">
+      <span class="w-1.5 h-1.5 rounded-full bg-good live-dot"></span>
+      <span>Worker active</span>
+      <span class="text-dim">·</span>
+      <span class="mono">2 / 3 slots</span>
+    </div>
+
+    <!-- Right actions -->
+    <div class="flex items-center gap-1.5 topbar-tools">
+      <button class="icon-btn desktop-only" title="Refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/><path d="M3 21v-5h5"/></svg>
+      </button>
+      <button class="icon-btn desktop-only" title="Pause all">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+      </button>
+      <button class="icon-btn desktop-only" title="Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <div class="w-px h-5 bg-border mx-1 desktop-only"></div>
+      <button class="px-3 h-8 rounded-md text-[12.5px] font-medium bg-primary hover:opacity-90 transition flex items-center gap-1.5 text-white">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add job
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs row -->
+  <div class="max-w-[1480px] mx-auto px-5 lg:px-8">
+    <div class="flex items-center gap-1 border-b border-border overflow-x-auto -mx-1 px-1">
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Active
+        <span class="count">2</span>
+      </button>
+      <button class="tab">
+        Queued <span class="count">9</span>
+      </button>
+      <button class="tab active">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+        Timeline
+        <span class="count">38</span>
+      </button>
+      <button class="tab">
+        Completed <span class="count">24</span>
+      </button>
+      <button class="tab">
+        Failed <span class="count">3</span>
+      </button>
+      <button class="tab">
+        Jobs <span class="count">12</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== STICKY FILTER BAR ==================== -->
+<div class="glass sticky top-[97px] z-30 border-t-0">
+  <div class="max-w-[1480px] mx-auto px-5 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
+
+    <!-- Status chips -->
+    <div class="flex items-center gap-1 flex-wrap">
+      <button class="chip active">All <span class="count">38</span></button>
+      <button class="chip">
+        <span class="w-1.5 h-1.5 rounded-full bg-info"></span>
+        Active <span class="count">2</span>
+      </button>
+      <button class="chip">
+        <span class="w-1.5 h-1.5 rounded-full" style="background:hsl(240 5% 50%);"></span>
+        Queued <span class="count">9</span>
+      </button>
+      <button class="chip">
+        <span class="w-1.5 h-1.5 rounded-full bg-good"></span>
+        Completed <span class="count">24</span>
+      </button>
+      <button class="chip">
+        <span class="w-1.5 h-1.5 rounded-full bg-destruct"></span>
+        Failed <span class="count">3</span>
+      </button>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- Search -->
+    <div class="search flex items-center gap-2 px-3 h-9 w-full md:w-[300px]">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" placeholder="Filter by series, chapter, provider…" class="bg-transparent outline-none text-[13px] placeholder:text-dim flex-1 text-fg" />
+      <span class="kbd hidden md:inline">⌘ K</span>
+    </div>
+
+    <!-- Filter buttons -->
+    <button class="chip" title="Filter by provider">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      Provider
+    </button>
+    <button class="chip" title="Sort">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M11 18h2"/></svg>
+      Newest
+    </button>
+  </div>
+</div>
+
+<!-- ==================== MAIN LAYOUT ==================== -->
+<main class="relative z-10 max-w-[1480px] mx-auto px-5 lg:px-8 pt-2 pb-24">
+  <div class="grid grid-cols-12 gap-6">
+
+    <!-- ============ LEFT: TIMELINE ============ -->
+    <section class="main-col col-span-12 lg:col-span-9 relative">
+
+      <!-- ===== SECTION: NOW DOWNLOADING ===== -->
+      <div class="section-h">
+        <div class="node" style="border-color: hsla(217 91% 60% / 0.45); color: hsl(217 91% 65%); background: var(--infos);">
+          <span class="w-2 h-2 rounded-full bg-info pulse-dot"></span>
+        </div>
+        <h3>
+          Now downloading
+          <span class="num">2 active</span>
+        </h3>
+        <div class="line"></div>
+        <span class="text-[11px] text-dim mono flex items-center gap-1.5">
+          <span class="w-1 h-1 rounded-full bg-good live-dot"></span>
+          live
+        </span>
+      </div>
+
+      <div class="space-y-2.5">
+
+        <!-- Active 1 -->
+        <article class="event now group">
+          <div class="rail rail-downloading"></div>
+          <div class="thumb"><div class="thumb-art art-onepiece">OP</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap mb-1.5">
+              <div class="status-ico si-down">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">One Piece</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 1108 — "The Strongest Man in the World"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(217 91% 65%);">downloading</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">TCB Scans</span>
+                  <span class="pill mono hide-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    12 / 24 pgs
+                  </span>
+                  <span class="pill mono">42.3 MB / 84 MB</span>
+                  <span class="pill mono">2.1 MB/s</span>
+                  <span class="pill mono hide-sm">ETA 18s</span>
+                </div>
+                <div class="bar mt-2.5">
+                  <span class="shimmer" style="width: 52%;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Pause">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            </button>
+            <button class="icon-btn" title="View">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button class="icon-btn" title="Open source">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+            <button class="icon-btn danger" title="Cancel">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </article>
+
+        <!-- Active 2 -->
+        <article class="event now group">
+          <div class="rail rail-downloading"></div>
+          <div class="thumb"><div class="thumb-art art-chainsaw">CSM</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap mb-1.5">
+              <div class="status-ico si-down">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Chainsaw Man</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 175 — "Conditional Love"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(217 91% 65%);">downloading</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono">14.8 MB / 51 MB</span>
+                  <span class="pill mono">1.4 MB/s</span>
+                  <span class="pill mono hide-sm">ETA 26s</span>
+                </div>
+                <div class="bar mt-2.5">
+                  <span class="shimmer" style="width: 29%;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Pause"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn danger" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+      </div>
+
+      <!-- ===== SECTION: FAILED — NEEDS ATTENTION ===== -->
+      <div class="section-h">
+        <div class="node" style="border-color: hsla(0 72% 51% / 0.45); color: hsl(0 90% 70%); background: var(--destructs);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h3 style="color: hsl(0 90% 75%);">
+          Failed — needs attention
+          <span class="num" style="color: hsl(0 90% 70%); background: var(--destructs); border-color: hsla(0 72% 51% / 0.3);">3 errors</span>
+        </h3>
+        <div class="line"></div>
+        <button class="chip text-[11px]" style="color: hsl(0 90% 70%);">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
+          Retry all
+        </button>
+      </div>
+
+      <div class="space-y-2.5">
+
+        <!-- Failed 1 -->
+        <article class="event failed group">
+          <div class="rail rail-failed"></div>
+          <div class="thumb"><div class="thumb-art art-berserk">BK</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap mb-1">
+              <div class="status-ico si-fail">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Berserk</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 375 — "The Eastern Falcon"</span>
+                </div>
+                <div class="text-[12px] mt-1.5 flex items-center gap-1.5" style="color: hsl(0 90% 70%);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/><polyline points="21 3 21 12 12 12"/></svg>
+                  <span class="mono">HTTP 503</span>
+                  <span>·</span>
+                  <span>Upstream provider unavailable</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(0 90% 70%);">failed</span>
+                  <span class="pill">Comick</span>
+                  <span class="pill hide-sm">DR Scans</span>
+                  <span class="pill mono">3 retries</span>
+                  <span class="pill mono">12m ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn warn" title="Retry">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+            <button class="icon-btn" title="View error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+            <button class="icon-btn" title="Open source"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Failed 2 -->
+        <article class="event failed group">
+          <div class="rail rail-failed"></div>
+          <div class="thumb"><div class="thumb-art art-vinland">VS</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap mb-1">
+              <div class="status-ico si-fail">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Vinland Saga</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 213 — "Beyond the Edge"</span>
+                </div>
+                <div class="text-[12px] mt-1.5 flex items-center gap-1.5" style="color: hsl(0 90% 70%);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+                  <span class="mono">CLOUDFLARE</span>
+                  <span>·</span>
+                  <span>Captcha challenge — manual intervention required</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(0 90% 70%);">failed</span>
+                  <span class="pill">Weebcentral</span>
+                  <span class="pill hide-sm">Casanova</span>
+                  <span class="pill mono">2 retries</span>
+                  <span class="pill mono">38m ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn warn" title="Retry"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/><path d="M3 21v-5h5"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Failed 3 -->
+        <article class="event failed group">
+          <div class="rail rail-failed"></div>
+          <div class="thumb"><div class="thumb-art art-dandadan">DD</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap mb-1">
+              <div class="status-ico si-fail">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Dandadan</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 162 — "Vertical Cut"</span>
+                </div>
+                <div class="text-[12px] mt-1.5 flex items-center gap-1.5" style="color: hsl(0 90% 70%);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+                  <span class="mono">404</span>
+                  <span>·</span>
+                  <span>Chapter pages missing from source index</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(0 90% 70%);">failed</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">MangaPlus</span>
+                  <span class="pill mono">1 retry</span>
+                  <span class="pill mono">1h ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn warn" title="Retry"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/><path d="M3 21v-5h5"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/></svg></button>
+          </div>
+        </article>
+      </div>
+
+      <!-- ===== SECTION: UP NEXT ===== -->
+      <div class="section-h">
+        <div class="node">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h3>
+          Up next
+          <span class="num">9 queued</span>
+        </h3>
+        <div class="line"></div>
+        <button class="chip text-[11px]">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/></svg>
+          Clear queue
+        </button>
+      </div>
+
+      <div class="space-y-2.5">
+        <!-- Queued 1 -->
+        <article class="event group">
+          <div class="rail rail-queued"></div>
+          <div class="thumb"><div class="thumb-art art-jjk">JJK</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-queue">
+                <span class="text-[10px] mono font-semibold">1</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Jujutsu Kaisen</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 271 — "The Decisive Battle"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: var(--muted);">queued</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono hide-sm">~32 MB est.</span>
+                  <span class="pill mono">in ~3 min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Move up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button class="icon-btn" title="Start now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Queued 2 -->
+        <article class="event group">
+          <div class="rail rail-queued"></div>
+          <div class="thumb"><div class="thumb-art art-frieren">FR</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-queue"><span class="text-[10px] mono font-semibold">2</span></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Frieren: Beyond Journey's End</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 137 — "A Promise Kept"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: var(--muted);">queued</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">Hachimitsu</span>
+                  <span class="pill mono hide-sm">~28 MB est.</span>
+                  <span class="pill mono">in ~5 min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Move up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button class="icon-btn" title="Start now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Queued 3 - Scheduled / waiting (amber) -->
+        <article class="event group">
+          <div class="rail rail-scheduled"></div>
+          <div class="thumb"><div class="thumb-art art-solo">SL</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-wait">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Solo Leveling: Ragnarok</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 042 — "Hammer of the Gods"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(38 92% 65%);">scheduled</span>
+                  <span class="pill">Comick</span>
+                  <span class="pill hide-sm">Asura Scans</span>
+                  <span class="pill mono">retry in 4m</span>
+                  <span class="pill mono hide-sm">attempt 2/5</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn warn" title="Retry now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn danger" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Queued 4 -->
+        <article class="event group">
+          <div class="rail rail-queued"></div>
+          <div class="thumb"><div class="thumb-art art-spy">SxF</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-queue"><span class="text-[10px] mono font-semibold">3</span></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Spy x Family</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 104 — "Mission: Operation Strix"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: var(--muted);">queued</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono hide-sm">~22 MB est.</span>
+                  <span class="pill mono">in ~7 min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Move up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button class="icon-btn" title="Start now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Queued 5 -->
+        <article class="event group">
+          <div class="rail rail-queued"></div>
+          <div class="thumb"><div class="thumb-art art-kaiju">K8</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-queue"><span class="text-[10px] mono font-semibold">4</span></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Kaiju No. 8</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 122 — "The Final Form"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: var(--muted);">queued</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono hide-sm">~38 MB est.</span>
+                  <span class="pill mono">in ~9 min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Move up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button class="icon-btn" title="Start now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Queued 6 (collapsed indicator) -->
+        <button class="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-border hover:bg-card text-muted hover:text-fg transition text-[12px]">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          Show 4 more queued items
+          <span class="ml-auto mono text-[11px] text-dim">Bluelock · Sakamoto Days · +2</span>
+        </button>
+      </div>
+
+      <!-- ===== SECTION: EARLIER TODAY ===== -->
+      <div class="section-h">
+        <div class="node" style="border-color: hsla(142 71% 45% / 0.35); color: hsl(142 60% 60%); background: var(--goods);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h3>
+          Earlier today
+          <span class="num">8 completed</span>
+        </h3>
+        <div class="line"></div>
+        <span class="text-[11px] text-dim mono">May 22</span>
+      </div>
+
+      <div class="space-y-2.5">
+
+        <!-- Completed 1 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-sakamoto">SD</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Sakamoto Days</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 198 — "Sushi & Bullets"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono">26.4 MB</span>
+                  <span class="pill mono">14:32</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Completed 2 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-bluelock">BL</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Blue Lock</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 287 — "Devourer"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">Inka Scans</span>
+                  <span class="pill mono">31.2 MB</span>
+                  <span class="pill mono">13:18</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Completed 3 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-onepiece">OP</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">One Piece</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 1107 — "Atlas"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">TCB Scans</span>
+                  <span class="pill mono">82.7 MB</span>
+                  <span class="pill mono">11:04</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Completed 4 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-jjk">JJK</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Jujutsu Kaisen</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 270 — "Light"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono">19.8 MB</span>
+                  <span class="pill mono">09:47</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Completed 5 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-frieren">FR</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Frieren: Beyond Journey's End</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 136 — "An Elf Remembers"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaDex</span>
+                  <span class="pill hide-sm">Hachimitsu</span>
+                  <span class="pill mono">27.9 MB</span>
+                  <span class="pill mono">08:21</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Show more completed -->
+        <button class="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-border hover:bg-card text-muted hover:text-fg transition text-[12px]">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          Show 3 more completed today
+        </button>
+      </div>
+
+      <!-- ===== SECTION: YESTERDAY ===== -->
+      <div class="section-h">
+        <div class="node">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <h3>
+          Yesterday
+          <span class="num">16 completed</span>
+        </h3>
+        <div class="line"></div>
+        <span class="text-[11px] text-dim mono">May 21</span>
+      </div>
+
+      <div class="space-y-2.5">
+        <!-- Yesterday 1 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-chainsaw">CSM</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Chainsaw Man</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 174 — "The Way Home"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">MangaPlus</span>
+                  <span class="pill hide-sm">Official</span>
+                  <span class="pill mono">22.1 MB</span>
+                  <span class="pill mono">22:14</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Yesterday 2 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-vinland">VS</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Vinland Saga</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 212 — "Cross the Frontier"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">Weebcentral</span>
+                  <span class="pill hide-sm">Casanova</span>
+                  <span class="pill mono">35.6 MB</span>
+                  <span class="pill mono">19:48</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Yesterday 3 -->
+        <article class="event group">
+          <div class="rail rail-completed"></div>
+          <div class="thumb"><div class="thumb-art art-solo">SL</div></div>
+          <div class="min-w-0">
+            <div class="flex items-start gap-2 flex-wrap">
+              <div class="status-ico si-done">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 flex-wrap">
+                  <span class="text-[14px] font-semibold text-fg truncate">Solo Leveling: Ragnarok</span>
+                  <span class="text-[13px] text-muted truncate">Ch. 041 — "Awakening Anew"</span>
+                </div>
+                <div class="meta-row flex items-center gap-1.5 flex-wrap mt-2">
+                  <span class="pill dot" style="color: hsl(142 60% 60%);">completed</span>
+                  <span class="pill">Comick</span>
+                  <span class="pill hide-sm">Asura Scans</span>
+                  <span class="pill mono">42.3 MB</span>
+                  <span class="pill mono">16:02</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 row-actions">
+            <button class="icon-btn" title="Open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="icon-btn" title="Read"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+            <button class="icon-btn" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn danger" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Show more yesterday -->
+        <button class="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-border hover:bg-card text-muted hover:text-fg transition text-[12px]">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          Show 13 more from yesterday
+        </button>
+      </div>
+
+      <!-- End of feed -->
+      <div class="section-h opacity-60">
+        <div class="node">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h3>End of feed · view archive</h3>
+        <div class="line"></div>
+      </div>
+
+    </section>
+
+    <!-- ============ RIGHT: SIDEBAR ============ -->
+    <aside class="sidebar col-span-12 lg:col-span-3 space-y-4 mt-5 lg:sticky lg:top-[180px] lg:self-start">
+
+      <!-- Jobs panel -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg>
+            <span class="text-[13px] font-semibold">Jobs</span>
+          </div>
+          <span class="text-[10.5px] mono text-dim">12 scheduled</span>
+        </div>
+        <ul class="space-y-2 text-[12px]">
+          <li class="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-card2 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-info"></span>
+              <span class="text-fg truncate">library.refresh</span>
+            </div>
+            <span class="mono text-[10.5px] text-dim shrink-0">in 4m</span>
+          </li>
+          <li class="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-card2 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-good"></span>
+              <span class="text-fg truncate">chapter.poll</span>
+            </div>
+            <span class="mono text-[10.5px] text-dim shrink-0">in 12m</span>
+          </li>
+          <li class="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-card2 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full" style="background: hsl(38 92% 50%);"></span>
+              <span class="text-fg truncate">notify.discord</span>
+            </div>
+            <span class="mono text-[10.5px] text-dim shrink-0">hourly</span>
+          </li>
+          <li class="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-card2 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-good"></span>
+              <span class="text-fg truncate">backup.metadata</span>
+            </div>
+            <span class="mono text-[10.5px] text-dim shrink-0">02:00</span>
+          </li>
+          <li class="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-card2 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full" style="background: hsl(240 5% 36%);"></span>
+              <span class="text-fg truncate">cache.purge</span>
+            </div>
+            <span class="mono text-[10.5px] text-dim shrink-0">weekly</span>
+          </li>
+        </ul>
+        <button class="mt-3 w-full text-[11.5px] text-muted hover:text-fg transition flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-border hover:border-borders">
+          View all jobs
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Stats: today -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[11px] uppercase tracking-wider text-muted font-semibold">Today</span>
+          <span class="text-[10.5px] mono text-good flex items-center gap-1">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+            +12%
+          </span>
+        </div>
+        <div class="flex items-baseline gap-1.5 mb-3">
+          <span class="text-[28px] font-bold tracking-tight">10</span>
+          <span class="text-[12px] text-muted">downloads</span>
+        </div>
+        <!-- Sparkline -->
+        <svg class="sparkline w-full h-10" viewBox="0 0 200 40" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sparkfill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%"  stop-color="hsl(346.8 77.2% 49.8%)" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="hsl(346.8 77.2% 49.8%)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="fill" d="M0,30 L15,28 L30,32 L45,22 L60,25 L75,18 L90,20 L105,12 L120,16 L135,10 L150,14 L165,8 L180,12 L200,6 L200,40 L0,40 Z"/>
+          <path d="M0,30 L15,28 L30,32 L45,22 L60,25 L75,18 L90,20 L105,12 L120,16 L135,10 L150,14 L165,8 L180,12 L200,6"/>
+        </svg>
+        <div class="flex justify-between mt-2 text-[10px] mono text-dim">
+          <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>now</span>
+        </div>
+      </div>
+
+      <!-- Stats grid -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="stat-card !p-3">
+          <div class="text-[10.5px] uppercase tracking-wider text-muted font-semibold mb-1">Week</div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-[20px] font-bold tracking-tight">87</span>
+            <span class="text-[10.5px] text-dim">chapters</span>
+          </div>
+        </div>
+        <div class="stat-card !p-3">
+          <div class="text-[10.5px] uppercase tracking-wider text-muted font-semibold mb-1">Success</div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-[20px] font-bold tracking-tight text-good">97<span class="text-[12px]">%</span></span>
+          </div>
+        </div>
+        <div class="stat-card !p-3">
+          <div class="text-[10.5px] uppercase tracking-wider text-muted font-semibold mb-1">Avg. speed</div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-[20px] font-bold tracking-tight mono">2.4</span>
+            <span class="text-[10.5px] text-dim">MB/s</span>
+          </div>
+        </div>
+        <div class="stat-card !p-3">
+          <div class="text-[10.5px] uppercase tracking-wider text-muted font-semibold mb-1">Storage</div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-[20px] font-bold tracking-tight mono">1.8</span>
+            <span class="text-[10.5px] text-dim">TB used</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Provider health -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[11px] uppercase tracking-wider text-muted font-semibold">Provider health</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-good live-dot"></span>
+        </div>
+        <ul class="space-y-2.5">
+          <li>
+            <div class="flex items-center justify-between text-[12px] mb-1">
+              <span class="text-fg">MangaDex</span>
+              <span class="mono text-dim text-[11px]">214ms</span>
+            </div>
+            <div class="bar"><span style="width: 96%; background: linear-gradient(90deg, hsl(142 71% 45%), hsl(142 71% 55%));"></span></div>
+          </li>
+          <li>
+            <div class="flex items-center justify-between text-[12px] mb-1">
+              <span class="text-fg">MangaPlus</span>
+              <span class="mono text-dim text-[11px]">189ms</span>
+            </div>
+            <div class="bar"><span style="width: 98%; background: linear-gradient(90deg, hsl(142 71% 45%), hsl(142 71% 55%));"></span></div>
+          </li>
+          <li>
+            <div class="flex items-center justify-between text-[12px] mb-1">
+              <span class="text-fg">Comick</span>
+              <span class="mono text-dim text-[11px]">612ms</span>
+            </div>
+            <div class="bar"><span style="width: 74%; background: linear-gradient(90deg, hsl(38 92% 50%), hsl(38 92% 60%));"></span></div>
+          </li>
+          <li>
+            <div class="flex items-center justify-between text-[12px] mb-1">
+              <span class="text-fg">Weebcentral</span>
+              <span class="mono text-dim text-[11px] text-destruct">timeout</span>
+            </div>
+            <div class="bar"><span style="width: 24%; background: linear-gradient(90deg, hsl(0 72% 51%), hsl(0 72% 61%));"></span></div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Tip -->
+      <div class="stat-card !bg-transparent border-dashed">
+        <div class="flex items-start gap-2.5">
+          <div class="w-7 h-7 rounded-md grid place-items-center shrink-0" style="background: var(--primarys); color: hsl(346.8 80% 80%);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <div class="text-[12px] text-muted leading-relaxed">
+            Press <span class="kbd">G</span> then <span class="kbd">Q</span> to jump back to the queue from anywhere.
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+</body>
+</html>

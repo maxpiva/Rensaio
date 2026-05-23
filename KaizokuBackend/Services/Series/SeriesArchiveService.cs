@@ -11,6 +11,8 @@ using KaizokuBackend.Services.Jobs.Models;
 using KaizokuBackend.Services.Jobs.Report;
 using KaizokuBackend.Services.Settings;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace KaizokuBackend.Services.Series
 {
@@ -78,27 +80,86 @@ namespace KaizokuBackend.Services.Series
             return GetIntegrityResult(basePath, chaps);
         }
 
+        // Mirrors the Kaizoku filename pattern used by SeriesScanner — `[provider(-scanlator)?][lang]? title chapter (chapterName?)`.
+        // We re-use the same parser so reconciliation succeeds even after a series title
+        // change, a chapter-count padding shift, or a chapter-name rewrite — none of those
+        // would match a regenerated expected filename, but all preserve provider+lang+chap#.
+        private static readonly Regex KaizokuFilenameRegex = new Regex(
+            "^\\[(?<provider>[^\\]]+)\\](?:\\[(?<lang>[^\\]]+)\\])?\\s+(?<title>.+?)(?:\\s+(?<chapterNumber>-?\\d+(?:\\.\\d+)?))?\\s*(?:\\((?<chapterName>[^)]+)\\))?$",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+
+        private readonly struct ParsedFileKey
+        {
+            public string Provider { get; init; }
+            public string? Scanlator { get; init; }
+            public string Language { get; init; }
+            public decimal Chapter { get; init; }
+        }
+
+        private static (ParsedFileKey key, bool ok) TryParseKaizokuFilename(string basename)
+        {
+            string stem = Path.GetFileNameWithoutExtension(basename);
+            Match m = KaizokuFilenameRegex.Match(stem);
+            if (!m.Success)
+                return (default, false);
+
+            string providerGroup = m.Groups["provider"].Value.Trim();
+            string[] providerParts = providerGroup.Split('-', 2);
+            string provider = providerParts[0].Trim();
+            string? scanlator = providerParts.Length > 1 ? providerParts[1].Trim() : null;
+            string language = m.Groups.TryGetValue("lang", out var langGroup) && langGroup.Success
+                ? langGroup.Value.Trim()
+                : "en";
+
+            decimal? chapter = null;
+            if (m.Groups.TryGetValue("chapterNumber", out var chapGroup) && !string.IsNullOrEmpty(chapGroup.Value))
+            {
+                if (decimal.TryParse(chapGroup.Value.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+                    chapter = parsed;
+            }
+            if (chapter == null && m.Groups.TryGetValue("chapterName", out var nameGroup) && !string.IsNullOrEmpty(nameGroup.Value))
+            {
+                if (decimal.TryParse(nameGroup.Value.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+                    chapter = parsed;
+            }
+            if (chapter == null)
+                return (default, false);
+
+            return (new ParsedFileKey
+            {
+                Provider = provider,
+                Scanlator = string.IsNullOrEmpty(scanlator) ? null : scanlator,
+                Language = language.ToLowerInvariant(),
+                Chapter = chapter.Value,
+            }, true);
+        }
+
         /// <summary>
-        /// Scans the series storage folder and re-links any archive whose basename matches
-        /// the expected filename for a chapter whose DB <c>Filename</c> is currently empty.
-        /// This is a recovery path for chapters incorrectly marked as missing — for example
-        /// after a previous Cleanup ran while a file was temporarily locked or an SMB share
-        /// hiccuped, causing the archive to be classified as <c>NotAnArchive</c> and its
-        /// DB row blanked.
+        /// Scans the series storage folder and re-links any archive whose embedded
+        /// <c>[provider][lang] ... chapter</c> tag matches a chapter row whose DB
+        /// <c>Filename</c> is currently empty. Uses the same Kaizoku filename regex the
+        /// import scanner uses, so matching is resilient to (a) series title changes,
+        /// (b) maxchap padding shifts when new chapters are added, and (c) chapter-name
+        /// rewrites by the provider.
+        ///
+        /// This is the primary recovery path for chapters incorrectly marked as missing —
+        /// e.g. after a previous Cleanup ran while a file was temporarily locked, after
+        /// a folder/title rename, or whenever the DB → file link was broken but the file
+        /// is still on disk.
         /// </summary>
         private async Task ReconcileOrphanedFilesAsync(SeriesEntity series, string basePath, CancellationToken token)
         {
             if (!Directory.Exists(basePath))
                 return;
 
-            HashSet<string> filesOnDisk;
+            List<string> filesOnDisk;
             try
             {
                 filesOnDisk = Directory.EnumerateFiles(basePath)
                     .Select(Path.GetFileName)
                     .Where(n => !string.IsNullOrEmpty(n))
                     .Select(n => n!)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .ToList();
             }
             catch (Exception ex)
             {
@@ -109,43 +170,89 @@ namespace KaizokuBackend.Services.Series
             if (filesOnDisk.Count == 0)
                 return;
 
-            // Basenames already claimed by another chapter row — avoid double-linking.
+            // Set of basenames that exist on disk — used to validate existing DB links.
+            HashSet<string> diskBasenames = new HashSet<string>(filesOnDisk, StringComparer.OrdinalIgnoreCase);
+
+            // Basenames already linked from any chapter row AND still present on disk —
+            // these are off-limits for re-linking, otherwise we'd point two chapter rows
+            // at the same archive. A DB Filename pointing at a non-existent file is NOT
+            // considered "linked" — those rows are candidates for re-linking too.
             HashSet<string> alreadyLinked = series.Sources
                 .SelectMany(s => s.Chapters)
                 .Select(c => c.Filename)
-                .Where(f => !string.IsNullOrEmpty(f))
+                .Where(f => !string.IsNullOrEmpty(f) && diskBasenames.Contains(f!))
                 .Select(f => f!)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // Parse every disk file once. Files we can't parse (legacy/imported archives
+            // that don't match the Kaizoku pattern) are skipped — they were never reconcilable
+            // via this path anyway.
+            var parsedFiles = new List<(string Basename, ParsedFileKey Key)>();
+            foreach (string name in filesOnDisk)
+            {
+                if (alreadyLinked.Contains(name))
+                    continue;
+                var (key, ok) = TryParseKaizokuFilename(name);
+                if (!ok)
+                    continue;
+                parsedFiles.Add((name, key));
+            }
+
+            if (parsedFiles.Count == 0)
+                return;
+
             bool update = false;
-            string[] candidateExtensions = { ".cbz", ".cbr", ".zip", ".rar", ".7z", ".tar" };
 
             foreach (SeriesProviderEntity sp in series.Sources)
             {
                 if (sp.IsUnknown)
                     continue;
 
-                decimal? maxChap = sp.Chapters.Count > 0 ? sp.Chapters.Max(c => c.Number) : null;
+                string providerLower = sp.Provider?.Trim().ToLowerInvariant() ?? "";
+                string languageLower = sp.Language?.Trim().ToLowerInvariant() ?? "en";
+                string? scanlatorLower = string.IsNullOrEmpty(sp.Scanlator)
+                    ? null
+                    : sp.Scanlator.Trim().ToLowerInvariant();
 
-                foreach (Chapter ch in sp.Chapters.Where(c => !c.IsDeleted && string.IsNullOrEmpty(c.Filename)))
+                if (string.IsNullOrEmpty(providerLower))
+                    continue;
+
+                // Candidates for re-linking: rows whose DB Filename is empty, OR whose
+                // current Filename points at a file that is no longer present on disk
+                // (stale link from a previous rename or filename-padding shift).
+                foreach (Chapter ch in sp.Chapters.Where(c => !c.IsDeleted
+                    && c.Number.HasValue
+                    && (string.IsNullOrEmpty(c.Filename) || !diskBasenames.Contains(c.Filename!))))
                 {
-                    string safeName = ArchiveHelperService.MakeFileNameSafe(
-                        sp.Provider, sp.Scanlator, series.Title, sp.Language, ch.Number, ch.Name, maxChap);
+                    decimal chapterNumber = ch.Number!.Value;
 
-                    string? match = null;
-                    foreach (string ext in candidateExtensions)
+                    // Prefer exact (provider, lang, scanlator, chapter) matches first, then
+                    // fall back to ignoring scanlator if no exact match is found.
+                    (string Basename, ParsedFileKey Key)? best = null;
+                    foreach (var pf in parsedFiles)
                     {
-                        string candidate = safeName + ext;
-                        if (filesOnDisk.Contains(candidate) && !alreadyLinked.Contains(candidate))
+                        if (pf.Key.Chapter != chapterNumber) continue;
+                        if (!pf.Key.Provider.Equals(providerLower, StringComparison.InvariantCultureIgnoreCase)) continue;
+                        if (!pf.Key.Language.Equals(languageLower, StringComparison.InvariantCultureIgnoreCase)) continue;
+
+                        bool scanlatorMatches = scanlatorLower == null
+                            ? string.IsNullOrEmpty(pf.Key.Scanlator)
+                            : pf.Key.Scanlator?.Equals(scanlatorLower, StringComparison.InvariantCultureIgnoreCase) == true;
+
+                        if (scanlatorMatches)
                         {
-                            match = candidate;
+                            best = pf;
                             break;
                         }
+                        // Remember a loose match in case nothing scanlator-exact shows up.
+                        if (best == null)
+                            best = pf;
                     }
 
-                    if (match == null)
+                    if (best == null)
                         continue;
 
+                    string match = best.Value.Basename;
                     ch.Filename = match;
                     ch.ShouldDownload = false;
                     ch.IsDeleted = false;
@@ -161,11 +268,12 @@ namespace KaizokuBackend.Services.Series
                         }
                     }
                     alreadyLinked.Add(match);
+                    parsedFiles.RemoveAll(p => p.Basename.Equals(match, StringComparison.OrdinalIgnoreCase));
                     _db.Touch(sp, c => c.Chapters);
                     update = true;
                     _logger.LogInformation(
                         "Reconciled orphaned file \"{File}\" → series {Series} provider {Provider} chapter {Chapter}",
-                        match, series.Title, sp.Provider, ch.Number);
+                        match, series.Title, sp.Provider, chapterNumber);
                 }
             }
 

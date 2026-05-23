@@ -112,8 +112,8 @@ function ChapterRow({
           {chapter.name ? ` · ${chapter.name}` : ""}
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
-          {chapter.pageCount && <span>{chapter.pageCount} pages</span>}
-          {chapter.pageCount && (chapter.downloadDate || chapter.providerUploadDate) && <span>·</span>}
+          {chapter.pageCount != null && chapter.pageCount > 0 && <span>{chapter.pageCount} pages</span>}
+          {chapter.pageCount != null && chapter.pageCount > 0 && (chapter.downloadDate || chapter.providerUploadDate) && <span>·</span>}
           {chapter.downloadDate && <span>Downloaded {relativeTime(chapter.downloadDate)}</span>}
           {!chapter.downloadDate && chapter.providerUploadDate && (
             <span>Uploaded {relativeTime(chapter.providerUploadDate)}</span>

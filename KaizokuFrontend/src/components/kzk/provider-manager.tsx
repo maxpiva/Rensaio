@@ -313,31 +313,36 @@ export function ProviderManager({
     );
   }, [extensions, searchTerm]);
 
+  // Installed providers are NEVER filtered by language or NSFW — they always show
   const filteredInstalledExtensions = useMemo(() => {
-    let installed = installedExtensions;
-    if (hideNsfwProviders) {
-      installed = installed.filter(ext => !isExtensionNsfw(ext));
-    }
-    if (filteredLanguages && filteredLanguages.length > 0) {
-      installed = installed.filter(ext =>
-        getExtensionLanguages(ext).some(lang => filteredLanguages.includes(lang))
-      );
-    }
-    return installed;
-  }, [installedExtensions, hideNsfwProviders, filteredLanguages]);
+    return installedExtensions;
+  }, [installedExtensions]);
 
   const filteredAvailableExtensions = useMemo(() => {
     let available = availableExtensions;
-    if (hideNsfwProviders) {
-      available = available.filter(ext => !isExtensionNsfw(ext));
-    }
+
+    // Language filter: when "All" (null), filter by preferredLanguages + "all" sources
+    // When specific languages selected, filter by those only
     if (filteredLanguages && filteredLanguages.length > 0) {
       available = available.filter(ext =>
         getExtensionLanguages(ext).some(lang => filteredLanguages.includes(lang))
       );
+    } else if (settings?.preferredLanguages && settings.preferredLanguages.length > 0) {
+      // "All" mode: only show providers matching preferred languages or supporting "all"
+      available = available.filter(ext =>
+        getExtensionLanguages(ext).some(lang =>
+          lang === "all" || settings.preferredLanguages.includes(lang)
+        )
+      );
     }
+
+    // NSFW filter only applies to available (not installed) providers
+    if (hideNsfwProviders) {
+      available = available.filter(ext => !isExtensionNsfw(ext));
+    }
+
     return available;
-  }, [availableExtensions, hideNsfwProviders, filteredLanguages]);
+  }, [availableExtensions, hideNsfwProviders, filteredLanguages, settings?.preferredLanguages]);
 
   const availableTotalCount = extensions.filter(ext => !ext.isInstaled).length;
 

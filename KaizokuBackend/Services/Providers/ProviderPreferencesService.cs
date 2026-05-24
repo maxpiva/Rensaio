@@ -336,7 +336,17 @@ namespace KaizokuBackend.Services.Providers
             }
             else if (type== ValueType.StringCollection && obj is string strc)
             {
-                return new string[] { strc };
+                string[] strm=new string[0];
+                if (strc.StartsWith("[\""))
+                {
+                    strm = JsonSerializer.Deserialize<string[]>(strc);
+                } else if (strc.StartsWith("[") && strc.EndsWith("]"))
+                {
+                    strm = strc.Substring(1, strc.Length - 2).Split(",").Select(a=>a.Trim()).ToArray();
+                }
+                else
+                    strm = new string[] { strc.Replace("\"", "") };
+                return strm;
             }
             else if (type==ValueType.String && obj is string strcs)
             {

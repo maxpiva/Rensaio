@@ -1032,9 +1032,10 @@ function SeriesPageContent() {
       
       
       // Create updated series object with current state
+      // Auto-pause on download-affecting changes to prevent unexpected auto-triggers
       const updatedSeries = {
         ...series,
-        pausedDownloads: pausedDownloads,
+        pausedDownloads: true,
         providers: series.providers.map(provider => {
           const switches = providerSwitches[provider.id];
           const fromChapterValue = providerFromChapters[provider.id];
@@ -1122,9 +1123,10 @@ function SeriesPageContent() {
       };
       
       // Create updated series object with current state
+      // Auto-pause on delete provider (download-affecting change)
       const updatedSeries = {
         ...series,
-        pausedDownloads: pausedDownloads,
+        pausedDownloads: true,
         providers: series.providers.map(provider => {
           const switches = providerSwitches[provider.id];
           const fromChapterValue = providerFromChapters[provider.id];
@@ -1582,9 +1584,10 @@ function SeriesPageContent() {
       };
       
       // Create updated series object with current state
+      // Auto-pause on Continue After Chapter change (download-affecting)
       const updatedSeries = {
         ...series,
-        pausedDownloads: pausedDownloads,
+        pausedDownloads: true,
         providers: series.providers.map(provider => {
           const switches = providerSwitches[provider.id];
           // Use the modified fromChapter value for the specific provider
@@ -1850,7 +1853,7 @@ function SeriesPageContent() {
                       </div>
                     )}
 
-                    {/* Action Buttons - Delete, Verify, and Pause/Resume Downloads */}
+                    {/* Action Buttons - Delete and Verify */}
                     <div className="flex flex-wrap gap-2 justify-center md:justify-end flex-shrink-0">
                   {/* Delete Series Button */}
                   <Button
@@ -1873,33 +1876,52 @@ function SeriesPageContent() {
                     <ShieldCheck className="h-4 w-4 mr-1" />
                     {verifyIntegrity.isPending ? "..." : "Verify"}
                   </Button>
-
-                  {/* Pause/Resume Downloads Button */}
-                  <Button
-                    variant={pausedDownloads ? "default" : "destructive"}
-                    size="sm"
-                    onClick={handlePausedDownloadsToggle}
-                    className="flex items-center gap-2"
-                  >
-                    {pausedDownloads ? (
-                      <>
-                        <Play className="h-4 w-4" />
-                        <span className="hidden sm:inline">Resume Downloads</span>
-                        <span className="sm:hidden">Resume</span>
-                      </>
-                    ) : (
-                      <>
-                        <Pause className="h-4 w-4" />
-                        <span className="hidden sm:inline">Pause Downloads</span>
-                        <span className="sm:hidden">Pause</span>
-                      </>
-                    )}
-                  </Button>
                     </div>
                   </div>
               </div>
             </div>            </CardHeader>
-        </Card>          {/* Bottom Left: Providers */}
+        </Card>
+
+        {/* Download Settings */}
+        <Card className="overflow-hidden">
+          <CardHeader className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-md">Download Settings</CardTitle>
+                {pausedDownloads ? (
+                  <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-xs font-semibold px-2.5 py-0.5">
+                    <Pause className="h-3 w-3 mr-1 inline-block" />
+                    PAUSED
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="bg-green-500/20 text-green-600 border-green-500/30 text-xs font-semibold px-2.5 py-0.5">
+                    Active
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant={pausedDownloads ? "default" : "outline"}
+                size="sm"
+                onClick={handlePausedDownloadsToggle}
+                className={`flex items-center gap-2 ${pausedDownloads ? 'animate-pulse border-yellow-400 border-2' : ''}`}
+              >
+                {pausedDownloads ? (
+                  <>
+                    <Play className="h-4 w-4" />
+                    <span>Resume Downloads</span>
+                  </>
+                ) : (
+                  <>
+                    <Pause className="h-4 w-4" />
+                    <span>Pause Downloads</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Sources */}
         <Card className="overflow-hidden">
           <CardHeader className="p-4 pb-0">
             <div className="flex flex-wrap items-center justify-between gap-2">

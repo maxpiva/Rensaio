@@ -8,6 +8,7 @@ using KaizokuBackend.Services.Bridge;
 using KaizokuBackend.Services.Downloads;
 using KaizokuBackend.Services.Helpers;
 using KaizokuBackend.Services.Images;
+using KaizokuBackend.Services.Jobs;
 using KaizokuBackend.Services.Jobs.Models;
 using KaizokuBackend.Services.Settings;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -35,10 +36,12 @@ namespace KaizokuBackend.Services.Series
         private readonly DownloadCommandService _downloadCommand;
         private readonly MihonBridgeService _mihon;
         private readonly ThumbCacheService _cache;
+        private readonly JobManagementService _jobManagement;
 
         public SeriesCommandService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
             SeriesProviderService providerService, ILogger<SeriesCommandService> logger,
-            DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache)
+            DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache,
+            JobManagementService jobManagement)
         {
             _db = db;
             _settings = settings;
@@ -48,6 +51,7 @@ namespace KaizokuBackend.Services.Series
             _downloadCommand = downloadCommand;
             _mihon = mihon;
             _cache = cache;
+            _jobManagement = jobManagement;
         }
 
         /// <summary>
@@ -157,7 +161,15 @@ namespace KaizokuBackend.Services.Series
                 dbSeries.StoragePath, dbSeries.PauseDownloads, series.StartFromChapter, token);
             
             dbSeries.Sources.CalculateContinueAfterChapter(series.StartFromChapter);
+            bool wasPaused = dbSeries.PauseDownloads;
             dbSeries.PauseDownloads = series.PausedDownloads;
+            
+            // When series gets paused, clear any queued waiting downloads so they're recalculated on resume
+            if (series.PausedDownloads && !wasPaused)
+            {
+                await _jobManagement.ClearWaitingDownloadsForSeriesAsync(series.Id, token)
+                    .ConfigureAwait(false);
+            }
             
             _db.Series.Update(dbSeries);
             

@@ -13,8 +13,8 @@ interface SeriesRibbonProps {
 export function SeriesRibbon({ seriesTitle, onBack }: SeriesRibbonProps) {
   return (
     <RibbonSlot>
-      <div className="flex w-full items-center gap-3">
-        {/* Left: back button */}
+      <div className="relative flex w-full items-center gap-3">
+        {/* Left: back button (in normal flow) */}
         <Button
           onClick={onBack}
           variant="ghost"
@@ -25,17 +25,21 @@ export function SeriesRibbon({ seriesTitle, onBack }: SeriesRibbonProps) {
           <span className="hidden sm:inline">Back to Library</span>
         </Button>
 
-        {/* Center: title (lg+ only, truncate) */}
-        <div className="hidden lg:flex flex-1 min-w-0 justify-center">
+        {/* Center: title — absolutely centered against the ribbon container
+            so it lines up with the command bar's nav pills above (which
+            use the same absolute-center technique). Using flex-1 +
+            justify-center centers within the post-back-button space and
+            drifts off-axis. */}
+        <div className="hidden lg:flex absolute left-1/2 -translate-x-1/2 pointer-events-none max-w-[60vw] min-w-0">
           <span
-            className="truncate text-sm font-medium text-foreground/80 max-w-[60%]"
+            className="pointer-events-auto truncate text-sm font-medium text-foreground/80"
             title={seriesTitle}
           >
             {seriesTitle}
           </span>
         </div>
 
-        {/* Mobile spacer */}
+        {/* Mobile spacer (keeps back button left-anchored on small screens) */}
         <div className="flex-1 lg:hidden" />
       </div>
     </RibbonSlot>

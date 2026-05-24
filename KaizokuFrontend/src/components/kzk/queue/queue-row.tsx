@@ -23,6 +23,8 @@ export interface QueueRowItem {
   sortTime: number;
   displayTime: string;
   hasRetry: boolean;
+  /** Number of times this entry has been retried. Only rendered when > 0. */
+  retries?: number;
   /** 0-100, only meaningful for status === 'downloading' */
   progress?: number;
 }
@@ -264,6 +266,14 @@ const QueueRowInner = function QueueRow({ item, callbacks }: QueueRowProps) {
           <span className="text-[13px] text-muted-foreground truncate flex-shrink-0">
             {item.chapterLabel}
           </span>
+          {typeof item.retries === 'number' && item.retries > 0 && (
+            <span
+              className="ml-0.5 flex-none text-[12px] text-muted-foreground/70 tabular-nums"
+              title={`Retried ${item.retries} time${item.retries === 1 ? '' : 's'}`}
+            >
+              ×{item.retries}
+            </span>
+          )}
           {item.hasRetry && (
             <a
               href="#"

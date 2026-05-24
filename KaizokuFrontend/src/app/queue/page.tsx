@@ -308,6 +308,7 @@ export default function QueuePage() {
         sortTime,
         displayTime: 'queued',
         hasRetry: false,
+        retries: d.retries,
       });
     }
 
@@ -362,6 +363,7 @@ export default function QueuePage() {
         sortTime,
         displayTime,
         hasRetry: true,
+        retries: d.retries,
       });
     }
 

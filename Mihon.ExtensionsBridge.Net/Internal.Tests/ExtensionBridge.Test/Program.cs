@@ -104,7 +104,7 @@ namespace Mihon.ExtensionsBridge.Test
 
             var list = repoMgr.ListOnlineRepositories();
 
-            RepositoryGroup grp = await _extManager.AddExtensionAsync(data);
+           // RepositoryGroup grp = await _extManager.AddExtensionAsync(data);
             var n = list[0].Extensions.FirstOrDefault(a => a.Name.Contains("ReadComicOnline"));
             RepositoryGroup grp = await _extManager.AddExtensionAsync(n);
             if (grp!=null)

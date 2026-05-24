@@ -20,7 +20,7 @@ function SeriesRow({ series, onClearAlert }: { series: SeriesHealth; onClearAler
       <div className="flex items-center gap-3 min-w-0">
         <AlertBadge level={series.level} />
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{series.seriesTitle}</p>
+          <p className="text-sm font-medium truncate">{series.title}</p>
           <p className="text-xs text-muted-foreground truncate">{series.message}</p>
         </div>
       </div>
@@ -34,7 +34,7 @@ function SeriesRow({ series, onClearAlert }: { series: SeriesHealth; onClearAler
           variant="ghost"
           size="sm"
           className="h-7 text-xs"
-          onClick={() => onClearAlert(0, series.seriesId)}
+          onClick={() => onClearAlert(0, series.id)}
         >
           Dismiss
         </Button>
@@ -94,7 +94,7 @@ function ProviderCard({ provider, onClearAlert }: { provider: ProviderHealth; on
             <CardContent className="py-2 px-4 border-t">
               <div className="space-y-1">
                 {provider.affectedSeries.map((series) => (
-                  <SeriesRow key={series.seriesId} series={series} onClearAlert={onClearAlert} />
+                  <SeriesRow key={series.id} series={series} onClearAlert={onClearAlert} />
                 ))}
               </div>
             </CardContent>

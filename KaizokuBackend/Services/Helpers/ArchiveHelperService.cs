@@ -216,7 +216,7 @@ namespace KaizokuBackend.Services.Helpers
             {
                 // Try to open with IArchive first (supports most formats)
                 using var stream = File.OpenRead(archivePath);
-                using var archive = ArchiveFactory.Open(stream);
+                using var archive = ArchiveFactory.OpenArchive(stream);
 
                 foreach (var entry in archive.Entries)
                 {
@@ -234,7 +234,7 @@ namespace KaizokuBackend.Services.Helpers
                 try
                 {
                     using var stream = File.OpenRead(archivePath);
-                    using var reader = ReaderFactory.Open(stream);
+                    using var reader = ReaderFactory.OpenReader(stream);
 
                     while (reader.MoveToNextEntry())
                     {
@@ -263,7 +263,7 @@ namespace KaizokuBackend.Services.Helpers
             {
                 // Try to open with IArchive first (supports most formats)
                 using var stream = File.OpenRead(archivePath);
-                using var archive = ArchiveFactory.Open(stream);
+                using var archive = ArchiveFactory.OpenArchive(stream);
 
                 foreach (var entry in archive.Entries)
                 {
@@ -287,7 +287,7 @@ namespace KaizokuBackend.Services.Helpers
                 try
                 {
                     using var stream = File.OpenRead(archivePath);
-                    using var reader = ReaderFactory.Open(stream);
+                    using var reader = ReaderFactory.OpenReader(stream);
 
                     while (reader.MoveToNextEntry())
                     {
@@ -485,10 +485,10 @@ namespace KaizokuBackend.Services.Helpers
             {
                 // Open the original archive
                 using var originalStream = File.OpenRead(archivePath);
-                using var archive = ArchiveFactory.Open(originalStream);
+                using var archive = ArchiveFactory.OpenArchive(originalStream);
                 // Create a new archive (zip for simplicity, can be extended for other formats)
                 using (var tempStream = File.Open(tempArchivePath, FileMode.Create, FileAccess.ReadWrite))
-                using (var zipWriter = WriterFactory.Open(tempStream, ArchiveType.Zip, new WriterOptions(CompressionType.None)))
+                using (var zipWriter = WriterFactory.OpenWriter(tempStream, ArchiveType.Zip, new WriterOptions(CompressionType.None)))
                 {
                     // Copy all entries except the one to be replaced
                     foreach (var entry in archive.Entries)

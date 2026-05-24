@@ -1,18 +1,19 @@
 using System.Text.Json.Serialization;
+using KaizokuBackend.Models.Abstractions;
 using KaizokuBackend.Models.Enums;
 
 namespace KaizokuBackend.Models.Dto;
 
-public class SeriesHealthDto
+public class SeriesHealthDto : IThumb
 {
-    [JsonPropertyName("seriesId")]
-    public Guid SeriesId { get; set; }
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
 
-    [JsonPropertyName("seriesTitle")]
-    public string SeriesTitle { get; set; } = string.Empty;
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
 
-    [JsonPropertyName("seriesThumbnail")]
-    public string? SeriesThumbnail { get; set; }
+    [JsonPropertyName("thumbnailUrl")]
+    public string? ThumbnailUrl { get; set; }
 
     [JsonPropertyName("level")]
     public HealthStatusLevel Level { get; set; }

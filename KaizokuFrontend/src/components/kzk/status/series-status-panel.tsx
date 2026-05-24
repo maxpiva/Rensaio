@@ -30,13 +30,13 @@ export function SeriesStatusPanel({ series, onClearAlert }: SeriesStatusPanelPro
   return (
     <div className="space-y-2">
       {sorted.map((s) => (
-        <Card key={s.seriesId} className={s.level === 2 ? "border-red-300" : "border-yellow-300"}>
+        <Card key={s.id} className={s.level === 2 ? "border-red-300" : "border-yellow-300"}>
           <CardContent className="py-3 px-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <AlertBadgeWithLabel level={s.level} />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{s.seriesTitle}</p>
+                  <p className="text-sm font-medium truncate">{s.title}</p>
                   <p className="text-xs text-muted-foreground truncate">{s.message}</p>
                 </div>
               </div>
@@ -50,7 +50,7 @@ export function SeriesStatusPanel({ series, onClearAlert }: SeriesStatusPanelPro
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => onClearAlert(0, s.seriesId)}
+                  onClick={() => onClearAlert(0, s.id)}
                 >
                   Dismiss
                 </Button>

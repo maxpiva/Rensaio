@@ -60,9 +60,9 @@ public class StatusController : ControllerBase
 
                 var dto = new SeriesHealthDto
                 {
-                    SeriesId = s.Id,
-                    SeriesTitle = s.Title,
-                    SeriesThumbnail = s.ThumbnailUrl,
+                    Id = s.Id,
+                    Title = s.Title,
+                    ThumbnailUrl = s.ThumbnailUrl,
                     Level = alert.Level,
                     Message = alert.Message,
                     LastChapterDate = s.LastChapterDate,
@@ -81,8 +81,7 @@ public class StatusController : ControllerBase
                 result.Add(dto);
             }
 
-            await _thumb.PopulateThumbsAsync(result, "/api/image/", s => s.SeriesThumbnail,
-                (s, url) => s.SeriesThumbnail = url, token).ConfigureAwait(false);
+            await _thumb.PopulateThumbsAsync(result, "/api/image/", token).ConfigureAwait(false);
 
             return Ok(result);
         }
@@ -161,9 +160,9 @@ public class StatusController : ControllerBase
                     {
                         dto.AffectedSeries.Add(new SeriesHealthDto
                         {
-                            SeriesId = parentSeries.Id,
-                            SeriesTitle = parentSeries.Title,
-                            SeriesThumbnail = parentSeries.ThumbnailUrl,
+                            Id = parentSeries.Id,
+                            Title = parentSeries.Title,
+                            ThumbnailUrl = parentSeries.ThumbnailUrl,
                             Level = seriesAlert.Level,
                             Message = seriesAlert.Message,
                             LastChapterDate = parentSeries.LastChapterDate,

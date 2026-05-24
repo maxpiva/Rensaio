@@ -385,7 +385,7 @@ namespace KaizokuBackend.Utils
                 throw new InvalidOperationException("Unable to find wwwroot.zip as embedded resource.");
             }
 
-            using var archive = ArchiveFactory.Open(wwwStream);
+            using var archive = ArchiveFactory.OpenArchive(wwwStream);
             foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
             {
                 string fullPath = System.IO.Path.Combine(outputDir, entry.Key!);

@@ -152,7 +152,7 @@ namespace KaizokuBackend.Services.Downloads
                     File.Delete(tempZipPath);
 
                 using (var zipStream = File.OpenWrite(tempZipPath))
-                using (var zipWriter = WriterFactory.Open(zipStream, ArchiveType.Zip, CompressionType.None))
+                using (var zipWriter = await WriterFactory.OpenAsyncWriter(zipStream, ArchiveType.Zip, new ZipWriterOptions(CompressionType.None)).ConfigureAwait(false))
                 {
                     foreach(Page pag in ch.Pages)
                     {
@@ -176,7 +176,7 @@ namespace KaizokuBackend.Services.Downloads
                             }
                             string fileName = ArchiveHelperService.MakeFileNameSafe(ch.ProviderName, ch.Scanlator, ch.SeriesTitle, ch.Language,
                                         ch.Chapter.ParsedNumber, ch.ChapterName, maxChap, page + 1, ch.PageCount) + ext;
-                            zipWriter.Write(fileName, image);
+                            await zipWriter.WriteAsync(fileName, image).ConfigureAwait(false);
                             acum += step;
                             message = $"Downloading ({providerName}) {ch.Title} {chapterName} {page}";
                             reporter.Report(ProgressStatus.InProgress, (int)acum, message, downloadSummary);

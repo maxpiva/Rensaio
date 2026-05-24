@@ -118,9 +118,9 @@ export enum HealthStatusTargetType {
 }
 
 export interface SeriesHealth {
-  seriesId: string;
-  seriesTitle: string;
-  seriesThumbnail?: string;
+  id: string;
+  title: string;
+  thumbnailUrl?: string;
   level: HealthStatusLevel;
   message: string;
   lastChapterDate?: string;

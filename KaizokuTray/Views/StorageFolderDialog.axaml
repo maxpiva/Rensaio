@@ -53,7 +53,7 @@
 		<TextBox Grid.Column="0"
 				 Name="FolderPathTextBox"
 				 Text="{Binding FolderPath}"
-				 Watermark="Enter folder path or use browse button..."
+				 PlaceholderText="Enter folder path or use browse button..."
 				 FontSize="13"
 				 Padding="8"
 				 Margin="0,0,10,0"/>

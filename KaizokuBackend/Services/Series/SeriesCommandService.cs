@@ -36,11 +36,12 @@ namespace KaizokuBackend.Services.Series
         private readonly MihonBridgeService _mihon;
         private readonly ThumbCacheService _cache;
         private readonly JobManagementService _jobManagement;
+        private readonly SeriesArchiveService _archiveService;
 
         public SeriesCommandService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
             SeriesProviderService providerService, ILogger<SeriesCommandService> logger,
             DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache,
-            JobManagementService jobManagement)
+            JobManagementService jobManagement, SeriesArchiveService archiveService)
         {
             _db = db;
             _settings = settings;
@@ -51,6 +52,7 @@ namespace KaizokuBackend.Services.Series
             _mihon = mihon;
             _cache = cache;
             _jobManagement = jobManagement;
+            _archiveService = archiveService;
         }
 
         /// <summary>
@@ -405,6 +407,21 @@ namespace KaizokuBackend.Services.Series
                 return JobResult.Failed;
             }
             var series = await _db.Series.Include(a => a.Sources).Where(s => s.Id == serie.SeriesId).FirstAsync(token).ConfigureAwait(false);
+
+            // Link any on-disk archives to their DB chapter rows before evaluating which
+            // chapters are missing. Done here so the scheduled per-provider sync (every
+            // 2h by default) and any other GetChapters trigger auto-heal orphan files
+            // without requiring the user to click Refresh.
+            try
+            {
+                await _archiveService.ReconcileOnDiskArchivesAsync(series, token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "GetChaptersAsync: reconciliation failed for series {Id}; continuing with chapter fetch", series.Id);
+            }
+
             List<ParsedChapter>? chapterData;
 
             ISourceInterop src;
@@ -460,6 +477,23 @@ namespace KaizokuBackend.Services.Series
 
             if (series == null)
                 throw new KeyNotFoundException($"Series with ID {id} not found");
+
+            // Link any on-disk archives to their DB chapter rows before deciding what is
+            // "missing". Skipping this allowed Download-All to re-download files already
+            // present on disk.
+            // We pass the tracked `series` entity (not the Guid) so that reconcile mutates
+            // Chapter.Filename on the same EF-tracked instances. The downstream
+            // pairs.Any(p => !string.IsNullOrEmpty(p.Chapter.Filename)) check therefore
+            // sees the reconciled filenames without an additional DB round-trip.
+            try
+            {
+                await _archiveService.ReconcileOnDiskArchivesAsync(series, token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "QueueMissingChaptersAsync: reconciliation failed for series {Id}; continuing with missing-chapter scan", id);
+            }
 
             List<SeriesProviderEntity> activeProviders = series.Sources
                 .Where(sp => !sp.IsDisabled && !sp.IsUninstalled)
@@ -548,6 +582,19 @@ namespace KaizokuBackend.Services.Series
         /// </summary>
         public async Task<int> ForceRefreshChaptersAsync(Guid id, CancellationToken token = default)
         {
+            // Link any on-disk archives to their DB chapter rows before re-fetching from
+            // the provider. Done first so the subsequent AsNoTracking snapshot reflects
+            // the reconciled state.
+            try
+            {
+                await _archiveService.ReconcileOnDiskArchivesAsync(id, token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "ForceRefreshChaptersAsync: reconciliation failed for series {Id}; continuing with chapter refresh", id);
+            }
+
             Models.Database.SeriesEntity? series = await _db.Series
                 .Include(s => s.Sources)
                 .AsNoTracking()

@@ -80,6 +80,44 @@ namespace KaizokuBackend.Services.Series
             return GetIntegrityResult(basePath, chaps);
         }
 
+        /// <summary>
+        /// Reconciles on-disk archive files against DB chapter rows for a single series,
+        /// linking files whose [provider][lang] tag matches a chapter row whose DB Filename
+        /// is empty or stale. Cheap, local-disk only — safe to call inline before Refresh
+        /// and Download-All flows. Loads the series internally.
+        /// </summary>
+        /// <returns>A task that completes when reconciliation finishes.</returns>
+        public async Task ReconcileOnDiskArchivesAsync(Guid seriesId, CancellationToken token = default)
+        {
+            SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+            SeriesEntity? series = await _db.Series.Include(a => a.Sources)
+                .FirstOrDefaultAsync(a => a.Id == seriesId, token).ConfigureAwait(false);
+            if (series == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(series.StoragePath))
+                return;
+
+            string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
+            await ReconcileOrphanedFilesAsync(series, basePath, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reconciles on-disk archive files against DB chapter rows for an already-loaded
+        /// tracked series entity. Use this overload when the caller already has the series
+        /// loaded with tracking to share the same DbContext entity instances.
+        /// </summary>
+        /// <returns>A task that completes when reconciliation finishes.</returns>
+        public async Task ReconcileOnDiskArchivesAsync(SeriesEntity series, CancellationToken token = default)
+        {
+            if (string.IsNullOrWhiteSpace(series.StoragePath))
+                return;
+
+            SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+            string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
+            await ReconcileOrphanedFilesAsync(series, basePath, token).ConfigureAwait(false);
+        }
+
         // Mirrors the Kaizoku filename pattern used by SeriesScanner — `[provider(-scanlator)?][lang]? title chapter (chapterName?)`.
         // We re-use the same parser so reconciliation succeeds even after a series title
         // change, a chapter-count padding shift, or a chapter-name rewrite — none of those

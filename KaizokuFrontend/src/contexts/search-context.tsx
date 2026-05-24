@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 
@@ -39,6 +39,32 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
   const isSearchDisabled = React.useMemo(() => {
     return currentPage === 'settings' || currentPage === 'series';
   }, [currentPage]);
+
+  // Top-level section key — used to clear the search input when the user
+  // switches between main tabs (Library / Browse / Queue / Sources), so a
+  // search term from one section doesn't pollute another.
+  const sectionKey = React.useMemo(() => {
+    if (pathname === '/' || pathname.startsWith('/library')) return 'library';
+    if (pathname.startsWith('/cloud-latest')) return 'browse';
+    if (pathname.startsWith('/queue')) return 'queue';
+    if (pathname.startsWith('/providers')) return 'sources';
+    if (pathname.startsWith('/settings')) return 'settings';
+    return 'other';
+  }, [pathname]);
+
+  // Clear search on section change. Initialized to the current section so the
+  // initial mount (page load / refresh) does NOT clear sessionStorage-restored
+  // search state — only genuine tab switches do.
+  const prevSectionRef = useRef(sectionKey);
+  useEffect(() => {
+    if (prevSectionRef.current !== sectionKey) {
+      prevSectionRef.current = sectionKey;
+      setSearchTermState('');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('kzk_search', '');
+      }
+    }
+  }, [sectionKey]);
 
   const setSearchTerm = useCallback((term: string) => {
     setSearchTermState(term);

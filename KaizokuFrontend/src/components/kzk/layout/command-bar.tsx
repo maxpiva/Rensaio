@@ -219,7 +219,7 @@ export function CommandBar() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isSearchDisabled}
-              className="w-56 xl:w-72 pl-9 pr-16 h-9 bg-muted/50 border-border/60 focus:bg-background transition-colors"
+              className="w-56 xl:w-72 pl-9 pr-16 h-9 bg-muted/50 border-border/60 focus:bg-background transition-colors [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
             />
             {searchTerm ? (
               <button
@@ -256,7 +256,7 @@ export function CommandBar() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     disabled={isSearchDisabled}
-                    className="w-44 pl-8 pr-2 h-9 rounded-lg bg-muted/70 border border-border/60 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:bg-background transition-all"
+                    className="w-44 pl-8 pr-2 h-9 rounded-lg bg-muted/70 border border-border/60 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:bg-background transition-all [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
                   />
                 </div>
               </motion.div>

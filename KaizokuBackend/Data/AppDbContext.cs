@@ -1,15 +1,27 @@
 using KaizokuBackend.Models;
 using KaizokuBackend.Models.Database;
-using Mihon.ExtensionsBridge.Models.Extensions;
+using KaizokuBackend.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Design;
+using Mihon.ExtensionsBridge.Models.Extensions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Chapter = KaizokuBackend.Models.Chapter;
-using KaizokuBackend.Models.Enums;
 
 namespace KaizokuBackend.Data
 {
+    //Only used to do migrations, repoint to your test database if you're dev.
+    public class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<AppDbContext>
+    {
+        public AppDbContext CreateDbContext(string[] args)
+        {
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite("Data Source=C:\\users\\mpiva\\appdata\\local\\kaizoku.net\\kaizoku.db")
+                .Options;
+            return new AppDbContext(options);
+        }
+    }
     public static class GenericValueComparer
     {
         public static ValueComparer<T> Create<T>()
@@ -67,7 +79,7 @@ namespace KaizokuBackend.Data
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
-            int a = 1;
+         
         }
 
         public DbSet<SeriesEntity> Series { get; set; }

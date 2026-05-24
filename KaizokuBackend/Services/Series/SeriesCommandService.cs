@@ -327,7 +327,7 @@ namespace KaizokuBackend.Services.Series
                     }
                     s.Chapters = c.Chapters;
                     ParsedChapter? latest_online = s.Chapters.OrderByDescending(a => a.Index).FirstOrDefault();
-                    DateTime latestUTC = (latest_online?.DateUpload ?? DateTime.MinValue).DateTime;
+                    DateTime latestUTC = latest_online?.DateUpload.DateTime ?? DateTime.MinValue;
 
                     if (latestUTC > DateTime.UtcNow || latestUTC.AddMonths(1) < DateTime.UtcNow)
                     {

@@ -229,7 +229,15 @@ namespace KaizokuBackend.Services.Background
                             
                     if (result == JobResult.Delete)
                     {
-                        await management.DeleteRecurringJobAsync(job.JobType, job.JobParameters!, stoppingToken);
+                        // Extract the recurring job key from the enqueued job's key.
+                        // The enqueued job key is formatted as "{JobType}_{key}" by EnqueueJobAsIsAsync.
+                        // The recurring job key is the suffix after "{JobType}_".
+                        // e.g., enqueued key "GetChapters_d0e179a7-1814..." -> recurring key "d0e179a7-1814..."
+                        string prefix = $"{job.JobType}_";
+                        string recurringKey = job.Key.StartsWith(prefix)
+                            ? job.Key.Substring(prefix.Length)
+                            : job.Key;
+                        await management.DeleteRecurringJobAsync(job.JobType, recurringKey, stoppingToken);
                     }
                 }
             }

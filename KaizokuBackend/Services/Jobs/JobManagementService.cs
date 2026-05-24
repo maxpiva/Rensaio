@@ -46,9 +46,9 @@ namespace KaizokuBackend.Services.Jobs
             await _db.Jobs.Where(j => j.JobType == jobType)
                 .ExecuteUpdateAsync(updates => updates.SetProperty(j => j.TimeBetweenJobs, time),token).ConfigureAwait(false);
         }
-        public async Task<Guid> ScheduleRecurringJobAsync(JobType jobType, string? parametersJson, 
-            string? key = null, string? groupKey = null, bool runNow = false, 
-            TimeSpan? schedule = null, Priority priority = Priority.Normal, 
+        public async Task<Guid> ScheduleRecurringJobAsync(JobType jobType, string? parametersJson,
+            string? key = null, string? groupKey = null, bool runNow = false,
+            TimeSpan? schedule = null, Priority priority = Priority.Normal,
             CancellationToken token = default)
         {
             if (key == null)
@@ -78,12 +78,15 @@ namespace KaizokuBackend.Services.Jobs
                 _db.Jobs.Add(job);
             }
 
-            if (added || !job.IsEnabled)
+            // Always recalculate NextExecution for new jobs, disabled jobs being re-enabled,
+            // or when runNow is requested (to ensure the execution time is near now)
+            bool needsRecalc = added || !job.IsEnabled || runNow;
+            if (needsRecalc)
             {
                 if (_settings.JobTimes.TryGetValue(jobType, out TimeSpan value))
                 {
                     int maxMinutes = (int)value.TotalMinutes;
-                    if (maxMinutes != (int)job.TimeBetweenJobs.TotalMinutes || (!job.IsEnabled && runNow))
+                    if (maxMinutes != (int)job.TimeBetweenJobs.TotalMinutes || needsRecalc)
                     {
                         List<int> workingMinutes = _db.Jobs
                             .Where(a => a.Id != job.Id && a.JobType == jobType && a.IsEnabled)

@@ -1,1 +1,7 @@
 *.* linguist-language=C#
+
+# Force LF line endings for scripts and CI files so they run on Linux runners.
+.githooks/** text eol=lf
+*.sh text eol=lf
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf

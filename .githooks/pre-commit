@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Local guard mirroring .github/workflows/guard-binaries.yml.
+# Blocks commits that introduce build artifacts or oversized binaries.
+#
+# To enable for this clone:
+#   git config core.hooksPath .githooks
+#
+# Bypass (NOT recommended; CI will still reject):
+#   git commit --no-verify
+
+set -euo pipefail
+
+MAX_SIZE=$((50 * 1024 * 1024))   # 50 MB
+MAX_JAR=$((10 * 1024 * 1024))    # 10 MB for .jar
+
+FORBIDDEN_PREFIXES=(
+  "Mihon.ExtensionsBridge.Net/libs/Android.Compat.dll"
+  "Mihon.ExtensionsBridge.Net/IKVM.Android.Compatibility.Layer.CILPatcher/libs/"
+)
+
+STAGED=$(git diff --cached --name-only --diff-filter=AM || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+FAIL=0
+
+while IFS= read -r FILE; do
+  [ -n "$FILE" ] || continue
+  [ -f "$FILE" ] || continue
+
+  for PREFIX in "${FORBIDDEN_PREFIXES[@]}"; do
+    case "$FILE" in
+      "$PREFIX"*)
+        echo "ERROR: $FILE is a forbidden build-artifact path ($PREFIX)."
+        echo "       Build outputs belong in GitHub Releases, not git."
+        FAIL=1
+        ;;
+    esac
+  done
+
+  case "$FILE" in
+    */build/libs/*.jar)
+      echo "ERROR: $FILE is a Gradle build output. Add to .gitignore and publish via Releases."
+      FAIL=1
+      ;;
+    */bin/Release/*.dll|*/bin/Release/*/*.dll|*/bin/Debug/*.dll|*/bin/Debug/*/*.dll)
+      echo "ERROR: $FILE is a .NET build output. Add to .gitignore and publish via Releases."
+      FAIL=1
+      ;;
+  esac
+
+  SIZE=$(wc -c < "$FILE")
+
+  if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+    SIZE_MB=$((SIZE / 1024 / 1024))
+    echo "ERROR: $FILE is ${SIZE_MB} MB (limit 50 MB). Use Releases for large binaries."
+    FAIL=1
+  fi
+
+  case "$FILE" in
+    *.jar)
+      if [ "$SIZE" -gt "$MAX_JAR" ]; then
+        SIZE_MB=$((SIZE / 1024 / 1024))
+        echo "ERROR: $FILE is a ${SIZE_MB} MB .jar (limit 10 MB). Use Releases."
+        FAIL=1
+      fi
+      ;;
+  esac
+done <<< "$STAGED"
+
+if [ "$FAIL" -eq 1 ]; then
+  echo ""
+  echo "Pre-commit guard rejected this commit."
+  echo "Bypass with --no-verify (CI will still enforce)."
+  exit 1
+fi
+
+exit 0

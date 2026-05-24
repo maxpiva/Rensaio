@@ -1,0 +1,125 @@
+name: Guard Binaries
+
+# Blocks commits that introduce build artifacts or oversized binaries.
+# Build outputs (jars, compiled DLLs) belong in GitHub Releases, not git history.
+# See: .githooks/pre-commit for the local equivalent of these checks.
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      # Skip on tag pushes; tags can reference historical commits with legacy files.
+      - '!refs/tags/*'
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine diff range
+        id: range
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+          # New branch / initial push: github.event.before is all zeros.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=""
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Check for forbidden paths and oversized files
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          set -euo pipefail
+
+          MAX_SIZE=$((50 * 1024 * 1024))   # 50 MB hard cap for any committed file
+          MAX_JAR=$((10 * 1024 * 1024))    # 10 MB cap for .jar specifically
+
+          # Forbidden path prefixes (build outputs that belong in Releases).
+          FORBIDDEN_PREFIXES=(
+            "Mihon.ExtensionsBridge.Net/libs/Android.Compat.dll"
+            "Mihon.ExtensionsBridge.Net/IKVM.Android.Compatibility.Layer.CILPatcher/libs/"
+          )
+
+          # Build list of files added/modified in the diff range.
+          if [ -z "$BASE" ]; then
+            # No base (new branch): inspect files in the head commit only.
+            CHANGED=$(git show --name-only --diff-filter=AM --pretty=format: "$HEAD" | grep -v '^$' || true)
+          else
+            CHANGED=$(git diff --name-only --diff-filter=AM "$BASE...$HEAD" || true)
+          fi
+
+          if [ -z "$CHANGED" ]; then
+            echo "No added/modified files in range. Guard passes."
+            exit 0
+          fi
+
+          FAIL=0
+
+          while IFS= read -r FILE; do
+            [ -n "$FILE" ] || continue
+            [ -f "$FILE" ] || continue
+
+            # Forbidden prefix check
+            for PREFIX in "${FORBIDDEN_PREFIXES[@]}"; do
+              case "$FILE" in
+                "$PREFIX"*)
+                  echo "::error file=$FILE::Build artifact path is forbidden ($PREFIX). Use GitHub Releases."
+                  FAIL=1
+                  ;;
+              esac
+            done
+
+            # Glob patterns for known build-output shapes
+            case "$FILE" in
+              */build/libs/*.jar)
+                echo "::error file=$FILE::Gradle build output detected. Add to .gitignore and publish via Releases."
+                FAIL=1
+                ;;
+              */bin/Release/*.dll|*/bin/Release/**/*.dll|*/bin/Debug/*.dll|*/bin/Debug/**/*.dll)
+                echo "::error file=$FILE::.NET build output detected. Add to .gitignore and publish via Releases."
+                FAIL=1
+                ;;
+            esac
+
+            # Size checks
+            SIZE=$(wc -c < "$FILE")
+
+            if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+              SIZE_MB=$((SIZE / 1024 / 1024))
+              echo "::error file=$FILE::File is ${SIZE_MB} MB (limit 50 MB). Use Releases for large binaries."
+              FAIL=1
+            fi
+
+            case "$FILE" in
+              *.jar)
+                if [ "$SIZE" -gt "$MAX_JAR" ]; then
+                  SIZE_MB=$((SIZE / 1024 / 1024))
+                  echo "::error file=$FILE::JAR is ${SIZE_MB} MB (limit 10 MB for .jar). Use Releases."
+                  FAIL=1
+                fi
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo ""
+            echo "::error::Guard failed: forbidden paths or oversized files detected."
+            echo "::error::Build artifacts should be published via the 'Rebuild Android.Compat.dll' workflow to GitHub Releases."
+            exit 1
+          fi
+
+          echo "Guard passed: no forbidden binaries or oversized files in diff."

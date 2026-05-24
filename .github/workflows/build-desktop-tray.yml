@@ -55,6 +55,20 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Download Android.Compat.dll from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DLL_PATH="Mihon.ExtensionsBridge.Net/libs/Android.Compat.dll"
+          mkdir -p "$(dirname "$DLL_PATH")"
+          gh release download android-compat-v1 \
+            --repo "${{ github.repository }}" \
+            --pattern "Android.Compat.dll" \
+            --dir "$(dirname "$DLL_PATH")" \
+            --clobber
+          echo "Downloaded: $(du -h "$DLL_PATH" | cut -f1)"
+
       - name: Determine version
         id: version
         run: |

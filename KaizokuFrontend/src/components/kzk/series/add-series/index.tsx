@@ -9,19 +9,8 @@ import { AddSeriesSteps } from "@/components/kzk/series/add-series/steps";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePermission } from "@/hooks/use-permission";
 
 export const AddSeriesButton = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -74,89 +63,45 @@ export function AddSeries({
   preloadedLinkedSeries,
 }: AddSeriesProps = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 768px)");
   const canAddSeries = usePermission('canAddSeries');
 
   // Use controlled or internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onOpenChange || setInternalOpen;
-    // Determine if this is Add Sources mode
-  const isAddSourcesMode = !!(title && existingSources && seriesId);
 
-  // Dialog/Drawer content
+  // Determine mode booleans
+  const isAddSourcesMode = !!(title && existingSources && seriesId);
   const isApproveMode = !!(approveRequestId && preloadedLinkedSeries);
   const isRequestMode = !canAddSeries && !isAddSourcesMode && !isApproveMode;
-  const dialogTitle = isApproveMode
-    ? "Approve Request"
-    : isAddSourcesMode
-      ? `Add New Sources to '${title}'`
-      : isRequestMode
-        ? "Request series"
-        : "Add new series";
-  const dialogDescription = isApproveMode
-    ? "Configure sources and add this series to the library."
-    : isAddSourcesMode
-      ? "Search and add new sources to your Series."
-      : isRequestMode
-        ? "Search for a series and submit a request for an admin to add it."
-        : "Search for and add new series to your library.";
-  
+
   const triggerElement = triggerButton || <AddSeriesButton />;
-  if (isDesktop) {
-    return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {triggerElement}
-        </DialogTrigger>
-        <DialogContent
-          className="w-[95vw] max-w-4xl h-[85vh] overflow-hidden p-0 flex flex-col"
-          onInteractOutside={(e) => {
-            e.preventDefault();
-          }}
-        >
-          <DialogHeader className="shrink-0 px-5 pt-5 pb-0">
-            <DialogTitle>{dialogTitle}</DialogTitle>
-            <DialogDescription>
-              {dialogDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 flex flex-col px-5 pb-5 pt-2">
-          <AddSeriesSteps
-            onFinish={() => setOpen(false)}
-            title={title}
-            existingSources={existingSources}
-            seriesId={seriesId}
-            isAddSourcesMode={isAddSourcesMode}
-            approveRequestId={approveRequestId}
-            preloadedLinkedSeries={preloadedLinkedSeries}
-          />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         {triggerElement}
-      </DrawerTrigger>
-      <DrawerContent>
-        <DrawerHeader className="text-left pb-2">
-          <DrawerTitle>{dialogTitle}</DrawerTitle>
-        </DrawerHeader>
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]" data-vaul-no-drag>
-          <AddSeriesSteps
-            onFinish={() => setOpen(false)}
-            title={title}
-            existingSources={existingSources}
-            seriesId={seriesId}
-            isAddSourcesMode={isAddSourcesMode}
-            approveRequestId={approveRequestId}
-            preloadedLinkedSeries={preloadedLinkedSeries}
-          />
-        </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogTrigger>
+      <DialogContent
+        className="bg-transparent border-0 shadow-none p-0 w-[min(720px,calc(100vw-24px))] max-w-none top-[10vh] translate-y-0 sm:top-[12vh] [&>button]:hidden"
+        overlayClassName="bg-[hsl(240_10%_4%/0.85)] backdrop-blur-xl"
+        onInteractOutside={(e) => {
+          // Allow tap-outside dismiss on mobile; prevent on desktop
+          if (!window.matchMedia("(max-width: 640px)").matches) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <AddSeriesSteps
+          onFinish={() => setOpen(false)}
+          onOpenChange={setOpen}
+          title={title}
+          existingSources={existingSources}
+          seriesId={seriesId}
+          isAddSourcesMode={isAddSourcesMode}
+          approveRequestId={approveRequestId}
+          preloadedLinkedSeries={preloadedLinkedSeries}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

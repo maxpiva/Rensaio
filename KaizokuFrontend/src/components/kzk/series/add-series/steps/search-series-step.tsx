@@ -1,10 +1,7 @@
 "use client";
 
 import { type AddSeriesState } from "@/components/kzk/series/add-series";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { MultiSelectSources } from "@/components/ui/multi-select-sources";
-import { Search } from "lucide-react";
+import { AlertTriangle, Search } from "lucide-react";
 import { type LinkedSeries, type ExistingSource } from "@/lib/api/types";
 import { useSearchSeries, useAvailableSearchSources } from "@/lib/api/hooks/useSearch";
 import React from "react";
@@ -12,9 +9,42 @@ import { useDebounce } from "use-debounce";
 import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePermission } from "@/hooks/use-permission";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+
+// ---------------------------------------------------------------------------
+// Deterministic swatch color — hashes provider id into one of 12 palette slots
+// ---------------------------------------------------------------------------
+const SRC_PALETTE = [
+  "linear-gradient(135deg,#7c2d12,#ea580c)",
+  "linear-gradient(135deg,#164e63,#0891b2)",
+  "linear-gradient(135deg,#831843,#db2777)",
+  "linear-gradient(135deg,#78350f,#f59e0b)",
+  "linear-gradient(135deg,#365314,#65a30d)",
+  "linear-gradient(135deg,#312e81,#4f46e5)",
+  "linear-gradient(135deg,#064e3b,#059669)",
+  "linear-gradient(135deg,#0c4a6e,#0e7490)",
+  "linear-gradient(135deg,#4a044e,#86198f)",
+  "linear-gradient(135deg,#1e3a8a,#6366f1)",
+  "linear-gradient(135deg,#7f1d1d,#b91c1c)",
+  "linear-gradient(135deg,#134e4a,#0d9488)",
+];
+
+function hashSourceId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function swatchForSource(id: string): string {
+  return SRC_PALETTE[hashSourceId(id) % SRC_PALETTE.length]!;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export function SearchSeriesStep({
   setError,
   setIsLoading,
@@ -128,15 +158,17 @@ export function SearchSeriesStep({
       searchSources: searchSourcesParam
     },
     { enabled: isSearchReady }
-  );  React.useEffect(() => {
+  );
+
+  React.useEffect(() => {
     if (searchResults) {
       setFormState(prev => {
         // Validate existing selections against new search results
         const newSearchResultIds = searchResults.map(series => series.mihonId ?? series.providerId);
-        const validatedSelections = prev.selectedLinkedSeries.filter(selectedId => 
+        const validatedSelections = prev.selectedLinkedSeries.filter(selectedId =>
           newSearchResultIds.includes(selectedId)
         );
-        
+
         return {
           ...prev,
           allLinkedSeries: searchResults,
@@ -174,11 +206,11 @@ export function SearchSeriesStep({
     setFormState(prev => {
       let newSelection = [...prev.selectedLinkedSeries];
       const allSeries = prev.allLinkedSeries;
-      
+
       if (checked) {
         // Add the clicked series
         newSelection.push(seriesId);
-        
+
         // Only auto-select linked series if this is the first selection
         if (prev.selectedLinkedSeries.length === 0) {
           const series = allSeries.find((s: LinkedSeries) => getSeriesId(s) === seriesId);
@@ -195,7 +227,7 @@ export function SearchSeriesStep({
         // Remove only the clicked series (normal multi-select behavior)
         newSelection = newSelection.filter(id => id !== seriesId);
       }
-        return {
+      return {
         ...prev,
         selectedLinkedSeries: newSelection,
       };
@@ -205,113 +237,191 @@ export function SearchSeriesStep({
   const isSeriesSelected = (seriesId: string) => {
     return formState.selectedLinkedSeries.includes(seriesId);
   };
-  
+
   const allSeries = formState.allLinkedSeries;
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+
+  // Local-only focused row tracking — purely visual, not in AddSeriesState
+  const [lastFocusedId, setLastFocusedId] = React.useState<string | null>(null);
+
+  const activeSourceCount = canBrowseSources ? selectedSources.length : availableSources.length;
+  const isSearching = (isLoading || isFetching) && debouncedSearchValue.length >= 3;
+  const hasQuery = searchValue.length > 0;
+  const hasResults = allSeries.length > 0;
+
   return (
-    <div className={`mt-3 ${isDesktop ? 'flex flex-col gap-3 flex-1 min-h-0' : 'space-y-3'}`}>
-      {/* Search bar + source filter */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            onPointerDown={(e) => e.stopPropagation()}
-            type="search"
-            placeholder="Search for a series..."
-            className="bg-card pl-9 h-10"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {canBrowseSources && (
-            <div className="flex-1 sm:w-72 min-w-0">
-              <MultiSelectSources
-                sources={availableSources}
-                selectedSources={selectedSources}
-                onSelectionChange={(newSelection) => {setSelectedSources(newSelection);
-                }}
-                placeholder="Select sources..."
-                isDesktop={isDesktop}
-              />
-            </div>
-          )}
-          {formState.selectedLinkedSeries.length > 0 && (
-            <Badge variant="secondary" className="whitespace-nowrap">
-              {formState.selectedLinkedSeries.length} selected
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {/* Results grid */}
-      <div
-        className={
-          isDesktop
-            ? "flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-border"
-            : "rounded-lg border border-border"
-        }
-        data-vaul-no-drag
-      >
-        <div className={isDesktop
-          ? "grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-3"
-          : "grid grid-cols-3 gap-2 p-2"
-        }>
-          {allSeries.map((series) => {
-            const seriesId = getSeriesId(series);
-            const isSelected = isSeriesSelected(seriesId);
-
+    <div className="flex flex-col gap-0">
+      {/* Source filter pills */}
+      {canBrowseSources && (
+        <div className="src-pill-row">
+          {availableSources.map((source) => {
+            const isActive = selectedSources.includes(source.mihonProviderId);
             return (
-              <div
-                key={seriesId}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-lg rounded-md overflow-hidden ${
-                  isSelected ? 'ring-2 ring-primary shadow-md' : 'hover:ring-1 hover:ring-muted-foreground/20'
-                }`}
-                onClick={() => handleSeriesToggle(seriesId, !isSelected)}
+              <button
+                key={source.mihonProviderId}
+                type="button"
+                className={`src-pill${isActive ? " active" : ""}`}
+                data-active={isActive}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  setSelectedSources(prev => {
+                    if (prev.includes(source.mihonProviderId)) {
+                      // Keep at least one source selected
+                      if (prev.length === 1) return prev;
+                      return prev.filter(id => id !== source.mihonProviderId);
+                    } else {
+                      return [...prev, source.mihonProviderId];
+                    }
+                  });
+                }}
               >
-                <div className="aspect-[3/4] relative">
-                  <Image
-                    src={formatThumbnailUrl(series.thumbnailUrl)}
-                    alt={series.title}
-                    fill
-                    sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    className="object-cover"
-                  />
-                  <Badge
-                    variant="poster"
-                    className={`absolute top-1 max-w-[94%] truncate font-light ${isDesktop ? 'text-sm left-2' : 'text-xs left-1'}`}
-                  >
-                    {series.provider}
-                  </Badge>
-                  <div className={`absolute bottom-1 ${isDesktop ? 'right-2' : 'right-1'}`}>
-                    <ReactCountryFlag
-                      countryCode={getCountryCodeForLanguage(series.lang)}
-                      svg
-                      style={{
-                        width: isDesktop ? '27px' : '22px',
-                        height: isDesktop ? '20px' : '17px',
-                        borderColor: "hsl(var(--secondary))",
-                        borderWidth: "1px",
-                        borderStyle: "solid"
-                      }}
-                      title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
-                    />
-                  </div>
-                </div>
-
-                <div className={`p-2 text-center ${
-                  isSelected ? 'bg-primary text-primary-foreground' : 'bg-card'
-                }`}>
-                  <h3 className="text-sm font-medium line-clamp-2">
-                    {series.title}
-                  </h3>
-                </div>
-              </div>
+                <span
+                  className="swatch"
+                  style={{ background: swatchForSource(source.mihonProviderId) }}
+                />
+                {source.provider}
+              </button>
             );
           })}
         </div>
+      )}
+
+      {/* Command card */}
+      <div className="cmd-card">
+        {/* Search input row */}
+        <div className="cmd-input-wrap">
+          <Search className="icon" style={{ width: 22, height: 22 }} />
+          <input
+            className="cmd-input"
+            type="search"
+            placeholder="Search for a series…"
+            autoFocus
+            value={searchValue}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setSearchValue(e.target.value)}
+          />
+          {isSearching ? (
+            <span className="cmd-tag font-mono">
+              <span className="dot" />
+              Searching…
+            </span>
+          ) : (
+            <span className="cmd-tag font-mono">
+              <span className="dot" />
+              Searching{" "}
+              <b style={{ color: "hsl(var(--as-fg))", marginLeft: 2 }}>
+                {activeSourceCount} source{activeSourceCount !== 1 ? "s" : ""}
+              </b>
+            </span>
+          )}
+        </div>
+
+        {/* Results area */}
+        {error ? (
+          <div
+            className="flex items-center gap-2 px-5 py-3"
+            style={{ color: "hsl(0 72% 51%)", fontSize: 12 }}
+          >
+            <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
+            <span>{error.message}</span>
+          </div>
+        ) : !hasQuery ? (
+          <div className="res-list">
+            <p
+              className="stage-label"
+              style={{ justifyContent: "center", opacity: 0.45, fontSize: 13, padding: "24px 22px" }}
+            >
+              Start typing to search…
+            </p>
+          </div>
+        ) : !hasResults && !isSearching ? (
+          <div className="res-list">
+            <p
+              style={{
+                color: "hsl(var(--as-fg-muted))",
+                fontSize: 13,
+                padding: "24px 22px",
+                textAlign: "center",
+              }}
+            >
+              {debouncedSearchValue.length < 3
+                ? "Keep typing — search starts at 3 characters"
+                : "No results found"}
+            </p>
+          </div>
+        ) : (
+          <div className="res-list" data-vaul-no-drag>
+            {allSeries.map((series) => {
+              const seriesId = getSeriesId(series);
+              const isSelected = isSeriesSelected(seriesId);
+              const isFocused = lastFocusedId === seriesId;
+
+              return (
+                <div
+                  key={seriesId}
+                  className={`res-row${isSelected ? " selected" : ""}${isFocused ? " focused" : ""}`}
+                  onClick={() => {
+                    handleSeriesToggle(seriesId, !isSelected);
+                    setLastFocusedId(seriesId);
+                  }}
+                >
+                  {/* Slot 1: accent bar */}
+                  <div
+                    className="accent"
+                    style={isSelected ? { background: "hsl(var(--primary))" } : undefined}
+                  />
+
+                  {/* Slot 2: cover thumbnail */}
+                  <div className="res-cv">
+                    <Image
+                      src={formatThumbnailUrl(series.thumbnailUrl)}
+                      alt={series.title}
+                      fill
+                      sizes="(max-width: 640px) 44px, 48px"
+                      className="object-cover"
+                    />
+                  </div>
+
+                  {/* Slot 3: body */}
+                  <div className="res-body">
+                    <div className="res-title">{series.title}</div>
+                    <div className="res-meta">
+                      <span className="src-badge">
+                        <span
+                          className="sw"
+                          style={{ background: swatchForSource(series.provider ?? "") }}
+                        />
+                        {series.provider}
+                      </span>
+                      <ReactCountryFlag
+                        countryCode={getCountryCodeForLanguage(series.lang)}
+                        svg
+                        style={{ width: 16, height: 12 }}
+                        title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
+                      />
+                      <span className="sep">·</span>
+                      <span className="num-wrap">
+                        {"—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Slot 4: selected indicator */}
+                  <div className="res-tail">
+                    {isSelected && (
+                      <span
+                        className="return-hint"
+                        style={{ opacity: 1, fontFamily: "var(--font-mono, monospace)", fontSize: 10 }}
+                      >
+                        ✓ added
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

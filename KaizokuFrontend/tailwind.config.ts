@@ -42,6 +42,17 @@ const config = {
           "Arial",
           "sans-serif",
         ],
+        serif: [
+          "var(--font-fraunces)",
+          "ui-serif",
+          "Georgia",
+          "serif",
+        ],
+        mono: [
+          "var(--font-jetbrains-mono)",
+          "ui-monospace",
+          "monospace",
+        ],
       },
       colors: {
         border: "hsl(var(--border) / <alpha-value>)",

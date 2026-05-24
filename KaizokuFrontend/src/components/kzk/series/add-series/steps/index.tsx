@@ -3,20 +3,11 @@ import { type AddSeriesState } from "@/components/kzk/series/add-series";
 import { SearchSeriesStep } from "@/components/kzk/series/add-series/steps/search-series-step";
 import { ConfirmSeriesStep } from "@/components/kzk/series/add-series/steps/confirm-series-step";
 import { RequestSeriesStep } from "@/components/kzk/series/add-series/steps/request-series-step";
-import { Button } from "@/components/ui/button";
 import {
-  Step,
-  Stepper,
-  useStepper,
-  type StepItem,
-} from "@/components/ui/stepper";
-import {
-  ArrowLeft,
-  ArrowRight,
+  AlertTriangle,
   Check,
   LoaderCircle,
-  Search,
-  BookCheck,
+  Plus,
   Send,
 } from "lucide-react";
 import React from "react";
@@ -44,40 +35,6 @@ function findPreferredSeriesIndex(series: FullSeries[], preferredLanguages: stri
   return 0;
 }
 
-const addSteps = {
-  search: {
-    label: "Search",
-    description: "Search for series",
-    icon: Search,
-  },
-  confirm: {
-    label: "Confirm",
-    description: "Selected sources",
-    icon: BookCheck,
-  },
-} satisfies Record<string, StepItem>;
-
-const requestSteps = {
-  search: {
-    label: "Search",
-    description: "Search for series",
-    icon: Search,
-  },
-  request: {
-    label: "Request",
-    description: "Submit request",
-    icon: Send,
-  },
-} satisfies Record<string, StepItem>;
-
-const approveSteps = {
-  confirm: {
-    label: "Configure",
-    description: "Configure sources",
-    icon: BookCheck,
-  },
-} satisfies Record<string, StepItem>;
-
 export interface AddSeriesStepsProps {
   onFinish: () => void;
   title?: string;
@@ -86,6 +43,7 @@ export interface AddSeriesStepsProps {
   isAddSourcesMode?: boolean;
   approveRequestId?: string;
   preloadedLinkedSeries?: LinkedSeries[];
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function AddSeriesSteps({
@@ -96,11 +54,11 @@ export function AddSeriesSteps({
   isAddSourcesMode = false,
   approveRequestId,
   preloadedLinkedSeries,
+  onOpenChange,
 }: AddSeriesStepsProps) {
   const canAddSeries = usePermission('canAddSeries');
   const isApproveMode = !!(approveRequestId && preloadedLinkedSeries);
   const isRequestMode = !canAddSeries && !isAddSourcesMode && !isApproveMode;
-  const steps = isApproveMode ? approveSteps : isRequestMode ? requestSteps : addSteps;
 
   const [formState, setFormState] = React.useState<AddSeriesState>({
     selectedLinkedSeries: [],
@@ -116,7 +74,6 @@ export function AddSeriesSteps({
   const [pendingNextStep, setPendingNextStep] = React.useState(false);
   const [requestNote, setRequestNote] = React.useState("");
   const [currentStep, setCurrentStep] = React.useState(0);
-  const { isError } = useStepper();
 
   const addSeries = useAddSeries();
   const augmentSeries = useAugmentSeries();
@@ -168,123 +125,114 @@ export function AddSeriesSteps({
     doAugment();
   }, [isApproveMode, preloadedLinkedSeries]);
 
-  const totalSteps = Object.keys(steps).length;
+  const handleSubmit = async () => {
+    if (isRequestMode) {
+      try {
+        const selectedLinked = formState.allLinkedSeries.filter((series: LinkedSeries) =>
+          formState.selectedLinkedSeries.includes(series.mihonId ?? series.providerId)
+        );
 
-  const handleNext = async () => {
-    if (currentStep === totalSteps - 1) {
-      // Final step
-      if (isRequestMode) {
-        // --- Request mode: submit a request ---
-        try {
-          const selectedLinked = formState.allLinkedSeries.filter((series: LinkedSeries) =>
-            formState.selectedLinkedSeries.includes(series.mihonId ?? series.providerId)
-          );
+        const primary = selectedLinked[0];
+        if (selectedLinked.length === 0 || !primary) return;
 
-          const primary = selectedLinked[0];
-          if (selectedLinked.length === 0 || !primary) return;
+        await createRequest.mutateAsync({
+          title: primary.title,
+          description: requestNote || undefined,
+          thumbnailUrl: primary.thumbnailUrl ?? undefined,
+          providerData: JSON.stringify(selectedLinked),
+        });
 
-          // Store the full LinkedSeries array so the admin can augment and add on approve
-          await createRequest.mutateAsync({
-            title: primary.title,
-            description: requestNote || undefined,
-            thumbnailUrl: primary.thumbnailUrl ?? undefined,
-            providerData: JSON.stringify(selectedLinked),
-          });
-
-          toast({
-            title: 'Request submitted',
-            description: `"${primary.title}" has been requested.`,
-            variant: 'success',
-          });
-          onFinish();
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Failed to submit request.';
-          if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
-            toast({ title: 'Already requested', description: 'This manga has already been requested.', variant: 'destructive' });
-          } else {
-            toast({ title: 'Failed to submit request', description: msg, variant: 'destructive' });
-          }
-        }
-      } else {
-        // --- Add mode (also handles approve mode): add series to library ---
-        try {
-          const selectedSeries = formState.fullSeries.filter((series: FullSeries) => series.isSelected);
-
-          if (!formState.originalAugmentedResponse) {
-            throw new Error('Original augmented response not found');
-          }
-          const finalAugmentedResponse: AugmentedResponse = {
-            ...formState.originalAugmentedResponse,
-            series: selectedSeries,
-            storageFolderPath: formState.storagePath || formState.originalAugmentedResponse.storageFolderPath,
-            existingSeries: isAddSourcesMode || formState.originalAugmentedResponse.existingSeries,
-            existingSeriesId: (isAddSourcesMode && seriesId) ? seriesId : formState.originalAugmentedResponse.existingSeriesId
-          };
-
-          await addSeries.mutateAsync(finalAugmentedResponse);
-
-          // If approving a request, mark it as approved after successful add
-          if (isApproveMode && approveRequestId) {
-            try {
-              await approveRequest.mutateAsync({ id: approveRequestId });
-            } catch (err) {
-              console.error('Series added but failed to update request status:', err);
-            }
-          }
-
-          if (isAddSourcesMode && seriesId) {
-            await queryClient.invalidateQueries({ queryKey: ['series', 'detail', seriesId] });
-          } else {
-            await queryClient.invalidateQueries({ queryKey: ['series', 'library'] });
-          }
-
-          onFinish();
-        } catch (error) {
-          console.error('Failed to add series:', error);
-          const msg = error instanceof Error ? error.message : 'Failed to add series.';
-          toast({ title: 'Failed to add series', description: msg, variant: 'destructive' });
-        }
-      }
-    } else if (currentStep === 0 && !isApproveMode) {
-      if (isRequestMode) {
-        // Request mode: skip augmentation, go straight to request step
-        setCurrentStep(1);
-      } else {
-        // Add mode: augment selected series
-        try {
-          const allLinkedSeries = formState.allLinkedSeries;
-          const selectedLinked: LinkedSeries[] = allLinkedSeries.filter((series: LinkedSeries) =>
-            formState.selectedLinkedSeries.includes(series.mihonId ?? series.providerId)
-          );
-          const augmentedResponse = await augmentSeries.mutateAsync(selectedLinked);
-
-          if (isAddSourcesMode && seriesId) {
-            augmentedResponse.existingSeries = true;
-            augmentedResponse.existingSeriesId = seriesId;
-          }
-
-          const preferredIndex = isAddSourcesMode ? 0 : findPreferredSeriesIndex(augmentedResponse.series, augmentedResponse.preferredLanguages);
-          const fullSeriesWithDefaults: FullSeries[] = augmentedResponse.series.map((series: FullSeries, index: number): FullSeries => ({
-            ...series,
-            isStorage: isAddSourcesMode ? false : index === preferredIndex,
-            useCover: isAddSourcesMode ? false : index === preferredIndex,
-            useTitle: isAddSourcesMode ? false : index === preferredIndex,
-          }));
-
-          setFormState((prev: AddSeriesState): AddSeriesState => ({
-            ...prev,
-            fullSeries: fullSeriesWithDefaults,
-            originalAugmentedResponse: augmentedResponse,
-            storagePath: augmentedResponse.storageFolderPath
-          }));
-          setPendingNextStep(true);
-
-        } catch (error) {
-          console.error('Failed to augment series:', error);
+        toast({
+          title: 'Request submitted',
+          description: `"${primary.title}" has been requested.`,
+          variant: 'success',
+        });
+        onOpenChange?.(false);
+        onFinish();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to submit request.';
+        if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
+          toast({ title: 'Already requested', description: 'This manga has already been requested.', variant: 'destructive' });
+        } else {
+          toast({ title: 'Failed to submit request', description: msg, variant: 'destructive' });
         }
       }
     } else {
-      setCurrentStep((step) => step + 1);
+      try {
+        const selectedSeries = formState.fullSeries.filter((series: FullSeries) => series.isSelected);
+
+        if (!formState.originalAugmentedResponse) {
+          throw new Error('Original augmented response not found');
+        }
+        const finalAugmentedResponse: AugmentedResponse = {
+          ...formState.originalAugmentedResponse,
+          series: selectedSeries,
+          storageFolderPath: formState.storagePath || formState.originalAugmentedResponse.storageFolderPath,
+          existingSeries: isAddSourcesMode || formState.originalAugmentedResponse.existingSeries,
+          existingSeriesId: (isAddSourcesMode && seriesId) ? seriesId : formState.originalAugmentedResponse.existingSeriesId,
+        };
+
+        await addSeries.mutateAsync(finalAugmentedResponse);
+
+        if (isApproveMode && approveRequestId) {
+          try {
+            await approveRequest.mutateAsync({ id: approveRequestId });
+          } catch (err) {
+            console.error('Series added but failed to update request status:', err);
+          }
+        }
+
+        if (isAddSourcesMode && seriesId) {
+          await queryClient.invalidateQueries({ queryKey: ['series', 'detail', seriesId] });
+        } else {
+          await queryClient.invalidateQueries({ queryKey: ['series', 'library'] });
+        }
+
+        onOpenChange?.(false);
+        onFinish();
+      } catch (err) {
+        console.error('Failed to add series:', err);
+        const msg = err instanceof Error ? err.message : 'Failed to add series.';
+        setError(msg);
+        toast({ title: 'Failed to add series', description: msg, variant: 'destructive' });
+      }
+    }
+  };
+
+  const handleNext = async () => {
+    if (isRequestMode) {
+      setCurrentStep(1);
+    } else {
+      try {
+        const allLinkedSeries = formState.allLinkedSeries;
+        const selectedLinked: LinkedSeries[] = allLinkedSeries.filter((series: LinkedSeries) =>
+          formState.selectedLinkedSeries.includes(series.mihonId ?? series.providerId)
+        );
+        const augmentedResponse = await augmentSeries.mutateAsync(selectedLinked);
+
+        if (isAddSourcesMode && seriesId) {
+          augmentedResponse.existingSeries = true;
+          augmentedResponse.existingSeriesId = seriesId;
+        }
+
+        const preferredIndex = isAddSourcesMode ? 0 : findPreferredSeriesIndex(augmentedResponse.series, augmentedResponse.preferredLanguages);
+        const fullSeriesWithDefaults: FullSeries[] = augmentedResponse.series.map((series: FullSeries, index: number): FullSeries => ({
+          ...series,
+          isStorage: isAddSourcesMode ? false : index === preferredIndex,
+          useCover: isAddSourcesMode ? false : index === preferredIndex,
+          useTitle: isAddSourcesMode ? false : index === preferredIndex,
+        }));
+
+        setFormState((prev: AddSeriesState): AddSeriesState => ({
+          ...prev,
+          fullSeries: fullSeriesWithDefaults,
+          originalAugmentedResponse: augmentedResponse,
+          storagePath: augmentedResponse.storageFolderPath,
+        }));
+        setPendingNextStep(true);
+      } catch (err) {
+        console.error('Failed to augment series:', err);
+      }
     }
   };
 
@@ -293,125 +241,51 @@ export function AddSeriesSteps({
   };
 
   const isPending = Boolean(augmentSeries.isPending) || Boolean(addSeries.isPending) || Boolean(createRequest.isPending) || Boolean(approveRequest.isPending);
-  const isLastStep = currentStep === totalSteps - 1;
+  const isStage0 = currentStep === 0 && !isApproveMode;
 
-  const getButtonLabel = () => {
-    if (isLastStep) {
-      if (isRequestMode) return "Submit Request";
-      if (isApproveMode) return "Approve & Add";
-      if (isAddSourcesMode) return "Add Sources";
-      return "Add Series";
+  const getButtonLabel = (): { label: string; icon: React.ReactNode } => {
+    if (!isStage0) {
+      if (isRequestMode) return { label: "Request Series", icon: isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" /> };
+      if (isApproveMode) return { label: "Approve & Add", icon: isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" /> };
+      if (isAddSourcesMode) return { label: "Add Sources", icon: isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" /> };
+      return { label: "Add Series", icon: isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" /> };
     }
-    return "Next";
+    return { label: "Next", icon: isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" /> };
   };
 
-  const Footer = () => (
-    <div className="flex w-full justify-end gap-2 pt-2 border-t border-border mt-2">
-      {currentStep > 0 && (
-        <Button
-          type="button"
-          onClick={handlePrev}
-          size="sm"
-          className="gap-1"
-          variant="outline"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-            Back
-          </span>
-        </Button>
-      )}
-      <Button
-        type="button"
-        disabled={
-          !canProgress || Boolean(isLoading) || Boolean(isError)
-        }
-        size="sm"
-        className="gap-1"
-        onClick={handleNext}
-      >
-        {isPending ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-        ) : isLastStep ? (
-          isRequestMode ? <Send className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />
-        ) : (
-          <ArrowRight className="h-3.5 w-3.5" />
-        )}
-        <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          {getButtonLabel()}
-        </span>
-      </Button>
-    </div>
-  );
+  const getStageLabel = (): string => {
+    if (isApproveMode) return "STAGE / APPROVE & ADD";
+    if (isStage0) return "STAGE 01 / SEARCH";
+    if (isRequestMode) return "STAGE 02 / REQUEST";
+    return "STAGE 02 / CONFIRM";
+  };
 
-  const stepValues = Object.values(steps);
+  const getLeftMetaCopy = (): string => {
+    if (isStage0) {
+      return `${formState.allLinkedSeries.length} results · ${formState.selectedLinkedSeries.length} selected`;
+    }
+    if (isRequestMode) {
+      return `${formState.selectedLinkedSeries.length} sources selected`;
+    }
+    const validSelected = formState.fullSeries.filter((s: FullSeries) => s.isSelected);
+    const totalChapters = validSelected.reduce((sum: number, s: FullSeries) => sum + (s.chapterCount ?? 0), 0);
+    return `${validSelected.length} sources · ${totalChapters} chapters`;
+  };
 
-  const errorBlock = error ? (
-    <ul className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-      <li className="ml-4">{error}</li>
-    </ul>
-  ) : null;
-
-  // Approve mode: single-step confirm (no search)
-  if (isApproveMode) {
-    const confirmStep = stepValues[0]!;
-    return (
-      <div className="flex w-full flex-col gap-4 flex-1 min-h-0">
-        <Stepper
-          className="shrink-0"
-          initialStep={0}
-          activeStep={currentStep}
-          steps={stepValues}
-          variant="circle"
-          orientation="horizontal"
-          size="sm"
-          responsive={false}
-          state={isLoading ? "loading" : error ? "error" : undefined}
-        >
-          <Step
-            label={confirmStep.label}
-            description={formState.fullSeries.length > 0 ? `${formState.fullSeries.length} sources` : confirmStep.description}
-            icon={confirmStep.icon}
-          >
-            <ConfirmSeriesStep
-              formState={formState}
-              setFormState={setFormState}
-              setError={setError}
-              setIsLoading={setIsLoading}
-              setCanProgress={setCanProgress}
-              isAddSourcesMode={false}
-              existingSources={existingSources}
-            />
-            {errorBlock}
-          </Step>
-          <Footer />
-        </Stepper>
-      </div>
-    );
-  }
-
-  // Normal two-step flow: Search → Confirm/Request
-  const searchStep = stepValues[0]!;
-  const secondStep = stepValues[1]!;
+  const { label, icon } = getButtonLabel();
 
   return (
-    <div className="flex w-full flex-col gap-4 flex-1 min-h-0">
-      <Stepper
-        className="shrink-0"
-        initialStep={0}
-        activeStep={currentStep}
-        steps={stepValues}
-        variant="circle"
-        orientation="horizontal"
-        size="sm"
-        responsive={false}
-        state={isLoading ? "loading" : error ? "error" : undefined}
-      >
-        <Step
-          label={searchStep.label}
-          description={formState.searchKeyword || searchStep.description}
-          icon={searchStep.icon}
-        >
+    <div className="cmd-card">
+      <div className="stage-label" style={{ padding: "18px 22px 0 22px" }}>
+        <span className="eyebrow">{getStageLabel()}</span>
+        {title && isAddSourcesMode && (
+          <span style={{ fontSize: "11px", color: "hsl(var(--as-fg-muted))", marginLeft: "8px", fontStyle: "italic" }}>{title}</span>
+        )}
+      </div>
+      <div className="editorial-rule" style={{ margin: "12px 22px 0 22px" }} />
+
+      {isStage0 ? (
+        <div className="stage-enter">
           <SearchSeriesStep
             formState={formState}
             setFormState={setFormState}
@@ -420,17 +294,9 @@ export function AddSeriesSteps({
             setCanProgress={setCanProgress}
             existingSources={existingSources}
           />
-          {errorBlock}
-        </Step>
-        <Step
-          label={secondStep.label}
-          description={
-            isRequestMode
-              ? (formState.selectedLinkedSeries.length > 0 ? `${formState.selectedLinkedSeries.length} selected` : secondStep.description)
-              : (formState.fullSeries.length > 0 ? `${formState.fullSeries.length} sources` : secondStep.description)
-          }
-          icon={secondStep.icon}
-        >
+        </div>
+      ) : (
+        <div className="stage-enter">
           {isRequestMode ? (
             <RequestSeriesStep
               formState={formState}
@@ -449,10 +315,44 @@ export function AddSeriesSteps({
               existingSources={existingSources}
             />
           )}
-          {errorBlock}
-        </Step>
-        <Footer />
-      </Stepper>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 mx-5 mb-2 px-3 py-2 rounded text-destructive text-sm" style={{ background: "hsla(0 0% 100% / 0.04)", border: "1px solid hsla(0 84% 60% / 0.25)" }}>
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="cta-row" style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 22px", borderTop: "1px solid hsl(var(--as-border))" }}>
+        <div className="sel-count font-mono" style={{ flex: 1, fontSize: "11px", color: "hsl(var(--as-fg-dim))", fontFamily: "'JetBrains Mono', monospace" }}>
+          {getLeftMetaCopy()}
+        </div>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={handlePrev}
+          disabled={currentStep === 0 || isApproveMode}
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={isStage0 ? handleNext : handleSubmit}
+          disabled={!canProgress || isLoading || isPending}
+        >
+          {icon}
+          {label}
+        </button>
+      </div>
+
+      <div className="cmd-mobile-foot">
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          Close
+        </button>
+      </div>
     </div>
   );
 }

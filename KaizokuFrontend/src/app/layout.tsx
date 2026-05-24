@@ -4,6 +4,21 @@ import "@/styles/globals.css";
 import React from "react";
 
 import { GeistSans } from "geist/font/sans";
+import { Fraunces, JetBrains_Mono } from "next/font/google";
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+  axes: ["opsz"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -25,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${GeistSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <title>Kaizoku.NET</title>
         <meta name="description" content="Manga series management and downloader" />

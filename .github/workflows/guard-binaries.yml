@@ -7,9 +7,11 @@ name: Guard Binaries
 on:
   pull_request:
   push:
-    branches-ignore:
-      # Skip on tag pushes; tags can reference historical commits with legacy files.
-      - '!refs/tags/*'
+    # Run on any branch push. Tag pushes don't match branch filters, so tags
+    # (which can reference historical commits with legacy oversized files) are
+    # naturally excluded.
+    branches:
+      - '**'
 
 jobs:
   guard:

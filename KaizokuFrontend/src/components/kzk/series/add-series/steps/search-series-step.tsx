@@ -1,7 +1,7 @@
 "use client";
 
 import { type AddSeriesState } from "@/components/kzk/series/add-series";
-import { AlertTriangle, Search } from "lucide-react";
+import { AlertTriangle, Loader2, Search } from "lucide-react";
 import { type LinkedSeries, type ExistingSource } from "@/lib/api/types";
 import { useSearchSeries, useAvailableSearchSources } from "@/lib/api/hooks/useSearch";
 import React from "react";
@@ -11,36 +11,7 @@ import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { usePermission } from "@/hooks/use-permission";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
-
-// ---------------------------------------------------------------------------
-// Deterministic swatch color — hashes provider id into one of 12 palette slots
-// ---------------------------------------------------------------------------
-const SRC_PALETTE = [
-  "linear-gradient(135deg,#7c2d12,#ea580c)",
-  "linear-gradient(135deg,#164e63,#0891b2)",
-  "linear-gradient(135deg,#831843,#db2777)",
-  "linear-gradient(135deg,#78350f,#f59e0b)",
-  "linear-gradient(135deg,#365314,#65a30d)",
-  "linear-gradient(135deg,#312e81,#4f46e5)",
-  "linear-gradient(135deg,#064e3b,#059669)",
-  "linear-gradient(135deg,#0c4a6e,#0e7490)",
-  "linear-gradient(135deg,#4a044e,#86198f)",
-  "linear-gradient(135deg,#1e3a8a,#6366f1)",
-  "linear-gradient(135deg,#7f1d1d,#b91c1c)",
-  "linear-gradient(135deg,#134e4a,#0d9488)",
-];
-
-function hashSourceId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
-function swatchForSource(id: string): string {
-  return SRC_PALETTE[hashSourceId(id) % SRC_PALETTE.length]!;
-}
+import { MultiSelectSources } from "@/components/ui/multi-select-sources";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -243,7 +214,6 @@ export function SearchSeriesStep({
   // Local-only focused row tracking — purely visual, not in AddSeriesState
   const [lastFocusedId, setLastFocusedId] = React.useState<string | null>(null);
 
-  const activeSourceCount = canBrowseSources ? selectedSources.length : availableSources.length;
   const isSearching = (isLoading || isFetching) && debouncedSearchValue.length >= 3;
   const hasQuery = searchValue.length > 0;
   const hasResults = allSeries.length > 0;
@@ -262,55 +232,31 @@ export function SearchSeriesStep({
             onPointerDown={(e) => e.stopPropagation()}
             onChange={(e) => setSearchValue(e.target.value)}
           />
-          {isSearching ? (
-            <span className="cmd-tag font-mono">
-              <span className="dot" />
-              Searching…
-            </span>
-          ) : (
-            <span className="cmd-tag font-mono">
-              <span className="dot" />
-              Searching{" "}
-              <b style={{ color: "hsl(var(--as-fg))", marginLeft: 2 }}>
-                {activeSourceCount} source{activeSourceCount !== 1 ? "s" : ""}
-              </b>
-            </span>
+          <div className="cmd-spinner-slot" aria-hidden={!isSearching}>
+            {isSearching && (
+              <Loader2
+                className="h-4 w-4 animate-spin"
+                style={{ color: "hsl(var(--as-fg-muted))" }}
+              />
+            )}
+          </div>
+          {canBrowseSources && availableSources.length > 0 && (
+            <div
+              className="src-dropdown-slot"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <MultiSelectSources
+                sources={availableSources}
+                selectedSources={selectedSources}
+                onSelectionChange={setSelectedSources}
+                triggerClassName="as-sources-trigger"
+                contentClassName="as-sources-panel"
+                itemClassName="as-sources-item"
+                separatorClassName="as-sources-separator"
+              />
+            </div>
           )}
         </div>
-
-        {/* Source filter pills */}
-        {canBrowseSources && (
-          <div className="src-pill-row">
-            {availableSources.map((source) => {
-              const isActive = selectedSources.includes(source.mihonProviderId);
-              return (
-                <button
-                  key={source.mihonProviderId}
-                  type="button"
-                  className={`src-pill${isActive ? " active" : ""}`}
-                  data-active={isActive}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    setSelectedSources(prev => {
-                      if (prev.includes(source.mihonProviderId)) {
-                        if (prev.length === 1) return prev;
-                        return prev.filter(id => id !== source.mihonProviderId);
-                      } else {
-                        return [...prev, source.mihonProviderId];
-                      }
-                    });
-                  }}
-                >
-                  <span
-                    className="swatch"
-                    style={{ background: swatchForSource(source.mihonProviderId) }}
-                  />
-                  {source.provider}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Results area */}
         {error ? (
@@ -383,10 +329,6 @@ export function SearchSeriesStep({
                     <div className="res-title">{series.title}</div>
                     <div className="res-meta">
                       <span className="src-badge">
-                        <span
-                          className="sw"
-                          style={{ background: swatchForSource(series.provider ?? "") }}
-                        />
                         {series.provider}
                       </span>
                       <ReactCountryFlag
@@ -395,10 +337,6 @@ export function SearchSeriesStep({
                         style={{ width: 16, height: 12 }}
                         title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
                       />
-                      <span className="sep">·</span>
-                      <span className="num-wrap">
-                        {"—"}
-                      </span>
                     </div>
                   </div>
 
@@ -406,8 +344,7 @@ export function SearchSeriesStep({
                   <div className="res-tail">
                     {isSelected && (
                       <span
-                        className="return-hint"
-                        style={{ opacity: 1, fontFamily: "var(--font-mono, monospace)", fontSize: 10 }}
+                        className="sel-added font-mono"
                       >
                         ✓ added
                       </span>

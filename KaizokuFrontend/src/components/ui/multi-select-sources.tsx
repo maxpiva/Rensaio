@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
+import { cn } from "@/lib/utils";
 import type { SearchSource } from "@/lib/api/types";
 
 interface MultiSelectSourcesProps {
@@ -21,6 +22,10 @@ interface MultiSelectSourcesProps {
   onSelectionChange: (selectedSources: string[]) => void;
   placeholder?: string;
   isDesktop?: boolean;
+  triggerClassName?: string;
+  contentClassName?: string;
+  itemClassName?: string;
+  separatorClassName?: string;
 }
 
 export function MultiSelectSources({
@@ -29,6 +34,10 @@ export function MultiSelectSources({
   onSelectionChange,
   placeholder = "Select sources...",
   isDesktop = true,
+  triggerClassName,
+  contentClassName,
+  itemClassName,
+  separatorClassName,
 }: MultiSelectSourcesProps) {
   const handleToggleAll = () => {
     const newSelection = selectedSources.length === sources.length ? [] : sources.map((source) => source.mihonProviderId);
@@ -60,15 +69,19 @@ export function MultiSelectSources({
         <Button
           variant="outline"
           role="combobox"
-          className="w-full justify-between bg-card text-left font-normal"
+          className={cn(
+            "w-full justify-between bg-card text-left font-normal",
+            triggerClassName,
+          )}
         >
           <span className="truncate">{getDisplayText()}</span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="start">
+      <DropdownMenuContent className={cn("w-80", contentClassName)} align="start">
         <DropdownMenuItem
-          className="flex items-center space-x-2 cursor-pointer"
+          data-select-all="true"
+          className={cn("flex items-center space-x-2 cursor-pointer", itemClassName)}
           onSelect={(e) => {
             e.preventDefault();
             handleToggleAll();
@@ -79,12 +92,12 @@ export function MultiSelectSources({
           />
           <span className="text-sm font-medium">Select All</span>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className={separatorClassName} />
         <div className="max-h-60 overflow-y-auto">
           {sources.map((source) => (
             <DropdownMenuItem
               key={source.mihonProviderId}
-              className="flex items-center space-x-2 cursor-pointer"
+              className={cn("flex items-center space-x-2 cursor-pointer", itemClassName)}
               onSelect={(e) => {
                 e.preventDefault();
                 handleToggleSource(source.mihonProviderId);

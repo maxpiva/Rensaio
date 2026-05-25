@@ -1,0 +1,3 @@
+shamefully-hoist=true
+store-dir=.pnpm-store
+ignore-scripts=false

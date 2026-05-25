@@ -3337,6 +3337,18 @@
 }
 
 /* ── Import card ─────────────────────────────────────────────────────────── */
+/*
+ * NOTE on inter-card spacing:
+ * react-window measures each row's height from the inner itemRef <div> via a
+ * ResizeObserver reading `contentRect.height`. That value EXCLUDES margins, so
+ * `margin-bottom` here is invisible to the virtualizer and gives no real gap
+ * between rows. We use `padding-bottom` instead — it grows the card's
+ * border-box height, which IS the content height of the observed wrapper, so
+ * the virtualizer allocates the extra 14px and we get a true gap. The padded
+ * space lives inside the card frame (background extends down to it), reading
+ * as comfortable breathing room below the match list — matching the rhythm of
+ * .iw-radio-card (margin-bottom: 12px) and .iw-stats-row gaps in the Spotlight.
+ */
 .iw-import-card {
   background: linear-gradient(
     180deg,
@@ -3346,7 +3358,7 @@
   border: 1px solid hsla(var(--as-border));
   border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 14px;
+  padding-bottom: 14px;
   transition: border-color 0.2s ease;
 }
 
@@ -3525,6 +3537,15 @@
 
 .iw-match-cover:focus-visible {
   outline: 2px solid hsl(var(--primary));
+}
+
+/* Read-only variant (e.g. ProviderRow on "Already Imported" tab) — no interactivity */
+.iw-match-cover.is-readonly {
+  cursor: default;
+}
+
+.iw-match-cover.is-readonly:focus-visible {
+  outline: none;
 }
 
 .iw-match-cover__img {

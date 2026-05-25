@@ -14,7 +14,7 @@ import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
-import { Search, AlertTriangle, Loader2, Check } from "lucide-react";
+import { Search, AlertTriangle, Loader2 } from "lucide-react";
 
 const getSeriesId = (series: LinkedSeries): string => series.mihonId ?? series.providerId;
 
@@ -287,8 +287,7 @@ export function SearchSeriesRequester({
                     <div className="res-tail">
                       {isSelected && (
                         <span className="sel-added font-mono">
-                          <Check style={{ width: 10, height: 10 }} />
-                          added
+                          ✓ added
                         </span>
                       )}
                     </div>
@@ -323,10 +322,7 @@ export function SearchSeriesRequester({
                   Applying…
                 </>
               ) : (
-                <>
-                  <Check style={{ width: 13, height: 13 }} />
-                  Apply Match
-                </>
+                "Apply Match"
               )}
             </button>
           </div>

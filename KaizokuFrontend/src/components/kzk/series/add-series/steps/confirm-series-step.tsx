@@ -440,8 +440,7 @@ export function ConfirmSeriesStep({
             <div className="src-thead">
               <div />
               <div>Source</div>
-              <div>Lang</div>
-              <div style={{ textAlign: "right" }}>Chapters</div>
+              <div className="ch-head">Chapters</div>
             </div>
             {validFullSeries.map((series) => {
               const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
@@ -465,28 +464,24 @@ export function ConfirmSeriesStep({
                       disabled={series.isUnselectable}
                     />
                     <div className="src-name">
-                      <span
-                        className="swatch"
-                        style={{ background: "hsla(0 0% 100% / 0.08)" }}
-                      />
                       <span className="name-txt">{series.provider}</span>
+                      <span className="flag">
+                        <ReactCountryFlag
+                          countryCode={getCountryCodeForLanguage(series.lang)}
+                          svg
+                          style={{ width: "16px", height: "12px" }}
+                          title={series.lang.toUpperCase()}
+                        />
+                      </span>
                       {series.scanlator && series.scanlator !== series.provider && (
-                        <span className="text-muted-foreground text-[10px]">
+                        <span className="text-muted-foreground text-[10px] truncate">
                           · {series.scanlator}
                         </span>
                       )}
                     </div>
-                    <div className="flag-cell">
-                      <ReactCountryFlag
-                        countryCode={getCountryCodeForLanguage(series.lang)}
-                        svg
-                        style={{ width: "16px", height: "12px" }}
-                        title={series.lang.toUpperCase()}
-                      />
-                    </div>
                     <div className="ch-cell">
                       <span className="num">{chCount}</span>
-                      <span className="lab">ch</span>
+                      <span className="lab"> ch</span>
                     </div>
                   </div>
 
@@ -570,26 +565,22 @@ export function ConfirmSeriesStep({
                     />
                     <div className="src-info">
                       <div className="name-row">
-                        <span
-                          className="swatch"
-                          style={{ background: "hsla(0 0% 100% / 0.08)" }}
-                        />
-                        {series.provider}
+                        <span className="name-txt">{series.provider}</span>
+                        <span className="flag">
+                          <ReactCountryFlag
+                            countryCode={getCountryCodeForLanguage(series.lang)}
+                            svg
+                            style={{ width: "16px", height: "12px" }}
+                            title={series.lang.toUpperCase()}
+                          />
+                        </span>
                         {series.scanlator && series.scanlator !== series.provider && (
-                          <span className="text-muted-foreground text-[10px] ml-1">
-                            · {series.scanlator}
-                          </span>
+                          <span className="scanlator">· {series.scanlator}</span>
                         )}
                       </div>
                       <div className="sub-row">
-                        <ReactCountryFlag
-                          countryCode={getCountryCodeForLanguage(series.lang)}
-                          svg
-                          style={{ width: "16px", height: "12px" }}
-                          title={series.lang.toUpperCase()}
-                        />
                         <span>{series.lang.toUpperCase()}</span>
-                        <span style={{ color: "hsl(var(--as-fg-dim))", opacity: 0.5 }}>·</span>
+                        <span className="sep">·</span>
                         <span>
                           <span className="num">{chCount}</span> chapters
                         </span>

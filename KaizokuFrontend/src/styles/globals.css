@@ -981,10 +981,10 @@
   background: hsla(0 0% 0% / 0.25);
 }
 
-/* Source table rows */
+/* Source table rows — 3-col: checkbox / source+flag / chapters */
 .src-trow {
   display: grid;
-  grid-template-columns: 28px 1fr 48px 90px;
+  grid-template-columns: 28px minmax(0, 1fr) 100px;
   gap: 12px;
   padding: 12px 14px;
   align-items: center;
@@ -992,9 +992,6 @@
   transition: background 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
   cursor: pointer;
   font-size: 12px;
-}
-.src-trow > *:nth-child(2) {
-  min-width: 0;
 }
 .src-trow:last-child {
   border-bottom: none;
@@ -1058,10 +1055,10 @@
   color: hsl(var(--as-fg-muted));
 }
 
-/* Column header strip inside src-table */
+/* Column header strip inside src-table — must match .src-trow grid */
 .src-thead {
   display: grid;
-  grid-template-columns: 28px 1fr 48px 90px;
+  grid-template-columns: 28px minmax(0, 1fr) 100px;
   gap: 12px;
   padding: 8px 14px;
   border-bottom: 1px solid hsla(var(--as-border-strong));
@@ -1072,18 +1069,21 @@
   color: hsl(var(--as-fg-dim));
   background: hsla(0 0% 100% / 0.02);
 }
-
-/* Individual header cell */
-.src-thead {
-  display: contents;
+.src-thead .ch-head {
+  text-align: right;
 }
 
-/* Source name cell: swatch + label */
+/* Source name cell: name + flag, packed left */
 .src-name {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+}
+.src-name .flag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Source name text */
@@ -1127,19 +1127,50 @@
   min-width: 0;
 }
 
-/* Card top row: name + flag */
+/* Card top row: source name + flag, packed left */
 .name-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(var(--as-fg));
+  letter-spacing: -0.005em;
+}
+.name-row .flag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.name-row .name-txt {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.name-row .scanlator {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: hsl(var(--as-fg-muted));
 }
 
-/* Card bottom row: chapter count */
+/* Card bottom row: language code + chapter count */
 .sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
   color: hsl(var(--as-fg-muted));
+}
+.sub-row .num {
+  color: hsl(var(--as-fg));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.sub-row .sep {
+  opacity: 0.4;
 }
 
 /* Checkbox */

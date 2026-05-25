@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, LogOut, Settings } from "lucide-react";
+import { BookOpen, Download, LogOut, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
 import { userService } from "@/lib/api/services/userService";
+import { useImportWizard } from "@/components/providers/import-wizard-provider";
 
 /**
  * User avatar dropdown — extracted from the old header.tsx so both desktop
@@ -22,6 +23,7 @@ import { userService } from "@/lib/api/services/userService";
 export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { startWizard } = useImportWizard();
 
   const handleLogout = async () => {
     await logout();
@@ -103,6 +105,14 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
             <Settings className="h-4 w-4" />
             Settings
           </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => startWizard()}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <Download className="h-4 w-4" />
+          Import Series
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

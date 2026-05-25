@@ -1,24 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { MultiSelectSources } from "@/components/ui/multi-select-sources";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter,
-} from "@/components/ui/drawer";
 import { useDebounce } from "use-debounce";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { useSearchSeries, useAvailableSearchSources } from "@/lib/api/hooks/useSearch";
 import { setupWizardService } from '@/lib/api/services/setupWizardService';
 import { type LinkedSeries, type ImportInfo } from "@/lib/api/types";
@@ -26,7 +14,7 @@ import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
-import { Search } from "lucide-react";
+import { Search, AlertTriangle, Loader2, Check } from "lucide-react";
 
 const getSeriesId = (series: LinkedSeries): string => series.mihonId ?? series.providerId;
 
@@ -38,86 +26,6 @@ interface SearchSeriesRequesterProps {
   onResult: (updatedImportInfo: ImportInfo) => void;
 }
 
-// Stable series card component
-const SeriesCard = React.memo(({
-  series,
-  isSelected,
-  onToggle,
-  isDesktop
-}: {
-  series: LinkedSeries;
-  isSelected: boolean;
-  onToggle: (seriesId: string) => void;
-  isDesktop: boolean;
-}) => {
-  const handleClick = React.useCallback(() => {
-    onToggle(getSeriesId(series));
-  }, [series, onToggle]);
-
-  return (
-    <div
-      className={`m-1 cursor-pointer transition-all duration-200 hover:shadow-lg rounded-md overflow-hidden ${
-        isSelected ? 'ring-2 ring-primary shadow-md' : 'hover:ring-1 hover:ring-gray-300'
-      }`}
-      onClick={handleClick}
-    >
-      <div className="aspect-[3/4] relative">
-        <Image
-          src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
-          alt={series.title || 'Series thumbnail'}
-          fill
-          sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-          className="object-cover"
-          priority={false}
-          loading="lazy"
-        />
-        <Badge
-          variant="poster"
-          className={`absolute top-1 max-w-[94%] truncate font-light ${isDesktop ? 'text-sm left-2 ' : 'text-xs left-1'}`}
-        >
-          {series.provider}
-        </Badge>
-        <div className={`absolute bottom-1 ${isDesktop ? 'right-2' : 'right-1 '}`}>
-          <ReactCountryFlag
-            countryCode={getCountryCodeForLanguage(series.lang)}
-            svg
-            style={{
-              width: isDesktop ? '27px' : '22px',
-              height: isDesktop ? '20px' : '17px',
-              borderColor:"hsl(var(--secondary))",
-              borderWidth:"1px",
-              borderStyle:"solid"
-            }}
-            title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
-          />
-        </div>
-      </div>
-
-      <div className={`h-full p-2 text-center ${
-        isSelected ? 'bg-primary text-primary-foreground' : 'bg-card'
-      }`}>
-        <h3 className="text-sm font-medium line-clamp-2">
-          {series.title}
-        </h3>
-      </div>
-    </div>
-  );
-}, (prevProps, nextProps) => {
-  // Only re-render if these specific props change
-  return (
-    getSeriesId(prevProps.series) === getSeriesId(nextProps.series) &&
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.isDesktop === nextProps.isDesktop &&
-    prevProps.series.thumbnailUrl === nextProps.series.thumbnailUrl &&
-    prevProps.series.title === nextProps.series.title &&
-    prevProps.series.provider === nextProps.series.provider &&
-    prevProps.series.lang === nextProps.series.lang
-  );
-});
-
-SeriesCard.displayName = 'SeriesCard';
-
-
 export function SearchSeriesRequester({
   open,
   onOpenChange,
@@ -126,14 +34,12 @@ export function SearchSeriesRequester({
   onResult,
 }: SearchSeriesRequesterProps) {
   const [searchValue, setSearchValue] = useState("");
-  const [debouncedSearchValue] = useDebounce(searchValue, 300); // Match library page debounce timing
+  const [debouncedSearchValue] = useDebounce(searchValue, 300);
   const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   // Fetch available search sources
   const { data: availableSources = [] } = useAvailableSearchSources();
@@ -144,13 +50,10 @@ export function SearchSeriesRequester({
   // Initialize selected sources when available sources are loaded
   useEffect(() => {
     if (availableSources.length > 0 && selectedSources.length === 0) {
-      // Select all sources by default
       setSelectedSources(availableSources.map(source => source.mihonProviderId));
     }
   }, [availableSources, selectedSources.length]);
 
-  // Simplified search condition that directly validates the debounced keyword length
-  // This prevents empty keyword API calls and matches the working implementations
   const shouldSearch = debouncedSearchValue.length >= 3 && selectedSources.length > 0;
 
   const { data: searchResults = [], isLoading, error: searchError, isFetching } = useSearchSeries(
@@ -161,7 +64,7 @@ export function SearchSeriesRequester({
     { enabled: shouldSearch }
   );
 
-  // Reset state when dialog opens
+  // Reset state when dialog opens/closes
   useEffect(() => {
     if (open) {
       setSearchValue(importTitle);
@@ -169,7 +72,6 @@ export function SearchSeriesRequester({
       setError(null);
       setIsSubmitting(false);
 
-      // Focus the search input
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
@@ -178,7 +80,6 @@ export function SearchSeriesRequester({
         }
       }, 100);
     } else {
-      // Clear search when dialog closes
       setSearchValue("");
       setSelectedSeries([]);
     }
@@ -212,7 +113,6 @@ export function SearchSeriesRequester({
   }, []);
 
   const handleSearchFocus = React.useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    // Move cursor to end when focused
     const length = e.target.value.length;
     e.target.setSelectionRange(length, length);
   }, []);
@@ -223,15 +123,11 @@ export function SearchSeriesRequester({
     setIsSubmitting(true);
     setError(null);
     try {
-      // Get the full LinkedSeries objects for the selected IDs
       const selectedLinkedSeries = searchResults.filter((series: LinkedSeries) =>
         selectedSeries.includes(getSeriesId(series))
       );
-      // Call the augment endpoint
       const updatedImportInfo = await setupWizardService.augmentSeries(importPath, selectedLinkedSeries);
-      // Return the result to the parent
       onResult(updatedImportInfo);
-      // Close the dialog
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to augment series');
@@ -244,177 +140,199 @@ export function SearchSeriesRequester({
     onOpenChange(false);
   };
 
-  if (isDesktop) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className="w-[95vw] max-w-[780px] max-h-[85vh] flex flex-col overflow-hidden p-0"
-          onInteractOutside={(e) => e.preventDefault()}
-        >
-          {/* Header */}
-          <div className="px-5 py-3.5 border-b border-border flex items-center justify-between shrink-0">
-            <div>
-              <DialogTitle>Search Series for: {importTitle}</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Search for the correct series from available sources to match your local series.
-              </p>
-            </div>
-          </div>
-
-          {/* Search bar row */}
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                autoFocus
-                onPointerDown={(e) => e.stopPropagation()}
-                type="search"
-                placeholder="Search for a series..."
-                className="bg-card h-9 pl-9"
-                value={searchValue}
-                onChange={handleSearchChange}
-                onFocus={handleSearchFocus}
-              />
-            </div>
-            <div className="w-72">
-              <MultiSelectSources
-                sources={availableSources}
-                selectedSources={selectedSources}
-                onSelectionChange={setSelectedSources}
-                placeholder="Select sources..."
-                isDesktop={isDesktop}
-              />
-            </div>
-            <Badge variant="secondary" className="whitespace-nowrap">
-              {selectedSources.length} sources
-            </Badge>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="mx-5 mt-3 text-sm text-destructive bg-destructive/10 p-2 rounded border">
-              {error}
-            </div>
-          )}
-
-          {/* Results grid */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-4 gap-2.5 p-4">
-              {(isLoading || isFetching) ? (
-                <div className="col-span-4 flex items-center justify-center py-12">
-                  <div className="text-muted-foreground">Searching...</div>
-                </div>
-              ) : (
-                searchResults.map((series) => {
-                  const seriesId = getSeriesId(series);
-                  return (
-                    <SeriesCard
-                      key={seriesId}
-                      series={series}
-                      isSelected={selectedSeries.includes(seriesId)}
-                      onToggle={handleSeriesToggle}
-                      isDesktop={isDesktop}
-                    />
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card/50 shrink-0">
-            <div className="text-xs text-muted-foreground">
-              <strong className="text-foreground">{selectedSeries.length}</strong> selected · {searchResults.length} results
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={handleCancel} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button onClick={handleOk} disabled={!canSubmit}>
-                {isSubmitting ? "Processing..." : "OK"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  const isSearching = (isLoading || isFetching) && debouncedSearchValue.length >= 3;
+  const hasQuery = searchValue.length > 0;
+  const hasResults = searchResults.length > 0;
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        {/* Header */}
-        <DrawerHeader className="text-left">
-          <DrawerTitle className="truncate">Search Series for: {importTitle}</DrawerTitle>
-        </DrawerHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={[
+          /* mobile-first fullscreen, then desktop-constrained */
+          "iw-search-modal",
+          "bg-transparent border-0 shadow-none p-0 max-h-none overflow-visible",
+          "w-screen h-[100dvh] max-w-none rounded-none top-0 left-0 translate-x-0 translate-y-0",
+          "sm:w-[560px] sm:h-auto sm:max-h-[680px] sm:rounded-2xl sm:top-[50%] sm:left-[50%] sm:-translate-x-1/2 sm:-translate-y-1/2",
+          "[&>button]:hidden",
+        ].join(" ")}
+        overlayClassName="bg-[hsl(240_10%_4%/0.85)] backdrop-blur-xl"
+        onInteractOutside={(e) => {
+          if (!window.matchMedia("(max-width: 640px)").matches) {
+            e.preventDefault();
+          }
+        }}
+      >
+        {/* Glass card */}
+        <div className="cmd-card iw-search-shell">
 
-        {/* Mobile search controls */}
-        <div className="px-3.5 py-2 border-b border-border bg-card/50 shrink-0 space-y-1.5">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
+          {/* Radial glow behind header */}
+          <div className="iw-search-glow" aria-hidden="true" />
+
+          {/* ── Header ── */}
+          <div className="iw-search-header">
+            <div className="iw-eyebrow">RE-MATCH SERIES</div>
+            <h2 className="iw-title iw-search-title">
+              Search for a <em>match</em>
+            </h2>
+            <div className="iw-search-subtitle">
+              <span className="iw-search-path">{importPath}</span>
+              <span className="iw-search-arrow">·</span>
+              <span className="iw-search-name">{importTitle}</span>
+            </div>
+          </div>
+
+          {/* ── Search input ── */}
+          <div className="cmd-input-wrap iw-search-input-wrap" onPointerDown={(e) => e.stopPropagation()}>
+            <Search className="icon" style={{ width: 20, height: 20 }} />
+            <input
               ref={searchInputRef}
-              autoFocus
-              onPointerDown={(e) => e.stopPropagation()}
+              className="cmd-input"
               type="search"
-              placeholder="Search for a series..."
-              className="bg-card h-9 pl-9 w-full"
+              placeholder="Search for a series…"
+              autoFocus
               value={searchValue}
               onChange={handleSearchChange}
               onFocus={handleSearchFocus}
             />
+            <div className="cmd-spinner-slot" aria-hidden={!isSearching}>
+              {isSearching && (
+                <Loader2
+                  className="h-4 w-4 animate-spin"
+                  style={{ color: "hsl(var(--as-fg-muted))" }}
+                />
+              )}
+            </div>
           </div>
-          <MultiSelectSources
-            sources={availableSources}
-            selectedSources={selectedSources}
-            onSelectionChange={setSelectedSources}
-            placeholder="Select sources..."
-            isDesktop={isDesktop}
-          />
-        </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mx-3.5 mt-2 text-sm text-destructive bg-destructive/10 p-2 rounded border">
-            {error}
-          </div>
-        )}
-
-        {/* Results grid */}
-        <div className="flex-1 overflow-y-auto" data-vaul-no-drag>
-          <div className="grid grid-cols-3 gap-2 p-3">
-            {(isLoading || isFetching) ? (
-              <div className="col-span-2 flex items-center justify-center py-12">
-                <div className="text-muted-foreground">Searching...</div>
+          {/* ── Source filter row ── */}
+          {availableSources.length > 0 && (
+            <div className="cmd-sources-row iw-search-sources-row" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="src-dropdown-slot">
+                <MultiSelectSources
+                  sources={availableSources}
+                  selectedSources={selectedSources}
+                  onSelectionChange={setSelectedSources}
+                  triggerClassName="as-sources-trigger"
+                  contentClassName="as-sources-panel"
+                  itemClassName="as-sources-item"
+                  separatorClassName="as-sources-separator"
+                />
               </div>
+            </div>
+          )}
+
+          {/* ── Inline error ── */}
+          {error && (
+            <div className="iw-search-error">
+              <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* ── Results list ── */}
+          <div className="res-list iw-search-results" data-vaul-no-drag>
+            {!hasQuery ? (
+              <p className="iw-search-hint">Start typing to search…</p>
+            ) : isSearching ? (
+              <p className="iw-search-hint">Searching…</p>
+            ) : !hasResults ? (
+              <p className="iw-search-hint">
+                {debouncedSearchValue.length < 3
+                  ? "Keep typing — search starts at 3 characters"
+                  : "No results found"}
+              </p>
             ) : (
               searchResults.map((series) => {
                 const seriesId = getSeriesId(series);
+                const isSelected = selectedSeries.includes(seriesId);
                 return (
-                  <SeriesCard
+                  <div
                     key={seriesId}
-                    series={series}
-                    isSelected={selectedSeries.includes(seriesId)}
-                    onToggle={handleSeriesToggle}
-                    isDesktop={isDesktop}
-                  />
+                    className={`res-row${isSelected ? " selected" : ""}`}
+                    onClick={() => handleSeriesToggle(seriesId)}
+                  >
+                    {/* Accent bar */}
+                    <div
+                      className="accent"
+                      style={isSelected ? { background: "hsl(var(--primary))" } : undefined}
+                    />
+
+                    {/* Cover thumbnail */}
+                    <div className="res-cv">
+                      <Image
+                        src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
+                        alt={series.title || 'Series thumbnail'}
+                        fill
+                        sizes="(max-width: 640px) 44px, 48px"
+                        className="object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Body */}
+                    <div className="res-body">
+                      <div className="res-title">{series.title}</div>
+                      <div className="res-meta">
+                        <span className="src-badge">{series.provider}</span>
+                        <ReactCountryFlag
+                          countryCode={getCountryCodeForLanguage(series.lang)}
+                          svg
+                          style={{ width: 16, height: 12 }}
+                          title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Trailing indicator */}
+                    <div className="res-tail">
+                      {isSelected && (
+                        <span className="sel-added font-mono">
+                          <Check style={{ width: 10, height: 10 }} />
+                          added
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })
             )}
           </div>
-        </div>
 
-        {/* Footer */}
-        <DrawerFooter className="flex-row gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <Button variant="ghost" onClick={handleCancel} disabled={isSubmitting} className="flex-1">
-            Cancel
-          </Button>
-          <Button onClick={handleOk} disabled={!canSubmit} className="flex-1">
-            {isSubmitting ? "Processing..." : "OK"}
-          </Button>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+          {/* ── Footer ── */}
+          <div className="cta-row iw-search-footer">
+            <div className="left-meta">
+              <span className="num">{selectedSeries.length}</span> selected · {searchResults.length} results
+            </div>
+            <button
+              className="btn-ghost"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-primary"
+              onClick={handleOk}
+              disabled={!canSubmit}
+              type="button"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Applying…
+                </>
+              ) : (
+                <>
+                  <Check style={{ width: 13, height: 13 }} />
+                  Apply Match
+                </>
+              )}
+            </button>
+          </div>
+
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

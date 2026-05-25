@@ -361,14 +361,15 @@ export function ConfirmSeriesStep({
   ).length;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Title bar */}
-      {displayTitle && (
-        <div className="confirm-title">{displayTitle}</div>
-      )}
+    <div className="confirm-scroll">
+      <div className="flex flex-col gap-4">
+        {/* Title bar */}
+        {displayTitle && (
+          <div className="confirm-title">{displayTitle}</div>
+        )}
 
-      {/* Two-column layout */}
-      <div className="cmd-confirm">
+        {/* Two-column layout */}
+        <div className="cmd-confirm">
         {/* ── Left: meta panel ── */}
         <div>
           {/* Cover */}
@@ -711,6 +712,7 @@ export function ConfirmSeriesStep({
             </Collapsible>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

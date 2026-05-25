@@ -220,7 +220,7 @@ export function SearchSeriesStep({
 
   return (
     <div className="search-step">
-      {/* Search input row */}
+      {/* Search input row — full width */}
       <div className="cmd-input-wrap">
           <Search className="icon" style={{ width: 22, height: 22 }} />
           <input
@@ -240,11 +240,15 @@ export function SearchSeriesStep({
               />
             )}
           </div>
-          {canBrowseSources && availableSources.length > 0 && (
-            <div
-              className="src-dropdown-slot"
-              onPointerDown={(e) => e.stopPropagation()}
-            >
+        </div>
+
+        {/* Sources selector — its own row, right-aligned */}
+        {canBrowseSources && availableSources.length > 0 && (
+          <div
+            className="cmd-sources-row"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="src-dropdown-slot">
               <MultiSelectSources
                 sources={availableSources}
                 selectedSources={selectedSources}
@@ -255,8 +259,8 @@ export function SearchSeriesStep({
                 separatorClassName="as-sources-separator"
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Results area */}
         {error ? (

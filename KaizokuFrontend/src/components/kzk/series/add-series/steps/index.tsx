@@ -338,23 +338,25 @@ export function AddSeriesSteps({
         <div className="left-meta font-mono">
           {getLeftMetaCopy()}
         </div>
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={handlePrev}
-          disabled={currentStep === 0 || isApproveMode}
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={isStage0 ? handleNext : handleSubmit}
-          disabled={!canProgress || isLoading || isPending}
-        >
-          {icon}
-          {label}
-        </button>
+        <div className="cta-buttons">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handlePrev}
+            disabled={currentStep === 0 || isApproveMode}
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={isStage0 ? handleNext : handleSubmit}
+            disabled={!canProgress || isLoading || isPending}
+          >
+            {icon}
+            {label}
+          </button>
+        </div>
       </div>
     </div>
   );

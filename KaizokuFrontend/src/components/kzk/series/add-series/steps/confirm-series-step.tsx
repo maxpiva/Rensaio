@@ -439,12 +439,14 @@ export function ConfirmSeriesStep({
           <div className="src-table">
             <div className="src-thead">
               <div />
+              <div />
               <div>Source</div>
               <div className="ch-head">Chapters</div>
             </div>
             {validFullSeries.map((series) => {
               const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
               const chCount = series.chapterCount;
+              const thumbUrl = series.thumbnailUrl ? formatThumbnailUrl(series.thumbnailUrl) : null;
               return (
                 <React.Fragment key={seriesKey}>
                   <div
@@ -463,6 +465,17 @@ export function ConfirmSeriesStep({
                       onClick={(e) => e.stopPropagation()}
                       disabled={series.isUnselectable}
                     />
+                    <div className="src-cv-mini">
+                      {thumbUrl && (
+                        <Image
+                          src={thumbUrl}
+                          alt={`${series.provider} cover`}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
                     <div className="src-name">
                       <span className="name-txt">{series.provider}</span>
                       <span className="flag">
@@ -545,6 +558,7 @@ export function ConfirmSeriesStep({
             {validFullSeries.map((series) => {
               const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
               const chCount = series.chapterCount;
+              const thumbUrl = series.thumbnailUrl ? formatThumbnailUrl(series.thumbnailUrl) : null;
               return (
                 <React.Fragment key={seriesKey}>
                   <div
@@ -563,6 +577,17 @@ export function ConfirmSeriesStep({
                       onClick={(e) => e.stopPropagation()}
                       disabled={series.isUnselectable}
                     />
+                    <div className="src-cv-mini">
+                      {thumbUrl && (
+                        <Image
+                          src={thumbUrl}
+                          alt={`${series.provider} cover`}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
                     <div className="src-info">
                       <div className="name-row">
                         <span className="name-txt">{series.provider}</span>
@@ -608,7 +633,7 @@ export function ConfirmSeriesStep({
                           htmlFor={`m-storage-${seriesKey}`}
                           className="text-xs cursor-pointer"
                         >
-                          Permanent Source
+                          Permanent
                         </Label>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -623,7 +648,7 @@ export function ConfirmSeriesStep({
                           htmlFor={`m-cover-${seriesKey}`}
                           className="text-xs cursor-pointer"
                         >
-                          Use as Cover
+                          Cover
                         </Label>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -638,7 +663,7 @@ export function ConfirmSeriesStep({
                           htmlFor={`m-title-${seriesKey}`}
                           className="text-xs cursor-pointer"
                         >
-                          Use as Title
+                          Title
                         </Label>
                       </div>
                     </div>

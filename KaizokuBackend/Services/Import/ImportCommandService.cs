@@ -426,42 +426,6 @@ public class ImportCommandService
                         }
                         s.FillSeriesFromProviderSeriesDetails(s.Sources.ToProviderSeriesDetails(),null);
                         s.Sources.CalculateContinueAfterChapter(null);
-
-                        // Back-fill cover URLs from the live SeriesProviderEntity into the
-                        // filesystem snapshot providers so the Already-Imported tab can render
-                        // manga covers (the snapshot was constructed from disk with empty ThumbnailUrl).
-                        foreach (ImportProviderSnapshot snapshotProvider in import.Info.Series.Providers)
-                        {
-                            // Primary match: Provider + Language + Scanlator (all three)
-                            SeriesProviderEntity? matched = s.Sources.FirstOrDefault(src =>
-                                src.Provider.Equals(snapshotProvider.Provider, StringComparison.InvariantCultureIgnoreCase) &&
-                                src.Language.Equals(snapshotProvider.Language, StringComparison.InvariantCultureIgnoreCase) &&
-                                src.Scanlator.Equals(snapshotProvider.Scanlator, StringComparison.InvariantCultureIgnoreCase));
-
-                            // Fallback: Provider + Language only
-                            if (matched == null)
-                            {
-                                matched = s.Sources.FirstOrDefault(src =>
-                                    src.Provider.Equals(snapshotProvider.Provider, StringComparison.InvariantCultureIgnoreCase) &&
-                                    src.Language.Equals(snapshotProvider.Language, StringComparison.InvariantCultureIgnoreCase));
-                            }
-
-                            if (matched != null)
-                            {
-                                if (string.IsNullOrEmpty(snapshotProvider.ThumbnailUrl) && !string.IsNullOrEmpty(matched.ThumbnailUrl))
-                                    snapshotProvider.ThumbnailUrl = matched.ThumbnailUrl;
-                                if (!string.IsNullOrEmpty(matched.Title) && string.IsNullOrEmpty(snapshotProvider.Title))
-                                    snapshotProvider.Title = matched.Title;
-                                if (!string.IsNullOrEmpty(matched.Url) && string.IsNullOrEmpty(snapshotProvider.Url))
-                                    snapshotProvider.Url = matched.Url;
-                                if (matched.Status != SeriesStatus.UNKNOWN && snapshotProvider.Status == SeriesStatus.UNKNOWN)
-                                    snapshotProvider.Status = matched.Status;
-                                if (matched.ChapterCount.HasValue && snapshotProvider.ChapterCount == 0)
-                                    snapshotProvider.ChapterCount = (int)matched.ChapterCount.Value;
-                            }
-                        }
-                        _db.Touch(import, e => e.Info);
-
                         import.Status = ImportStatus.DoNotChange;
                         await _db.SaveChangesAsync(token).ConfigureAwait(false);
                         await _seriesProvider.CheckIfTheStorageFlagsChangedTheInLibraryStatusOfLastSeriesAsync(s.Sources, [], token)

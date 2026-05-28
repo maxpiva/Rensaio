@@ -1,3 +1,5 @@
+using KaizokuBackend.Data;
+using KaizokuBackend.Services.Auth;
 using KaizokuBackend.Utils;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +17,40 @@ namespace KaizokuBackend
             await EnvironmentSetup.InitializeAsync(null);
 
             var host = CreateHostBuilder(args).Build();
+
+            // Eagerly warm the auth-settings cache BEFORE the HTTP pipeline starts serving
+            // requests.  This eliminates the window between Kestrel accepting its first
+            // connection and StartupHostedService completing its DB migration + settings load.
+            //
+            // Strategy: perform a direct, lightweight read of the AuthenticationEnabled row
+            // from the Settings table.  If the table does not yet exist (brand-new install
+            // whose migration has not run) the query throws and we tolerate the failure —
+            // the fail-closed default in AuthSettingsCache already returns true (auth required)
+            // until Update() is called, so the instance remains protected.
+            try
+            {
+                using var warmScope = host.Services.CreateScope();
+                var warmDb = warmScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var settingRow = await warmDb.Settings
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Name == "AuthenticationEnabled")
+                    .ConfigureAwait(false);
+
+                if (settingRow != null &&
+                    bool.TryParse(settingRow.Value, out var authEnabled))
+                {
+                    var cache = warmScope.ServiceProvider.GetRequiredService<IAuthSettingsCache>();
+                    cache.Update(authEnabled);
+                }
+                // If the row is missing or the table does not exist, leave the cache
+                // unloaded: the fail-closed default (return true) keeps the instance safe.
+            }
+            catch
+            {
+                // DB not yet migrated (brand-new install) — intentionally swallowed.
+                // Fail-closed default in AuthSettingsCache ensures auth is required until
+                // StartupHostedService completes its migration and warms the cache properly.
+            }
 
             await host.RunAsync();
         }

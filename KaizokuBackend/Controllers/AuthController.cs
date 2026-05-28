@@ -1,7 +1,10 @@
+using KaizokuBackend.Authorization;
+using KaizokuBackend.Data;
 using KaizokuBackend.Models.Dto.Auth;
 using KaizokuBackend.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace KaizokuBackend.Controllers
 {
@@ -12,13 +15,22 @@ namespace KaizokuBackend.Controllers
     {
         private readonly AuthService _authService;
         private readonly UserService _userService;
+        private readonly IAuthSettingsCache _authSettingsCache;
+        private readonly AppDbContext _db;
         private readonly ILogger<AuthController> _logger;
         private static readonly SemaphoreSlim _setupLock = new(1, 1);
 
-        public AuthController(AuthService authService, UserService userService, ILogger<AuthController> logger)
+        public AuthController(
+            AuthService authService,
+            UserService userService,
+            IAuthSettingsCache authSettingsCache,
+            AppDbContext db,
+            ILogger<AuthController> logger)
         {
             _authService = authService;
             _userService = userService;
+            _authSettingsCache = authSettingsCache;
+            _db = db;
             _logger = logger;
         }
 
@@ -119,20 +131,102 @@ namespace KaizokuBackend.Controllers
             }
         }
 
+        /// <summary>
+        /// Returns the current auth configuration and, when auth is disabled, the list of
+        /// active users so the frontend can render a profile selector.
+        /// </summary>
         [HttpGet("status")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-        public async Task<ActionResult> GetStatusAsync(CancellationToken token = default)
+        [ProducesResponseType(typeof(AuthStatusDto), StatusCodes.Status200OK)]
+        public async Task<ActionResult<AuthStatusDto>> GetStatusAsync(CancellationToken token = default)
         {
             try
             {
                 var hasUsers = await _userService.AnyUsersExistAsync(token).ConfigureAwait(false);
-                return Ok(new { requiresSetup = !hasUsers });
+                var authEnabled = _authSettingsCache.AuthenticationEnabled;
+
+                var response = new AuthStatusDto
+                {
+                    AuthenticationEnabled = authEnabled,
+                    HasUsers = hasUsers
+                };
+
+                if (!authEnabled)
+                {
+                    // Provide the user list for the profile selector in disabled mode.
+                    var users = await _db.Users
+                        .AsNoTracking()
+                        .Where(u => u.IsActive)
+                        .OrderBy(u => u.Username)
+                        .Select(u => new StatusUserEntryDto
+                        {
+                            Id = u.Id,
+                            Username = u.Username,
+                            DisplayName = u.DisplayName,
+                            AvatarBase64 = u.AvatarBlob != null && u.AvatarBlob.Length > 0
+                                ? Convert.ToBase64String(u.AvatarBlob)
+                                : null,
+                            AvatarContentType = u.AvatarContentType
+                        })
+                        .ToListAsync(token)
+                        .ConfigureAwait(false);
+
+                    response.Users = users;
+                }
+
+                return Ok(response);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error checking auth status");
                 return StatusCode(500, new { error = "An error occurred checking auth status" });
+            }
+        }
+
+        /// <summary>
+        /// Selects a user by username in auth-disabled (profile-picker) mode.
+        /// Returns the user DTO; no JWT is issued.
+        /// </summary>
+        [HttpPost("select-user")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserDto>> SelectUserAsync([FromBody] SelectUserDto dto, CancellationToken token = default)
+        {
+            try
+            {
+                if (_authSettingsCache.AuthenticationEnabled)
+                    return BadRequest(new { error = "select-user is only available when authentication is disabled." });
+
+                if (string.IsNullOrWhiteSpace(dto.Username))
+                    return BadRequest(new { error = "Username is required." });
+
+                // Single tracked query so the updated LastLoginAt is reflected in the DTO.
+                var user = await _db.Users
+                    .FirstOrDefaultAsync(u => u.Username == dto.Username && u.IsActive, token)
+                    .ConfigureAwait(false);
+
+                if (user == null)
+                    return NotFound(new { error = "User not found." });
+
+                user.LastLoginAt = DateTime.UtcNow;
+                try
+                {
+                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to persist LastLoginAt for user {UserId} during select-user", user.Id);
+                    // Non-fatal: return the user even if the timestamp write failed.
+                }
+
+                return Ok(AuthService.MapUserDto(user));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during select-user");
+                return StatusCode(500, new { error = "An error occurred during user selection" });
             }
         }
 

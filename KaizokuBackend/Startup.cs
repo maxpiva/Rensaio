@@ -210,11 +210,20 @@ namespace KaizokuBackend
             // Order matters for the following middleware
             app.UseRouting();
 
-            // Bootstrap mode: when no users exist, only setup endpoints are accessible.
-            // MUST run before UseAuthentication so that the setup wizard isn't blocked by 401.
+            // Bootstrap mode: maintains the _hasUsers cache used by /api/auth/status and
+            // first-user detection.  No longer blocks requests — that is handled below.
             app.UseMiddleware<KaizokuBackend.Authorization.BootstrapModeMiddleware>();
 
+            // JWT bearer validation: populates context.User (ClaimsPrincipal) from the
+            // Authorization: Bearer header when a valid token is present.
             app.UseAuthentication();
+
+            // Resolves the current UserEntity into HttpContext.Items["User"].
+            // In disabled mode uses the X-Kaizoku-User header; in enabled mode validates
+            // that context.User is authenticated and maps the UserId claim to the entity.
+            // Must run AFTER UseAuthentication (needs context.User) and BEFORE UseAuthorization.
+            app.UseMiddleware<KaizokuBackend.Services.Auth.AuthMiddleware>();
+
             app.UseAuthorization();
 
             // Configure static file serving with proper MIME types for .txt files

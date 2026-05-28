@@ -114,6 +114,10 @@ namespace KaizokuBackend.Services
 
         public static IServiceCollection AddAuthServices(this IServiceCollection services)
         {
+            // Singleton auth-settings cache — allows middleware to read AuthenticationEnabled
+            // without a DB hit on every request.  Updated by SettingsService after each save.
+            services.TryAddSingleton<IAuthSettingsCache, AuthSettingsCache>();
+
             services.TryAddScoped<OpdsPathGenerator>();
             services.TryAddScoped<AuthService>();
             services.TryAddScoped<UserService>();

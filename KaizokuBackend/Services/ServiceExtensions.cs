@@ -114,6 +114,7 @@ namespace KaizokuBackend.Services
 
         public static IServiceCollection AddAuthServices(this IServiceCollection services)
         {
+            services.TryAddScoped<OpdsPathGenerator>();
             services.TryAddScoped<AuthService>();
             services.TryAddScoped<UserService>();
             services.TryAddScoped<PermissionService>();

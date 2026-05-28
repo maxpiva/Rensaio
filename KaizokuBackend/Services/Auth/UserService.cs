@@ -12,11 +12,13 @@ namespace KaizokuBackend.Services.Auth
     {
         private readonly AppDbContext _db;
         private readonly ILogger<UserService> _logger;
+        private readonly OpdsPathGenerator _opdsPathGenerator;
 
-        public UserService(AppDbContext db, ILogger<UserService> logger)
+        public UserService(AppDbContext db, ILogger<UserService> logger, OpdsPathGenerator opdsPathGenerator)
         {
             _db = db;
             _logger = logger;
+            _opdsPathGenerator = opdsPathGenerator;
         }
 
         public async Task<List<UserDetailDto>> GetAllAsync(CancellationToken token = default)
@@ -53,6 +55,10 @@ namespace KaizokuBackend.Services.Auth
             return user != null ? AuthService.MapUserDto(user) : null;
         }
 
+        /// <summary>
+        /// Looks up a user by email address. Retained for backfill/transition only.
+        /// </summary>
+        [Obsolete("Email lookup is retained for backfill/transition. Use GetByUsernameAsync instead.")]
         public async Task<UserDto?> GetByEmailAsync(string email, CancellationToken token = default)
         {
             var user = await _db.Users
@@ -67,30 +73,28 @@ namespace KaizokuBackend.Services.Auth
         {
             var existing = await _db.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Username == dto.Username || u.Email == dto.Email.ToLowerInvariant(), token)
+                .FirstOrDefaultAsync(u => u.Username == dto.Username, token)
                 .ConfigureAwait(false);
 
             if (existing != null)
-            {
-                if (existing.Username == dto.Username)
-                    throw new InvalidOperationException("Username is already taken.");
-                throw new InvalidOperationException("Email is already in use.");
-            }
+                throw new InvalidOperationException("Username is already taken.");
 
             var passwordError = PasswordPolicy.Validate(dto.Password);
             if (passwordError != null)
                 throw new InvalidOperationException(passwordError);
 
             var salt = GenerateSalt();
+            var opdsPath = await _opdsPathGenerator.GenerateUniqueAsync(token).ConfigureAwait(false);
             var user = new UserEntity
             {
                 Id = Guid.NewGuid(),
                 Username = dto.Username.Trim(),
-                Email = dto.Email.Trim().ToLowerInvariant(),
                 DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? dto.Username : dto.DisplayName.Trim(),
                 PasswordHash = HashPassword(dto.Password, salt),
                 Salt = salt,
                 Role = dto.Role,
+                Level = dto.Role == UserRole.Admin ? UserLevel.Admin : UserLevel.User,
+                OpdsPath = opdsPath,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 IsActive = true
@@ -159,17 +163,12 @@ namespace KaizokuBackend.Services.Auth
             if (dto.DisplayName != null)
                 user.DisplayName = dto.DisplayName.Trim();
 
-            if (dto.Email != null)
-            {
-                var emailLower = dto.Email.Trim().ToLowerInvariant();
-                var emailExists = await _db.Users.AnyAsync(u => u.Email == emailLower && u.Id != id, token).ConfigureAwait(false);
-                if (emailExists)
-                    throw new InvalidOperationException("Email is already in use.");
-                user.Email = emailLower;
-            }
-
             if (dto.Role.HasValue)
+            {
                 user.Role = dto.Role.Value;
+                // Keep Level in sync with Role for backward-compatibility.
+                user.Level = dto.Role.Value == UserRole.Admin ? UserLevel.Admin : UserLevel.User;
+            }
 
             if (dto.IsActive.HasValue)
                 user.IsActive = dto.IsActive.Value;
@@ -262,14 +261,6 @@ namespace KaizokuBackend.Services.Auth
             if (dto.DisplayName != null)
                 user.DisplayName = dto.DisplayName.Trim();
 
-            if (dto.Email != null)
-            {
-                var emailLower = dto.Email.Trim().ToLowerInvariant();
-                var emailExists = await _db.Users.AnyAsync(u => u.Email == emailLower && u.Id != userId, token).ConfigureAwait(false);
-                if (emailExists) throw new InvalidOperationException("Email is already in use.");
-                user.Email = emailLower;
-            }
-
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
             return AuthService.MapUserDto(user);
@@ -280,7 +271,10 @@ namespace KaizokuBackend.Services.Auth
             var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token).ConfigureAwait(false);
             if (user == null) throw new InvalidOperationException("User not found.");
 
-            if (!VerifyPassword(dto.CurrentPassword, user.PasswordHash, user.Salt))
+            if (user.PasswordHash == null || user.Salt == null)
+                throw new InvalidOperationException("This account does not use password-based authentication.");
+
+            if (!VerifyPassword(dto.CurrentPassword, user.PasswordHash!, user.Salt!))
                 throw new InvalidOperationException("Current password is incorrect.");
 
             var passwordError = PasswordPolicy.Validate(dto.NewPassword);
@@ -300,46 +294,57 @@ namespace KaizokuBackend.Services.Auth
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
         }
 
-        private static readonly HashSet<string> AllowedAvatarExtensions = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".png", ".jpg", ".jpeg", ".gif", ".webp"
-        };
-
         private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "image/png", "image/jpeg", "image/gif", "image/webp"
         };
 
-        public async Task<string?> UploadAvatarAsync(Guid userId, IFormFile file, string avatarStoragePath, CancellationToken token = default)
+        /// <summary>
+        /// Stores an avatar as a blob from a base64-encoded string.
+        /// </summary>
+        public async Task<string?> UploadAvatarAsync(Guid userId, string base64Data, string contentType, CancellationToken token = default)
         {
             var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token).ConfigureAwait(false);
             if (user == null) throw new InvalidOperationException("User not found.");
 
-            // Validate both extension and content type to prevent malicious uploads
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (string.IsNullOrEmpty(ext) || !AllowedAvatarExtensions.Contains(ext))
-                throw new InvalidOperationException("Invalid file type. Allowed: PNG, JPG, GIF, WEBP.");
+            if (string.IsNullOrWhiteSpace(contentType) || !AllowedAvatarContentTypes.Contains(contentType))
+                throw new InvalidOperationException("Invalid content type. Only image/png, image/jpeg, image/gif, image/webp are allowed.");
 
-            if (!string.IsNullOrEmpty(file.ContentType) && !AllowedAvatarContentTypes.Contains(file.ContentType))
-                throw new InvalidOperationException("Invalid content type. Only image files are allowed.");
-
-            // Delete old avatar if exists
-            if (!string.IsNullOrEmpty(user.AvatarPath) && File.Exists(user.AvatarPath))
+            byte[] bytes;
+            try
             {
-                File.Delete(user.AvatarPath);
+                bytes = Convert.FromBase64String(base64Data);
+            }
+            catch (FormatException)
+            {
+                throw new InvalidOperationException("Avatar data is not valid base64.");
             }
 
-            var fileName = $"{userId}{ext}";
-            var directory = Path.Combine(avatarStoragePath, "avatars");
-            Directory.CreateDirectory(directory);
-            var filePath = Path.Combine(directory, fileName);
+            user.AvatarBlob = bytes;
+            user.AvatarContentType = contentType;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(token).ConfigureAwait(false);
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream, token).ConfigureAwait(false);
-            }
+            return $"/api/users/avatar/{userId}";
+        }
 
-            user.AvatarPath = filePath;
+        /// <summary>
+        /// Stores an avatar as a blob from an <see cref="IFormFile"/> upload.
+        /// </summary>
+        public async Task<string?> UploadAvatarAsync(Guid userId, IFormFile file, CancellationToken token = default)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token).ConfigureAwait(false);
+            if (user == null) throw new InvalidOperationException("User not found.");
+
+            var contentType = file.ContentType?.ToLowerInvariant() ?? string.Empty;
+            if (string.IsNullOrEmpty(contentType) || !AllowedAvatarContentTypes.Contains(contentType))
+                throw new InvalidOperationException("Invalid content type. Only image/png, image/jpeg, image/gif, image/webp are allowed.");
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, token).ConfigureAwait(false);
+
+            user.AvatarBlob = ms.ToArray();
+            user.AvatarContentType = contentType;
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
 
@@ -351,22 +356,25 @@ namespace KaizokuBackend.Services.Auth
             var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token).ConfigureAwait(false);
             if (user == null) throw new InvalidOperationException("User not found.");
 
-            if (!string.IsNullOrEmpty(user.AvatarPath) && File.Exists(user.AvatarPath))
-            {
-                File.Delete(user.AvatarPath);
-            }
-
-            user.AvatarPath = null;
+            user.AvatarBlob = null;
+            user.AvatarContentType = null;
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
         }
 
-        public async Task<string?> GetAvatarPathAsync(Guid userId, CancellationToken token = default)
+        /// <summary>
+        /// Returns the avatar image bytes and content type for a user, or null if none is set.
+        /// </summary>
+        public async Task<(byte[] Bytes, string ContentType)?> GetAvatarBlobAsync(Guid userId, CancellationToken token = default)
         {
             var user = await _db.Users.AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == userId, token)
                 .ConfigureAwait(false);
-            return user?.AvatarPath;
+
+            if (user?.AvatarBlob == null || user.AvatarBlob.Length == 0)
+                return null;
+
+            return (user.AvatarBlob, user.AvatarContentType ?? "application/octet-stream");
         }
 
         public async Task<bool> AnyUsersExistAsync(CancellationToken token = default)
@@ -400,10 +408,15 @@ namespace KaizokuBackend.Services.Auth
             {
                 Id = user.Id,
                 Username = user.Username,
-                Email = user.Email,
                 DisplayName = user.DisplayName,
                 Role = user.Role,
-                AvatarPath = user.AvatarPath,
+                Level = ResolveLevel(user),
+                OpdsPath = user.OpdsPath,
+                AvatarBase64 = user.AvatarBlob != null && user.AvatarBlob.Length > 0
+                    ? Convert.ToBase64String(user.AvatarBlob)
+                    : null,
+                AvatarContentType = user.AvatarContentType,
+                HasPassword = user.PasswordHash != null,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt,
                 LastLoginAt = user.LastLoginAt,
@@ -417,6 +430,23 @@ namespace KaizokuBackend.Services.Auth
                     NsfwVisibility = user.Preferences.NsfwVisibility
                 } : new UserPreferencesDto()
             };
+        }
+
+        /// <summary>
+        /// Returns the effective Level for a user row. Shared by <see cref="UserService"/> and
+        /// <see cref="AuthService"/> so the Role→Level fallback lives in exactly one place.
+        ///
+        /// For legacy rows where Level was not yet backfilled, derives from Role:
+        ///   Role.Admin (0) → Level.Admin (2)
+        ///   Role.User  (1) → Level.User  (0)   — same as the column default, no change
+        /// </summary>
+        public static UserLevel ResolveLevel(UserEntity user)
+        {
+            if (user.Level != UserLevel.User)
+                return user.Level;
+
+            // Legacy row: Level=0 (User) may be correct, but for admins it should be 2.
+            return user.Role == UserRole.Admin ? UserLevel.Admin : UserLevel.User;
         }
     }
 }

@@ -15,16 +15,14 @@ namespace KaizokuBackend.Controllers
         private readonly PermissionService _permissionService;
         private readonly UserPreferencesService _preferencesService;
         private readonly ILogger<UserController> _logger;
-        private readonly IConfiguration _config;
 
         public UserController(UserService userService, PermissionService permissionService,
-            UserPreferencesService preferencesService, ILogger<UserController> logger, IConfiguration config)
+            UserPreferencesService preferencesService, ILogger<UserController> logger)
         {
             _userService = userService;
             _permissionService = permissionService;
             _preferencesService = preferencesService;
             _logger = logger;
-            _config = config;
         }
 
         private Guid GetCurrentUserId()
@@ -347,9 +345,8 @@ namespace KaizokuBackend.Controllers
                     return BadRequest(new { error = "File size must be less than 5MB" });
 
                 var userId = GetCurrentUserId();
-                var storagePath = _config["StorageFolder"] ?? _config["runtimeDirectory"] ?? ".";
-                var avatarUrl = await _userService.UploadAvatarAsync(userId, file, storagePath, token).ConfigureAwait(false);
-                return Ok(new { avatarPath = avatarUrl });
+                var avatarUrl = await _userService.UploadAvatarAsync(userId, file, token).ConfigureAwait(false);
+                return Ok(new { avatarUrl = avatarUrl });
             }
             catch (InvalidOperationException ex)
             {
@@ -370,22 +367,11 @@ namespace KaizokuBackend.Controllers
         {
             try
             {
-                var path = await _userService.GetAvatarPathAsync(id, token).ConfigureAwait(false);
-                if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+                var result = await _userService.GetAvatarBlobAsync(id, token).ConfigureAwait(false);
+                if (result == null)
                     return NotFound();
 
-                var ext = Path.GetExtension(path).ToLowerInvariant();
-                var contentType = ext switch
-                {
-                    ".png" => "image/png",
-                    ".jpg" or ".jpeg" => "image/jpeg",
-                    ".gif" => "image/gif",
-                    ".webp" => "image/webp",
-                    _ => "application/octet-stream"
-                };
-
-                var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-                return File(stream, contentType);
+                return File(result.Value.Bytes, result.Value.ContentType);
             }
             catch (Exception ex)
             {

@@ -1,15 +1,22 @@
 using KaizokuBackend.Data;
 using KaizokuBackend.Models.Database;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace KaizokuBackend.Services.Auth
 {
     /// <summary>
-    /// Resolves the current <see cref="UserEntity"/> into <c>HttpContext.Items["User"]</c>.
+    /// Resolves the current <see cref="UserEntity"/> and builds the request principal.
     ///
     /// When authentication is <b>disabled</b> (default): reads the <c>X-Kaizoku-User</c>
-    /// header, looks up the user by username, and stores the entity (or nothing if not found).
-    /// No JWT validation, no 401.
+    /// header and attempts to load that user (active, with permissions) from the database.
+    /// If the header is absent or the username is not found, falls back to the highest-level
+    /// active user (primary admin).  When a user is resolved, an authenticated
+    /// <see cref="ClaimsPrincipal"/> is constructed via <see cref="AuthService.BuildUserClaims"/>
+    /// and assigned to <c>context.User</c>; the entity is also stored in
+    /// <c>context.Items["User"]</c>.  A fresh install with zero users leaves
+    /// <c>context.User</c> untouched so setup/anonymous endpoints continue to work normally.
+    /// No JWT validation, no 401 issued by this middleware in disabled mode.
     ///
     /// When authentication is <b>enabled</b>: allow-listed paths pass through without auth.
     /// For all other paths the middleware expects <c>UseAuthentication</c> to have already run
@@ -60,16 +67,37 @@ namespace KaizokuBackend.Services.Auth
 
         private async Task HandleDisabledModeAsync(HttpContext context, AppDbContext db)
         {
+            UserEntity? resolvedUser = null;
+
             var headerUsername = context.Request.Headers["X-Kaizoku-User"].FirstOrDefault();
             if (!string.IsNullOrWhiteSpace(headerUsername))
             {
-                var user = await db.Users
+                resolvedUser = await db.Users
+                    .Include(u => u.Permissions)
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.Username == headerUsername && u.IsActive)
                     .ConfigureAwait(false);
+            }
 
-                if (user != null)
-                    context.Items["User"] = user;
+            if (resolvedUser == null)
+            {
+                resolvedUser = await db.Users
+                    .Include(u => u.Permissions)
+                    .AsNoTracking()
+                    .Where(u => u.IsActive)
+                    .OrderByDescending(u => u.Level)
+                    .ThenBy(u => u.CreatedAt)
+                    .FirstOrDefaultAsync()
+                    .ConfigureAwait(false);
+            }
+
+            if (resolvedUser != null)
+            {
+                var permissions = resolvedUser.Permissions ?? new UserPermissionEntity { UserId = resolvedUser.Id };
+                var claims = AuthService.BuildUserClaims(resolvedUser, permissions);
+                var identity = new ClaimsIdentity(claims, "KaizokuDisabledMode");
+                context.User = new ClaimsPrincipal(identity);
+                context.Items["User"] = resolvedUser;
             }
 
             await _next(context).ConfigureAwait(false);

@@ -220,13 +220,9 @@ namespace KaizokuBackend.Services.Auth
             return await CreateAuthResponseAsync(user, permissions, rememberMe, ipAddress, userAgent, token).ConfigureAwait(false);
         }
 
-        private async Task<AuthResponseDto> CreateAuthResponseAsync(UserEntity user, UserPermissionEntity permissions,
-            bool rememberMe, string? ipAddress, string? userAgent, CancellationToken token)
+        public static List<Claim> BuildUserClaims(UserEntity user, UserPermissionEntity permissions)
         {
-            var jwtSecret = await GetOrCreateJwtSecretAsync(token).ConfigureAwait(false);
-            var accessTokenExpiry = DateTime.UtcNow.AddMinutes(15);
-
-            var claims = new List<Claim>
+            return new List<Claim>
             {
                 new Claim("UserId", user.Id.ToString()),
                 new Claim("Username", user.Username),
@@ -245,6 +241,15 @@ namespace KaizokuBackend.Services.Auth
                 new Claim("CanManageJobs", permissions.CanManageJobs.ToString()),
                 new Claim("CanViewStatistics", permissions.CanViewStatistics.ToString()),
             };
+        }
+
+        private async Task<AuthResponseDto> CreateAuthResponseAsync(UserEntity user, UserPermissionEntity permissions,
+            bool rememberMe, string? ipAddress, string? userAgent, CancellationToken token)
+        {
+            var jwtSecret = await GetOrCreateJwtSecretAsync(token).ConfigureAwait(false);
+            var accessTokenExpiry = DateTime.UtcNow.AddMinutes(15);
+
+            var claims = BuildUserClaims(user, permissions);
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -15,7 +15,7 @@ namespace Mihon.ExtensionsBridge.Core.Extensions
         {
             services.AddSingleton<IWorkingFolderStructure, WorkingFolderStructure>();
             services.AddSingleton<IDex2JarConverter, Dex2JarConverter>();
-            services.AddScoped<IRepositoryDownloader, RepositoryDownloader>();
+            services.AddSingleton<IRepositoryDownloader, RepositoryDownloader>();
             services.AddHttpClient(nameof(RepositoryDownloader));
             services.AddSingleton<IInternalRepositoryManager, RepositoryManager>();
             services.AddSingleton<IInternalExtensionManager, ExtensionManager>();

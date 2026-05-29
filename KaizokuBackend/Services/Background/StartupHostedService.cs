@@ -19,21 +19,18 @@ namespace KaizokuBackend.Services.Background
 {
     public class StartupHostedService : IHostedService, IDisposable
     {
-        private readonly NouisanceFixer20ExtraLarge _fixes;
         private readonly ILogger<StartupHostedService> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly List<Task> _workerTasks = new();
         private CancellationTokenSource? _workerCts;
         private bool _disposed = false;
 
-        public StartupHostedService(ILogger<StartupHostedService> logger, 
+        public StartupHostedService(ILogger<StartupHostedService> logger,
             IServiceScopeFactory scopeFactory,
-            NouisanceFixer20ExtraLarge fixes,
             IConfiguration config)
         {
             _logger = logger;
             _scopeFactory = scopeFactory;
-            _fixes = fixes;
         }
 
         public void Dispose()
@@ -111,18 +108,19 @@ namespace KaizokuBackend.Services.Background
                 settingsService.SetThreadSettings(settings);
                 await settingsService.SetTimesSettingsAsync(settings, cancellationToken).ConfigureAwait(false);
                 AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var fixes = scope.ServiceProvider.GetRequiredService<NouisanceFixer20ExtraLarge>();
                 await db.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
                 await EnsureAuthTablesAsync(db, cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
-                await _fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
+                await fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
 
                 // Retag historical Browse-tab rows that were written before per-title
                 // language detection. This lets the user's PreferredLanguages filter
                 // immediately hide unwanted scripts from multi-language sources.
                 try
                 {
-                    int retagged = await _fixes.BackfillLatestSeriesLanguagesAsync(cancellationToken).ConfigureAwait(false);
+                    int retagged = await fixes.BackfillLatestSeriesLanguagesAsync(cancellationToken).ConfigureAwait(false);
                     if (retagged > 0)
                         _logger.LogInformation("Backfilled language tags on {Count} cloud-latest rows.", retagged);
                 }

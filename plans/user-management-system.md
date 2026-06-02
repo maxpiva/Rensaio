@@ -1033,8 +1033,8 @@ For each series in the library, the OPDS service:
 **ETag / Conditional Requests:**
 
 - Every image response includes an `ETag` header
-- ETag is calculated as the SHA-256 hash of the image file content
-- ETags are stored in kaizoku.json (see F.2 schema update below)
+- ETag is calculated as the MD5 hash of the image file content (see F.2 hashes directory)
+- ETags are stored in the hashes directory, keyed by page full filename inside the archive
 - `GET` requests with `If-None-Match` header return `304 Not Modified` if the image hash matches
 - Browsers and OPDS clients cache images aggressively, reducing repeat requests
 
@@ -1067,12 +1067,13 @@ temp/
 No filesystem watcher or background monitor is used. Detection happens on-demand when a user reads a chapter:
 
 1. A request arrives for a page in a chapter
-2. The system compares the archive's current `LastWriteTimeUtc` against the stored value in `ChapterImageHashCache.ArchiveLastModifiedUtc`
-3. If they differ: the archive was replaced
-4. The temp cache directory for that chapter is deleted
-5. The `ImageHashCache` entry for that chapter is cleared from kaizoku.json
-6. Decompression, ETag calculation, and kaizoku.json update re-trigger automatically from the standard extraction flow
-7. The user gets the new images seamlessly on their first read attempt
+2. The system loads the series hash file and finds the chapter by `archiveFilename`
+3. Compares the stored `ArchiveLastModifiedUtc` against the archive file's current `LastWriteTimeUtc`
+4. If they differ: the archive was replaced
+5. The temp cache directory for that chapter is deleted
+6. The chapter entry is removed from the series hash file and saved
+7. Decompression, MD5 computation, and hash file update re-trigger automatically
+8. The user gets the new images seamlessly on their first read attempt
 
 ---
 
@@ -1087,23 +1088,110 @@ Read state is **never stored in the database**. It is stored exclusively in each
 - Read state is tied to the series data, not the database
 - No migration needed when moving storage
 
-### F.2 kaizoku.json Schema Update
+### F.2 Hashes Directory (separate from kaizoku.json)
 
-**File**: `KaizokuBackend/Models/ImportSeriesSnapshot.cs`
+Image hashes are stored in a dedicated `hashes` directory under the config/runtime path. They are NOT stored in kaizoku.json.
 
-Bump `KaizokuVersion` to 3 to represent the full schema including read states and image hash cache.
+**Directory structure:**
 
-**Additions to `ImportSeriesSnapshot`:**
+```
+{runtimeDirectory}/
+  hashes/
+    {seriesStoragePath}.json       (series without category)
+    {category}/
+      {seriesName}.json            (categorized series)
+  wwwroot/
+  kaizoku.db
+  ...
+```
+
+One JSON file per series, named after the series storage path. For example:
+- Uncategorized series at `One Piece/`: `{runtimeDirectory}/hashes/One Piece.json`
+- Categorized series at `Manga/One Piece/`: `{runtimeDirectory}/hashes/Manga/One Piece.json`
+
+**Hash file JSON schema:**
+
+```json
+{
+  "chapters": [
+    {
+      "archiveFilename": "ch_005.cbz",
+      "archiveLastModifiedUtc": "2026-06-01T12:00:00Z",
+      "pageHashes": {
+        "page_001.jpg": "a1b2c3d4e5f6...",
+        "page_002.jpg": "f6e5d4c3b2a1...",
+        "subfolder/page_003.jpg": "7890abcd..."
+      }
+    },
+    {
+      "archiveFilename": "ch_003.cbz",
+      "archiveLastModifiedUtc": "2026-06-01T10:00:00Z",
+      "pageHashes": {
+        "page_001.jpg": "0fedcba9..."
+      }
+    }
+  ]
+}
+```
+
+**Model classes:**
+
+**File**: `KaizokuBackend/Models/HashCache/SeriesHashCache.cs` (new)
+
+```csharp
+public class SeriesHashCache
+{
+    public List<ChapterHashCache> Chapters { get; set; } = [];
+}
+
+public class ChapterHashCache
+{
+    public string ArchiveFilename { get; set; } = string.Empty;
+    public DateTime ArchiveLastModifiedUtc { get; set; }
+    public Dictionary<string, string> PageHashes { get; set; } = []; // pageFullFilename -> MD5 hex hash
+}
+```
+
+**Key changes:**
+- **One file per series**: `SeriesHashCache` wraps a list of `ChapterHashCache` entries
+- **Chapter key**: Archive filename (e.g., `ch_005.cbz`) - unique per series
+- **Page key**: Full filename inside archive
+- **Hash algorithm**: MD5 (cheaper than SHA-256, sufficient for ETag)
+
+**Hash file service:**
+
+**File**: `KaizokuBackend/Services/HashCache/HashCacheService.cs` (new)
+
+```csharp
+public class HashCacheService
+{
+    private readonly string _hashesRootPath;
+
+    public ChapterHashCache? GetChapterHash(string seriesStoragePath, string archiveFilename)
+    public void SaveChapterHash(string seriesStoragePath, ChapterHashCache cache)
+    public void DeleteChapterHash(string seriesStoragePath, string archiveFilename)
+}
+```
+
+- Resolves path: `seriesStoragePath` (no trailing slash) + `.json` under `{runtimeDirectory}/hashes/`
+- Example: `Manga/One Piece/` -> `{runtimeDirectory}/hashes/Manga/One Piece.json`
+- All operations load the full `SeriesHashCache`, modify the `Chapters` list, and save back
+
+**Behavior:**
+- On first extraction: compute MD5, load/create series hash file, add chapter entry, save
+- On subsequent requests: load series file, find chapter by `archiveFilename`, compare `archiveLastModifiedUtc` vs current `LastWriteTimeUtc`
+  - Match: use cached MD5 for ETag
+  - Different: delete chapter entry, re-extract, re-compute, save
+- Files persist across restarts, independent from `opds-cache/`
+
+Bump `KaizokuVersion` to 3 to represent the full schema including read states.
 
 ```csharp
 // Per-user read states
 public List<UserReadStateSnapshot> UserReadStates { get; set; } = [];
-
-// Per-chapter image ETag hashes for OPDS caching
-public List<ChapterImageHashCache> ImageHashCache { get; set; } = [];
 ```
 
-**New model classes:**
+**New model class:**
 
 ```csharp
 public class UserReadStateSnapshot
@@ -1120,22 +1208,9 @@ public class ChapterReadState
     public bool IsCompleted { get; set; }
     public DateTime LastReadAt { get; set; }
 }
-
-public class ChapterImageHashCache
-{
-    public decimal ChapterNumber { get; set; }
-    public DateTime ArchiveLastModifiedUtc { get; set; } // To detect archive replacement
-    public Dictionary<int, string> PageHashes { get; set; } = []; // pageIndex -> SHA-256 hex hash
-}
 ```
 
-**`ImageHashCache` behavior:**
-- On first extraction of a chapter, each page image's SHA-256 hash is computed
-- Hashes are stored in `ImageHashCache` with the chapter number and `ArchiveLastModifiedUtc`
-- On subsequent requests for the same chapter+page, if the `ArchiveLastModifiedUtc` matches the current file's `LastWriteTimeUtc`, the cached hash is used for the ETag header
-- When the archive is replaced or altered (`LastWriteTimeUtc` changed), the cache entry for that chapter is cleared and re-computed
-- The `ImageHashCache` persists in kaizoku.json, so ETags survive application restarts
-- Image hash cache entries are cleared when the chapter is replaced/altered, not on every read
+Image hash data is NOT stored in kaizoku.json. See the [F.2 Hashes Directory](#f2-hashes-directory-separate-from-kaizokujson) section above for the separate hash file approach using MD5 and archive filenames.
 
 ### F.3 Read-State Service
 

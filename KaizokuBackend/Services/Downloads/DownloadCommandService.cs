@@ -152,57 +152,59 @@ namespace KaizokuBackend.Services.Downloads
                     File.Delete(tempZipPath);
 
                 using (var zipStream = File.OpenWrite(tempZipPath))
-                using (var zipWriter = await WriterFactory.OpenAsyncWriter(zipStream, ArchiveType.Zip, new ZipWriterOptions(CompressionType.None)).ConfigureAwait(false))
                 {
-                    foreach(Page pag in ch.Pages)
+                    await using (var zipWriter = await WriterFactory.OpenAsyncWriter(zipStream, ArchiveType.Zip, new ZipWriterOptions(CompressionType.None)).ConfigureAwait(false))
                     {
-                        try
+                        foreach (Page pag in ch.Pages)
                         {
-                            page = pag.Index;
-                            ContentTypeStream? image = await _mihon.MihonErrorWrapperAsync(
-                                ()=>src.GetPageImageAsync(pag, token),
-                                "Unable to get Page {Page} from Chapter {Chapter}, Series {Title} from {provider}", page+1, ch.Chapter.ParsedNumber, ch.Title, provider).ConfigureAwait(false);
-                            if (image==null)
+                            try
                             {
+                                page = pag.Index;
+                                ContentTypeStream? image = await _mihon.MihonErrorWrapperAsync(
+                                    () => src.GetPageImageAsync(pag, token),
+                                    "Unable to get Page {Page} from Chapter {Chapter}, Series {Title} from {provider}", page + 1, ch.Chapter.ParsedNumber, ch.Title, provider).ConfigureAwait(false);
+                                if (image == null)
+                                {
+                                    breaked = true;
+                                    break;
+                                }
+
+                                (_, string? ext) = image.GetImageMimeTypeAndExtension();
+                                if (ext == null)
+                                {
+                                    _logger.LogWarning("Page {Page} of chapter {ChapterNumber} of series {SeriesTitle} is not a valid image", page + 1, ch.Chapter.ParsedNumber, ch.Title);
+                                    ext = ".unk";
+                                }
+                                string fileName = ArchiveHelperService.MakeFileNameSafe(ch.ProviderName, ch.Scanlator, ch.SeriesTitle, ch.Language,
+                                            ch.Chapter.ParsedNumber, ch.ChapterName, maxChap, page + 1, ch.PageCount) + ext;
+                                await zipWriter.WriteAsync(fileName, image).ConfigureAwait(false);
+                                acum += step;
+                                message = $"Downloading ({providerName}) {ch.Title} {chapterName} {page}";
+                                reporter.Report(ProgressStatus.InProgress, (int)acum, message, downloadSummary);
+                            }
+                            catch (Exception)
+                            {
+                                _logger.LogError("Failed to download page {Page} for chapter {ChapterNumber} of series {SeriesTitle}",
+                                    page + 1, ch.Chapter.ParsedNumber, ch.Title);
                                 breaked = true;
                                 break;
                             }
 
-                            (_, string? ext) = image.GetImageMimeTypeAndExtension();
-                            if (ext == null)
-                            {
-                                _logger.LogWarning("Page {Page} of chapter {ChapterNumber} of series {SeriesTitle} is not a valid image", page+1, ch.Chapter.ParsedNumber, ch.Title);
-                                ext = ".unk";
-                            }
-                            string fileName = ArchiveHelperService.MakeFileNameSafe(ch.ProviderName, ch.Scanlator, ch.SeriesTitle, ch.Language,
-                                        ch.Chapter.ParsedNumber, ch.ChapterName, maxChap, page + 1, ch.PageCount) + ext;
-                            await zipWriter.WriteAsync(fileName, image).ConfigureAwait(false);
-                            acum += step;
-                            message = $"Downloading ({providerName}) {ch.Title} {chapterName} {page}";
-                            reporter.Report(ProgressStatus.InProgress, (int)acum, message, downloadSummary);
+                            if (breaked)
+                                break;
                         }
-                        catch (Exception)
+
+                        if (page == 0)
                         {
-                            _logger.LogError("Failed to download page {Page} for chapter {ChapterNumber} of series {SeriesTitle}",
-                                page+1, ch.Chapter.ParsedNumber, ch.Title);
                             breaked = true;
-                            break;
                         }
 
-                        if (breaked)
-                            break;
-                    }
-
-                    if (page == 0)
-                    {
-                        breaked = true;
-                    }
-
-                    if (!breaked)
-                    {
-                        using (Stream comicInfo = ArchiveHelperService.CreateComicInfo(ch, page).ToStream())
+                        if (!breaked)
                         {
-                            ((ZipWriter)zipWriter).Write("ComicInfo.xml", comicInfo, new ZipWriterEntryOptions { CompressionType = CompressionType.Deflate, ModificationDateTime = DateTime.Now });
+                            using (Stream comicInfo = ArchiveHelperService.CreateComicInfo(ch, page).ToStream())
+                            {
+                                ((ZipWriter)zipWriter).Write("ComicInfo.xml", comicInfo, new ZipWriterEntryOptions { CompressionType = CompressionType.Deflate, ModificationDateTime = DateTime.Now });
+                            }
                         }
                     }
                 }

@@ -280,7 +280,12 @@ namespace KaizokuBackend.Extensions
 
             if (s.Sources != null && s.Sources.Count > 0)
             {
-                foreach (var provider in s.Sources)
+                // Sort providers: permanent (IsStorage) first, then temporary (normal Mihon-linked), then local/unknown
+                var sortedSources = s.Sources
+                    .OrderBy(p => p.IsUnknown || p.IsDisabled || p.IsUninstalled || p.IsLocal ? 2 :
+                                  p.IsStorage ? 0 : 1)
+                    .ToList();
+                foreach (var provider in sortedSources)
                 {
                     var providerDto = new ProviderExtendedDto
                     {
@@ -290,7 +295,7 @@ namespace KaizokuBackend.Extensions
                         Lang = provider.Language,
                         Title = provider.Title,
                         Url = provider.Url,
-                        ThumbnailUrl = provider.ThumbnailUrl,
+                        ThumbnailUrl = string.IsNullOrEmpty(provider.ThumbnailUrl) ? s.ThumbnailUrl : provider.ThumbnailUrl,
                         Artist = provider.Artist ?? "",
                         Author = provider.Author ?? "",
                         Description = provider.Description ?? "",

@@ -865,6 +865,7 @@ public static class SeriesExtensions
             IsDisabled = false,
             Chapters = [],
             IsUnknown = ImportProviderSnapshot.Provider == "Unknown",
+            IsLocal = ImportProviderSnapshot.Provider != "Unknown",
             ThumbnailUrl = ImportProviderSnapshot.ThumbnailUrl,
             ChapterCount = ImportProviderSnapshot.ChapterCount > 0 ? ImportProviderSnapshot.ChapterCount : null,
             ContinueAfterChapter = ImportProviderSnapshot.Archives?.Max(a => a.ChapterNumber),

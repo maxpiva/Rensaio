@@ -111,7 +111,6 @@ public class StatusController : ControllerBase
             var providerIds = alerts.Select(a => a.TargetId).ToList();
             var providers = await _db.SeriesProviders
                 .Where(p => providerIds.Contains(p.Id))
-                .Include(p => p.Chapters)  // Need chapters for last chapter date
                 .AsNoTracking()
                 .ToDictionaryAsync(p => p.Id, token)
                 .ConfigureAwait(false);

@@ -411,8 +411,8 @@ namespace KaizokuBackend.Services.Series
             }
             if (string.IsNullOrEmpty(serie.MihonProviderId))
             {
-                _logger.LogWarning("Series Provider {SeriesProvider} has no longer valid Mihon Id", seriesProvider);
-                return JobResult.Failed;
+                _logger.LogWarning("Series Provider {SeriesProvider} has no longer valid Mihon Id; deleting job", seriesProvider);
+                return JobResult.Delete;
             }
 
             Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources)

@@ -9,6 +9,7 @@ export class ProgressHub {
   private isInitialized = false;
   private signalR: any = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private startPromise: Promise<void> | null = null;
 
   private async loadSignalR(): Promise<any> {
     if (typeof window === 'undefined') {
@@ -24,14 +25,18 @@ export class ProgressHub {
   private async ensureConnection(): Promise<void> {
     if (typeof window === 'undefined') {
       return;
-    }    if (!this.isInitialized) {
+    }
+    
+    if (!this.isInitialized) {
       const signalR = await this.loadSignalR();
       if (!signalR) return;
 
       this.connection = new signalR.HubConnectionBuilder()
         .withUrl(buildSignalRUrl('/progress'))
         .withAutomaticReconnect()
-        .build();      this.connection.on('Progress', (progress: ProgressState) => {
+        .build();
+
+      this.connection.on('Progress', (progress: ProgressState) => {
         this.listeners.forEach(listener => listener(progress));
       });
 
@@ -71,7 +76,7 @@ export class ProgressHub {
     // If disconnected or reconnecting failed, restart
     if (this.connection.state === signalR.HubConnectionState.Disconnected) {
       try {
-        await this.connection.start();
+        await this.startConnection();
       } catch (err) {
         console.error('Failed to restart connection on tab visible:', err);
       }
@@ -104,15 +109,27 @@ export class ProgressHub {
     const signalR = await this.loadSignalR();
     if (!signalR || !this.connection) return;
 
-    // Handle all non-connected states
-    if (this.connection.state !== signalR.HubConnectionState.Connected) {
-      try {
-        await this.connection.start();
-      } catch (err) {
+    // If already connected, nothing to do
+    if (this.connection.state === signalR.HubConnectionState.Connected) {
+      return;
+    }
+
+    // If a start is already in progress, wait for it instead of starting another
+    if (this.startPromise) {
+      return this.startPromise;
+    }
+
+    this.startPromise = this.connection.start()
+      .then(() => {
+        this.startPromise = null;
+      })
+      .catch((err: any) => {
+        this.startPromise = null;
         console.error('SignalR Connection Error:', err);
         throw err;
-      }
-    }
+      });
+
+    return this.startPromise!;
   }
 
   async stopConnection(): Promise<void> {

@@ -45,7 +45,7 @@ namespace KaizokuBackend.Services.Series
 
             SeriesProviderEntity? provider = await _db.SeriesProviders.Where(a => a.Id == providerId).AsNoTracking()
                 .FirstOrDefaultAsync(token).ConfigureAwait(false);
-            if (provider == null || !provider.IsUnknown)
+            if (provider == null)
                 return null;
             
             // Include ALL non-unknown providers on the same series (both Mihon-linked and user-based)
@@ -248,7 +248,7 @@ namespace KaizokuBackend.Services.Series
         public async Task RescheduleIfNeededAsync(IEnumerable<SeriesProviderEntity> providers, bool immediate = true,
             bool forceDisable = false, CancellationToken token = default)
         {
-            foreach (SeriesProviderEntity p in providers.Where(a => !a.IsUnknown))
+            foreach (SeriesProviderEntity p in providers.Where(a => !a.IsUnknown && !a.IsLocal))
             {
                 await _jobBusinessService.ManageSeriesProviderJobAsync(p, immediate, forceDisable, token)
                     .ConfigureAwait(false);
@@ -265,8 +265,9 @@ namespace KaizokuBackend.Services.Series
             IEnumerable<SeriesProviderEntity> providers, IEnumerable<string> deletedIds, CancellationToken token = default)
         {
             var deletedList = deletedIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
-            List<string> ids = providers.Select(a => a.MihonId!)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
+            List<string> ids = providers
+                .Where(a => !string.IsNullOrWhiteSpace(a.MihonId))
+                .Select(a => a.MihonId!)
                 .Union(deletedList)
                 .ToList();
 

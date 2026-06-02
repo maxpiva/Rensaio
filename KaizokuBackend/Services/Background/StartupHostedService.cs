@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Mihon.ExtensionsBridge.Core.Utilities;
 using Mihon.ExtensionsBridge.Models.Abstractions;
 using System.ComponentModel;
+using KaizokuBackend.Models.Database;
 
 namespace KaizokuBackend.Services.Background
 {
@@ -113,6 +114,18 @@ namespace KaizokuBackend.Services.Background
                 await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
                 //await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
                 await _fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
+
+                // Fix: Ensure IsLocal = true for all providers without MihonProviderId that aren't Unknown
+                List<SeriesProviderEntity> localProviderFixes = await db.SeriesProviders
+                    .Where(a => string.IsNullOrEmpty(a.MihonProviderId) && !a.IsUnknown && !a.IsLocal)
+                    .ToListAsync(cancellationToken).ConfigureAwait(false);
+                if (localProviderFixes.Count > 0)
+                {
+                    _logger.LogInformation("Fixing {Count} SeriesProviders with missing IsLocal flag", localProviderFixes.Count);
+                    foreach (var p in localProviderFixes)
+                        p.IsLocal = true;
+                    await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
 
                 IHostApplicationLifetime lifetime = scope.ServiceProvider.GetRequiredService<IHostApplicationLifetime>();
                 JobManagementService jobManagement = scope.ServiceProvider.GetRequiredService<JobManagementService>();

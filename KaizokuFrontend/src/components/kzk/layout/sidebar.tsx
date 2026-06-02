@@ -31,15 +31,15 @@ export const sidebarItems = [
     topSide: true,
   },
   {
-    name: "Sources",
-    href: "/providers",
-    icon: <Plug className="h-6 w-6" />,
-    topSide: true,
-  },
-  {
     name: "Status",
     href: "/status",
     icon: <Activity className="h-6 w-6" />,
+    topSide: true,
+  },
+  {
+    name: "Sources",
+    href: "/providers",
+    icon: <Plug className="h-6 w-6" />,
     topSide: true,
   },
   {

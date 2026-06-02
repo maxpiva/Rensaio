@@ -27,7 +27,7 @@ export default function KzkBreadcrumb({ seriesTitle }: KzkBreadcrumbProps = {}) 
   const isSeriesDetailPage = paths.includes("/library/series") && seriesTitle;
   
   // Top-level pages that should not show "Library" as parent
-  const topLevelPages = ["/queue", "/cloud-latest", "/providers", "/settings"];
+  const topLevelPages = ["/queue", "/cloud-latest", "/providers", "/settings", "/status"];
   const isTopLevelPage = topLevelPages.includes(paths);
 
   return (

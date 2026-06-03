@@ -59,6 +59,9 @@ public class StatusEvaluationService
 
     /// <summary>
     /// Evaluates a single series for health status.
+    /// Uses stored ReleaseCadenceDays if available, falls back to default settings.
+    /// Checks provider status before creating alerts to avoid false warnings
+    /// when a series has gone on hiatus or completed.
     /// </summary>
     public async Task EvaluateSingleSeriesAsync(SeriesEntity series, SettingsDto settings, CancellationToken token = default)
     {
@@ -79,15 +82,50 @@ public class StatusEvaluationService
             return;
         }
 
-        // Count active (non-disabled, non-uninstalled) providers
+        // Check provider-level status before creating alerts.
+        // COMPLETED, ON_HIATUS, PUBLISHING_FINISHED: if ANY single provider reports this,
+        // the series-level status may be stale — clear alerts and return.
+        // CANCELLED: only suppress if ALL active providers (and there's more than one) report cancelled.
         var activeProviders = series.Sources
             .Where(s => !s.IsDisabled && !s.IsUninstalled && !s.IsUnknown)
             .ToList();
 
-        // Estimate release cadence from chapter history
-        double estimatedCadenceDays = EstimateReleaseCadence(series);
-        if (estimatedCadenceDays <= 0)
+        bool anyDefinitiveEnd = activeProviders.Any(p =>
+            p.LastKnownStatus == SeriesStatus.COMPLETED ||
+            p.LastKnownStatus == SeriesStatus.ON_HIATUS ||
+            p.LastKnownStatus == SeriesStatus.PUBLISHING_FINISHED);
+
+        if (anyDefinitiveEnd)
+        {
+            _logger.LogInformation(
+                "Series {SeriesId} has a provider reporting definitive end status, clearing alerts",
+                series.Id);
+            await ClearActiveAlertAsync(HealthStatusTargetType.Series, series.Id, token).ConfigureAwait(false);
+            return;
+        }
+
+        // CANCELLED: only suppress if ALL active providers report cancelled
+        // (and there are multiple providers — a single provider being cancelled might just mean
+        // the user removed that source, not that the series is truly cancelled)
+        if (activeProviders.Count > 0 && activeProviders.All(p => p.LastKnownStatus == SeriesStatus.CANCELLED))
+        {
+            _logger.LogInformation(
+                "Series {SeriesId} all {Count} active providers report CANCELLED, clearing alerts",
+                series.Id, activeProviders.Count);
+            await ClearActiveAlertAsync(HealthStatusTargetType.Series, series.Id, token).ConfigureAwait(false);
+            return;
+        }
+
+        // Use stored cadence if available, otherwise fall back to default
+        double estimatedCadenceDays;
+        if (series.ReleaseCadenceDays.HasValue && series.ReleaseCadenceDays.Value > 0)
+        {
+            estimatedCadenceDays = series.ReleaseCadenceDays.Value;
+        }
+        else
+        {
             estimatedCadenceDays = settings.ReleaseCadenceDefaultDays;
+        }
 
         double daysSinceLastChapter = (DateTime.UtcNow - series.LastChapterDate.Value).TotalDays;
 
@@ -185,19 +223,6 @@ public class StatusEvaluationService
 
         // Errors exist but haven't crossed the yellow threshold yet — no alert
         await ClearActiveAlertAsync(HealthStatusTargetType.Provider, provider.Id, token).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Estimates the release cadence for a series based on its chapter history.
-    /// Looks at the last 5 chapters to compute average interval.
-    /// Falls back to default cadence if insufficient data.
-    /// </summary>
-    private double EstimateReleaseCadence(SeriesEntity series)
-    {
-        // We need to look at chapters across all providers
-        // Since chapters are stored as JSON on each provider, we need to load them
-        // This is a best-effort heuristic
-        return -1; // Signal to use default
     }
 
     /// <summary>

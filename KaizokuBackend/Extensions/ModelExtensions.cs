@@ -62,7 +62,21 @@ namespace KaizokuBackend.Extensions
             summary.Retries = e.RetryCount;
             return summary;
         }
-
+        public static DownloadChapterInfo? ToDownloadChapterInfo(this EnqueueEntity e)
+        {
+            if (string.IsNullOrEmpty(e.JobParameters))
+                return null;
+            ChapterDownload? ch = JsonSerializer.Deserialize<ChapterDownload>(e.JobParameters);
+            if (ch == null)
+                return null;
+            return new DownloadChapterInfo
+            {
+                ChapterNumber = ch.Chapter?.ParsedNumber,
+                DownloadDateUTC = e.FinishedDate,
+                Status = e.Status,
+                Chapter = ch
+            };
+        }
         public static DownloadInfoDto? ToDownloadInfo(this EnqueueEntity e)
         {
             return e.ToDownloadSummary()?.ToInfoDto();

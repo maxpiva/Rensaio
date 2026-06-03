@@ -51,6 +51,14 @@ namespace KaizokuBackend.Models.Database
         [JsonPropertyName("lastChapterDate")]
         public DateTime? LastChapterDate { get; set; }
 
+        /// <summary>
+        /// Computed release cadence in days. Null = not yet determined.
+        /// Mapped values: 7 (1 week), 15 (half month), 30 (1 month).
+        /// Recalculated after each download or chapter fetch.
+        /// </summary>
+        [JsonPropertyName("releaseCadenceDays")]
+        public int? ReleaseCadenceDays { get; set; }
+
         public virtual ICollection<SeriesProviderEntity> Sources { get; set; } = [];
     }
 }

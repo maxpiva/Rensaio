@@ -35,6 +35,7 @@ namespace KaizokuBackend.Services
             services.TryAddScoped<SeriesCommandService>();
             services.TryAddScoped<SeriesProviderService>();
             services.TryAddScoped<SeriesArchiveService>();
+            services.TryAddScoped<CadenceCalculationService>();
             
             return services;
         }

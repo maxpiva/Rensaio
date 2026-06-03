@@ -517,6 +517,14 @@ namespace KaizokuBackend.Migrations
                         .HasColumnType("INTEGER")
                         .HasAnnotation("Relational:JsonPropertyName", "pauseDownloads");
 
+                    b.Property<int?>("ReleaseCadenceDays")
+                        .HasColumnType("INTEGER")
+                        .HasAnnotation("Relational:JsonPropertyName", "releaseCadenceDays");
+
+                    b.Property<decimal?>("StartFromChapter")
+                        .HasColumnType("INTEGER")
+                        .HasAnnotation("Relational:JsonPropertyName", "pauseDownloads");
+
                     b.Property<decimal?>("StartFromChapter")
                         .HasColumnType("TEXT")
                         .HasAnnotation("Relational:JsonPropertyName", "startFromChapter");

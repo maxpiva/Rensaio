@@ -8,6 +8,7 @@ using System.Linq.Expressions;
 using System.Text.Json;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
+using KaizokuBackend.Models;
 
 namespace KaizokuBackend.Services.Downloads
 {
@@ -38,6 +39,12 @@ namespace KaizokuBackend.Services.Downloads
             string extraKey = seriesId.ToString();
             List<EnqueueEntity> result = await _db.Queues.Where(a => a.JobType == JobType.Download && a.ExtraKey == extraKey).ToListAsync(token);
             return result.Select(a=>a.ToDownloadInfo()).Where(a => a != null).OrderBy(a => a!.ScheduledDateUTC).ToList()!;
+        }
+        public async Task<List<DownloadChapterInfo>> GetDownloadsChapterInfoForSeriesAsync(Guid seriesId, CancellationToken token = default)
+        {
+            string extraKey = seriesId.ToString();
+            List<EnqueueEntity> result = await _db.Queues.Where(a => a.JobType == JobType.Download && a.ExtraKey == extraKey).ToListAsync(token);
+            return result.Select(a => a.ToDownloadChapterInfo()).Where(a => a.Status==QueueStatus.Completed).OrderByDescending(a => a.ChapterNumber).ToList()!;
         }
 
         /// <summary>

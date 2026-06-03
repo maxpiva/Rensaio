@@ -10,6 +10,7 @@ using KaizokuBackend.Services.Helpers;
 using KaizokuBackend.Services.Jobs;
 using KaizokuBackend.Services.Jobs.Models;
 using KaizokuBackend.Services.Jobs.Report;
+using KaizokuBackend.Services.Series;
 using KaizokuBackend.Services.Settings;
 using KaizokuBackend.Utils;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,7 @@ namespace KaizokuBackend.Services.Downloads
         private readonly SettingsService _settings;
         private readonly JobManagementService _jobManagementService;
         private readonly JobHubReportService _reportingService;
+        private readonly CadenceCalculationService _cadenceService;
         private readonly string _tempFolder;
         private readonly ILogger<DownloadCommandService> _logger;
         private static readonly KeyedAsyncLock _lock = new KeyedAsyncLock();
@@ -43,6 +45,7 @@ namespace KaizokuBackend.Services.Downloads
             SettingsService settings,
             JobManagementService jobManagementService,
             JobHubReportService reportingService,
+            CadenceCalculationService cadenceService,
             IConfiguration config,
             ILogger<DownloadCommandService> logger)
         {
@@ -51,6 +54,7 @@ namespace KaizokuBackend.Services.Downloads
             _settings = settings;
             _jobManagementService = jobManagementService;
             _reportingService = reportingService;
+            _cadenceService = cadenceService;
             _logger = logger;
             _tempFolder = Path.Combine(config["runtimeDirectory"] ?? "", "Downloads");
         }
@@ -302,6 +306,9 @@ namespace KaizokuBackend.Services.Downloads
                     string fullPath = Path.Combine(appSettings.StorageFolder, s.StoragePath);
                     await s.SaveImportSeriesSnapshotToDirectoryAsync(fullPath, _logger, token).ConfigureAwait(false);
                 }
+
+                // Recalculate release cadence after successful download
+                await _cadenceService.RecalculateCadenceAsync(ch.SeriesId, token).ConfigureAwait(false);
 
                 message = $"Downloading ({providerName}) {ch.Title} {chapterName} completed.";
                 reporter.Report(ProgressStatus.Completed, 100, message, downloadSummary);

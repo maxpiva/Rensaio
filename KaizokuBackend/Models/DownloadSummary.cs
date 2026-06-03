@@ -17,3 +17,10 @@ public class DownloadSummary : DownloadSummaryBase
     public int PageCount { get; set; }
     public string ChapterName { get; set; } = string.Empty;
 }
+public class DownloadChapterInfo
+{
+    public decimal? ChapterNumber { get; set; }
+    public DateTime? DownloadDateUTC { get; set; }
+    public QueueStatus Status { get; set; }
+    public ChapterDownload Chapter { get; set; }
+}

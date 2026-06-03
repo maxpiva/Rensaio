@@ -93,16 +93,16 @@ namespace KaizokuBackend.Services.Daily
             if (completedItems.Count <= 1000)
                 return 0;
 
-            // Step 3: Find the cutoff date (1 month ago)
-            var oneMonthAgo = DateTime.UtcNow.AddMonths(-1);
+            // Step 3: Find the cutoff date (6 months ago)
+            var sixMonthsAgo = DateTime.UtcNow.AddMonths(-6);
 
             // Step 4: Find the 1000th most recent completed item
             var minKeepDate = completedItems.Count > 1000
                 ? completedItems[999].FinishedDate!.Value
-                : oneMonthAgo;
+                : sixMonthsAgo;
 
-            // Step 5: The cutoff is the later of oneMonthAgo or the 1000th item's FinishedDate
-            var cutoffDate = minKeepDate > oneMonthAgo ? minKeepDate : oneMonthAgo;
+            // Step 5: The cutoff is the later of sixMonthsAgo or the 1000th item's FinishedDate
+            var cutoffDate = minKeepDate > sixMonthsAgo ? minKeepDate : sixMonthsAgo;
 
             // Step 6: Find items to delete (older than cutoff)
             var toDelete = completedItems

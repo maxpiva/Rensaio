@@ -37,11 +37,13 @@ namespace KaizokuBackend.Services.Series
         private readonly MihonBridgeService _mihon;
         private readonly ThumbCacheService _cache;
         private readonly JobManagementService _jobManagement;
+        private readonly CadenceCalculationService _cadenceService;
 
         public SeriesCommandService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
             SeriesProviderService providerService, ILogger<SeriesCommandService> logger,
             DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache,
-            JobManagementService jobManagement)
+            JobManagementService jobManagement,
+            CadenceCalculationService cadenceService)
         {
             _db = db;
             _settings = settings;
@@ -52,6 +54,7 @@ namespace KaizokuBackend.Services.Series
             _mihon = mihon;
             _cache = cache;
             _jobManagement = jobManagement;
+            _cadenceService = cadenceService;
         }
 
         /// <summary>
@@ -547,6 +550,9 @@ namespace KaizokuBackend.Services.Series
             }
 
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
+
+            // Recalculate release cadence after fetching new chapters
+            await _cadenceService.RecalculateCadenceAsync(series.Id, token).ConfigureAwait(false);
 
             List<ChapterDownload> chaps = series.GenerateDownloadsFromChapterData(serie, chapterData);
             return await _downloadCommand.QueueChapterDownloadsAsync(serie, chaps, token).ConfigureAwait(false);

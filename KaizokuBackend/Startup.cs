@@ -93,6 +93,7 @@ namespace KaizokuBackend
             services.AddSignalR();
             services.AddHttpContextAccessor();
             services.AddMemoryCache();
+            services.AddOutputCache(o => o.AddPolicy("images", b => b.Expire(TimeSpan.FromSeconds(300)).SetVaryByRouteValue("key")));
             services.Configure<Paths>(a =>
             {
                 a.BridgeFolder = Configuration.GetValue<string>("BridgeFolder", "extensions");
@@ -102,6 +103,7 @@ namespace KaizokuBackend
             {
                 options.CachePath = Configuration.GetValue<string>("ThumbCacheFolder", "thumbs");
                 options.AgeInDays = Configuration.GetValue<int>("CacheCheckInDays", 7);
+                options.MaxImageConcurrency = Configuration.GetValue<int>("MaxImageConcurrency", 12);
             });
 
             // JWT Authentication
@@ -178,7 +180,7 @@ namespace KaizokuBackend
             });
 
             // Register AppDbContext with SQLite provider, using the connection string from configuration (now points to runtime/kaizoku.db)
-            services.AddDbContext<AppDbContext>(options => options.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
+            services.AddDbContextPool<AppDbContext>(options => options.UseSqlite(Configuration.GetConnectionString("DefaultConnection")), poolSize: 64);
             services.AddHostedService<StartupHostedService>();
         }
 
@@ -216,6 +218,7 @@ namespace KaizokuBackend
 
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseOutputCache();
 
             // Configure static file serving with proper MIME types for .txt files
             var provider = new FileExtensionContentTypeProvider();

@@ -4,6 +4,7 @@
     {
         public string CachePath { get; set; }
         public int AgeInDays { get; set; }
+        public int MaxImageConcurrency { get; set; }
 
     }
 }

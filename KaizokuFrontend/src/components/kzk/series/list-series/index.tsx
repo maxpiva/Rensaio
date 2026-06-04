@@ -16,6 +16,14 @@ import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping"
 import { AlertTriangle, Database, ExternalLink, PauseCircle } from "lucide-react";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+
+// Eagerly load only the first row of covers to protect LCP. The grid is
+// responsive (columns recomputed on resize), so we use a safe upper bound
+// of 12 that comfortably covers the widest realistic first row. Everything
+// beyond this lazy-loads via the browser's viewport intersection logic in
+// next/image.
+export const FIRST_ROW_PRIORITY_COUNT = 12;
+
 // Color array for the last change ring (31 colors from green to blue)
 const LAST_CHANGE_COLORS = [
   "00FF00", "22FF00", "44FF00", "66FF00", "88FF00", "AAFF00", "CCFF00", "FFFF00",
@@ -151,9 +159,11 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
           </div>
         ) : (
           <>
-            {items.map((series: SeriesInfo) => {
+            {items.map((series: SeriesInfo, index: number) => {
         const ringColor = getLastChangeRingColor(series.lastChangeUTC);
-        const showRing = orderBy === "lastChange" && ringColor; return (
+        const showRing = orderBy === "lastChange" && ringColor;
+        const isPriority = index < FIRST_ROW_PRIORITY_COUNT;
+        return (
           <div
             key={series.id}
             className={`relative ${cardWidth} rounded-md shadow group transition-all duration-200`} style={{
@@ -187,7 +197,8 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
                 } : {})
               }}
             ><Image
-                priority
+                {...(isPriority ? { priority: true } : { loading: "lazy" as const })}
+                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
                 src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
                 alt={series.title}
                 fill

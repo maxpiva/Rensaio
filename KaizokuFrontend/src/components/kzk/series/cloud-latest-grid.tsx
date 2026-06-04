@@ -25,6 +25,13 @@ import { useRouter } from 'next/navigation';
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 import { CloudLatestDetailsModal } from '@/components/kzk/series/cloud-latest-details-modal';
 
+// Eagerly load only the first row of covers to protect LCP. The grid is
+// responsive (columns recomputed on resize), so we use a safe upper bound
+// of 12 that comfortably covers the widest realistic first row. Everything
+// beyond this lazy-loads via next/image viewport intersection logic. Kept
+// in sync with FIRST_ROW_PRIORITY_COUNT in list-series for consistency.
+const FIRST_ROW_PRIORITY_COUNT = 12;
+
 // Color array for the fetch date ring (31 colors from green to blue)
 const FETCH_DATE_COLORS = [
   "00FF00", "22FF00", "44FF00", "66FF00", "88FF00", "AAFF00", "CCFF00", "FFFF00", 
@@ -70,9 +77,10 @@ interface CloudLatestCardProps {
   item: LatestSeriesInfo;
   cardWidth: string;
   textSize: string;
+  priority?: boolean;
 }
 
-const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, textSize }) => {
+const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, textSize, priority = false }) => {
   const [showAddSeries, setShowAddSeries] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRequestDialog, setShowRequestDialog] = useState(false);
@@ -130,7 +138,8 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
             >
 
               <Image
-                priority
+                {...(priority ? { priority: true } : { loading: "lazy" as const })}
+                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
                 src={formatThumbnailUrl(item.thumbnailUrl)}
                 alt={item.title}
                 fill
@@ -443,11 +452,16 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
           ref={gridRef}
         >
           {items.map((item, index) => (
-            <CloudLatestCard 
-              key={`${item.mihonId}-${index}`} 
-              item={item} 
+            <CloudLatestCard
+              key={`${item.mihonId}-${index}`}
+              item={item}
               cardWidth={cardWidth}
               textSize={textSize}
+              // Eagerly load only the first row of covers to protect LCP. The
+              // grid is responsive (columns recomputed on resize), so we use a
+              // safe upper bound that covers the widest realistic first row.
+              // All other tiles lazy-load via next/image viewport detection.
+              priority={index < FIRST_ROW_PRIORITY_COUNT}
             />
           ))}
           

@@ -30,6 +30,11 @@ namespace KaizokuBackend.Services.Images
         private readonly static Dictionary<string, EtagCacheEntity> _etagCache = new Dictionary<string,EtagCacheEntity>();
         private readonly static SemaphoreSlim _urlLock = new SemaphoreSlim(1);
         private readonly static SemaphoreSlim _eTagLock = new SemaphoreSlim(1);
+        // Per-URL semaphores prevent duplicate-row inserts when multiple concurrent
+        // callers pass the existence check before any of them commits.  The key space
+        // is bounded by library size so entries are left alive for the process lifetime.
+        private readonly static ConcurrentDictionary<string, SemaphoreSlim> _insertLocks =
+            new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
 
         public ThumbCacheService(IOptions<CacheOptions> options,
             ILogger<ThumbCacheService> logger,
@@ -49,48 +54,87 @@ namespace KaizokuBackend.Services.Images
 
         public async ValueTask<EtagCacheEntity?> GetEtagAsync(string key, CancellationToken token = default)
         {
+            // --- Phase 1: short lock — check in-memory cache ---
             await _eTagLock.WaitAsync(token).ConfigureAwait(false);
+            EtagCacheEntity? cached;
             try
             {
-                if (!_etagCache.ContainsKey(key))
-                {
-                    EtagCacheEntity? c = await _db.ETagCache.AsNoTracking().FirstOrDefaultAsync(e => e.Key == key, token).ConfigureAwait(false);
-                    if (c == null)
-                    {
-                        _logger.LogWarning("ETag with key {key} not found in cache.", key);
-                        return null;
-                    }
-                    _etagCache[key] = c;
-                }
-                return _etagCache[key];
+                _etagCache.TryGetValue(key, out cached);
             }
             finally
             {
                 _eTagLock.Release();
             }
+
+            if (cached != null)
+                return cached;
+
+            // --- Phase 2: outside the lock — DB lookup ---
+            EtagCacheEntity? c = await _db.ETagCache.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Key == key, token).ConfigureAwait(false);
+            if (c == null)
+            {
+                _logger.LogWarning("ETag with key {key} not found in cache.", key);
+                return null;
+            }
+
+            // --- Phase 3: short lock — write result into cache (tolerate concurrent insert) ---
+            await _eTagLock.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!_etagCache.ContainsKey(key))
+                    _etagCache[key] = c;
+            }
+            finally
+            {
+                _eTagLock.Release();
+            }
+
+            return c;
         }
         public async ValueTask<string> GetKeyAsync(string url, CancellationToken token = default)
         {
+            if (string.IsNullOrEmpty(url))
+                return string.Empty;
+
+            // --- Phase 1: short lock — check in-memory cache ---
             await _urlLock.WaitAsync(token).ConfigureAwait(false);
+            string? cached;
             try
             {
-                if (string.IsNullOrEmpty(url))
-                    return string.Empty;
-                if (!_urlCache.ContainsKey(url))
-                {
-                    EtagCacheEntity? c = await _db.ETagCache.AsNoTracking().FirstOrDefaultAsync(e => e.Url == url, token).ConfigureAwait(false);
-                    if (c == null)
-                        c = await AddInternalUrlAsync(url, null, token).ConfigureAwait(false);
-                    if (c == null)
-                        return string.Empty;
-                    _urlCache[url] = c!.Key;
-                }
-                return _urlCache[url];
+                _urlCache.TryGetValue(url, out cached);
             }
             finally
             {
                 _urlLock.Release();
             }
+
+            if (cached != null)
+                return cached;
+
+            // --- Phase 2: outside the lock — DB lookup / insert ---
+            EtagCacheEntity? c = await _db.ETagCache.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Url == url, token).ConfigureAwait(false);
+            if (c == null)
+                c = await AddInternalUrlAsync(url, null, token).ConfigureAwait(false);
+            if (c == null)
+                return string.Empty;
+
+            // --- Phase 3: short lock — write result into cache ---
+            await _urlLock.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!_urlCache.ContainsKey(url))
+                    _urlCache[url] = c.Key;
+                else
+                    cached = _urlCache[url]; // another thread resolved it concurrently; use that key
+            }
+            finally
+            {
+                _urlLock.Release();
+            }
+
+            return cached ?? c.Key;
         }
         public async ValueTask PopulateThumbsAsync(IThumb thumb, string prefix = "/api/image/", CancellationToken token = default)
         {
@@ -99,52 +143,100 @@ namespace KaizokuBackend.Services.Images
         public async ValueTask PopulateThumbsAsync(IEnumerable<IThumb> thumbs, string prefix = "/api/image/", CancellationToken token = default)
         {
             List<EtagCacheEntity> etags = [];
+
+            // --- Phase 1: short lock — resolve cache hits, snapshot unresolved set ---
+            List<IThumb> unresolved;
+            Dictionary<string, List<IThumb>> unresolvedByUrl;
             await _urlLock.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 List<IThumb> all = thumbs.ToList();
-                foreach(IThumb t in thumbs.ToList())
-                {
-                    string? url = t?.ThumbnailUrl;
-                    if (t==null || string.IsNullOrEmpty(url))
-                    {
-                        all.Remove(t);
-                        continue;
-                    }
-                    if (_urlCache.TryGetValue(url, out string k))
-                    {
-                        t.ThumbnailUrl = prefix + k;
-                        all.Remove(t);
-                    }
-                }
-                Dictionary<string, List<IThumb>> allUrl = all.GroupBy(a => a.ThumbnailUrl, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-                etags = await _db.ETagCache.AsNoTracking().Where(e => allUrl.Keys.Contains(e.Url)).ToListAsync(token).ConfigureAwait(false);                
-                foreach(EtagCacheEntity m in etags)
-                {
-                    List<IThumb> allT = allUrl[m.Url];
-                    foreach (IThumb t in allT)
-                    {
-                        _urlCache[t.ThumbnailUrl] = m!.Key;
-                        t.ThumbnailUrl = prefix + m!.Key;
-                        all.Remove(t);
-                    }
-                }
-
+                unresolved = [];
                 foreach (IThumb t in all)
                 {
-                    EtagCacheEntity? ee = await AddInternalUrlAsync(t.ThumbnailUrl, null, token).ConfigureAwait(false);
-                    if (ee == null)
+                    string? url = t?.ThumbnailUrl;
+                    if (t == null || string.IsNullOrEmpty(url))
                         continue;
-                    _urlCache[t.ThumbnailUrl] = ee!.Key;
-                    t.ThumbnailUrl = prefix + ee!.Key;
-                    etags.Add(ee!);
+                    if (_urlCache.TryGetValue(url, out string k))
+                        t.ThumbnailUrl = prefix + k;
+                    else
+                        unresolved.Add(t);
                 }
             }
             finally
             {
                 _urlLock.Release();
             }
+
+            if (unresolved.Count == 0)
+                return;
+
+            // --- Phase 2: outside the lock — do all awaited DB work ---
+            unresolvedByUrl = unresolved
+                .GroupBy(a => a.ThumbnailUrl, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+            // Batch-fetch existing DB entries for the unresolved URLs.
+            // SQLite's default SQLITE_LIMIT_VARIABLE_NUMBER is 999; chunking to 500
+            // keeps each IN-clause well within that limit even on cold-cache loads.
+            List<EtagCacheEntity> dbHits = [];
+            List<string> unresolvedKeys = unresolvedByUrl.Keys.ToList();
+            foreach (string[] chunk in unresolvedKeys.Chunk(500))
+            {
+                List<EtagCacheEntity> chunkHits = await _db.ETagCache.AsNoTracking()
+                    .Where(e => chunk.Contains(e.Url))
+                    .ToListAsync(token).ConfigureAwait(false);
+                dbHits.AddRange(chunkHits);
+            }
+
+            // Map DB hits back to thumbs and remove from remaining unresolved set.
+            foreach (EtagCacheEntity m in dbHits)
+            {
+                if (!unresolvedByUrl.TryGetValue(m.Url, out List<IThumb>? group))
+                    continue;
+                foreach (IThumb t in group)
+                    t.ThumbnailUrl = prefix + m.Key;
+                unresolvedByUrl.Remove(m.Url);
+                etags.Add(m);
+            }
+
+            // Insert genuinely new entries (AddInternalUrlAsync re-checks by Url before inserting).
+            List<(string OriginalUrl, EtagCacheEntity Entity)> newlyAdded = [];
+            foreach (KeyValuePair<string, List<IThumb>> kvp in unresolvedByUrl)
+            {
+                EtagCacheEntity? ee = await AddInternalUrlAsync(kvp.Key, null, token).ConfigureAwait(false);
+                if (ee == null)
+                    continue;
+                foreach (IThumb t in kvp.Value)
+                    t.ThumbnailUrl = prefix + ee.Key;
+                etags.Add(ee);
+                newlyAdded.Add((kvp.Key, ee));
+            }
+
+            // --- Phase 3: short lock — merge newly-resolved entries into _urlCache ---
+            if (newlyAdded.Count > 0 || dbHits.Count > 0)
+            {
+                await _urlLock.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    foreach (EtagCacheEntity m in dbHits)
+                    {
+                        if (!_urlCache.ContainsKey(m.Url))
+                            _urlCache[m.Url] = m.Key;
+                    }
+                    foreach ((string origUrl, EtagCacheEntity ee) in newlyAdded)
+                    {
+                        if (!_urlCache.ContainsKey(origUrl))
+                            _urlCache[origUrl] = ee.Key;
+                    }
+                }
+                finally
+                {
+                    _urlLock.Release();
+                }
+            }
+
+            // --- Phase 4: _eTagLock — unchanged pattern, only dictionary mutation ---
             if (etags.Count > 0)
             {
                 await _eTagLock.WaitAsync(token).ConfigureAwait(false);
@@ -225,10 +317,18 @@ namespace KaizokuBackend.Services.Images
             try
             {
                 var urlStrings = validUrls.Select(u => u.Url).ToList();
-                var existingUrls = await _db.ETagCache
-                    .Where(e => urlStrings.Contains(e.Url))
-                    .Select(e => e.Url)
-                    .ToListAsync(token).ConfigureAwait(false);
+
+                // SQLite's default SQLITE_LIMIT_VARIABLE_NUMBER is 999; chunking to 500
+                // keeps each IN-clause well within that limit for large batch registrations.
+                var existingUrls = new List<string>();
+                foreach (string[] chunk in urlStrings.Chunk(500))
+                {
+                    List<string> chunkHits = await _db.ETagCache
+                        .Where(e => chunk.Contains(e.Url))
+                        .Select(e => e.Url)
+                        .ToListAsync(token).ConfigureAwait(false);
+                    existingUrls.AddRange(chunkHits);
+                }
 
                 var existingSet = new HashSet<string>(existingUrls, StringComparer.OrdinalIgnoreCase);
                 var newEntries = validUrls
@@ -256,20 +356,30 @@ namespace KaizokuBackend.Services.Images
      
         private async Task<EtagCacheEntity?> AddInternalUrlAsync(string url, string? mihonProviderId, CancellationToken token = default)
         {
+            if (string.IsNullOrEmpty(url))
+            {
+                _logger.LogWarning("Url is null or empty.");
+                return null;
+            }
+            IImageProvider? provider = GetProviderForUrl(url);
+            if (provider == null)
+                return null;
+
+            // Acquire the per-URL semaphore so that only one caller performs the
+            // existence check + insert for a given URL at a time.  Callers for
+            // different URLs are not serialized (they get independent semaphores).
+            SemaphoreSlim urlSem = _insertLocks.GetOrAdd(url, _ => new SemaphoreSlim(1, 1));
+            await urlSem.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                if (string.IsNullOrEmpty(url))
-                {
-                    _logger.LogWarning("Url is null or empty.");
-                    return null;
-                }
-                IImageProvider? provider = GetProviderForUrl(url);
-                if (provider == null)
-                    return null;
-                string key = Guid.NewGuid().ToString("N");
-                var existingEntry = await _db.ETagCache.FirstOrDefaultAsync(e => e.Url == url, token).ConfigureAwait(false);
+                // Re-check inside the gate in case a concurrent caller already inserted.
+                // AsNoTracking: this is a read-only existence check; avoids change-tracker
+                // accumulation under high concurrency (the entry, if new, is Added below).
+                var existingEntry = await _db.ETagCache.AsNoTracking().FirstOrDefaultAsync(e => e.Url == url, token).ConfigureAwait(false);
                 if (existingEntry != null)
                     return existingEntry;
+
+                string key = Guid.NewGuid().ToString("N");
                 var newCacheEntry = new Models.Database.EtagCacheEntity
                 {
                     Key = key,
@@ -277,14 +387,21 @@ namespace KaizokuBackend.Services.Images
                     MihonProviderId = mihonProviderId,
                     NextUpdateUTC = DateTime.UtcNow.Add(GetCacheDuration())
                 };
-                await _db.ETagCache.AddAsync(newCacheEntry, token).ConfigureAwait(false);
-                await _db.SaveChangesAsync(token).ConfigureAwait(false);
-                return newCacheEntry;
+                try
+                {
+                    await _db.ETagCache.AddAsync(newCacheEntry, token).ConfigureAwait(false);
+                    await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                    return newCacheEntry;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Error adding cache entry for {url}: {ex.Message}");
+                    return null;
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.LogError(ex, $"Error adding cache entry for {url}: {ex.Message}");
-                return null;
+                urlSem.Release();
             }
         }
         IImageProvider? GetProviderForUrl(string url)

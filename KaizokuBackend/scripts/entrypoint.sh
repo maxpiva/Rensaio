@@ -46,5 +46,16 @@ fi
 # Add IKVM library directories to LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="${IKVM_LIB_PATH}:${LD_LIBRARY_PATH}"
 
+# Thread-resource backstop: IKVM JVM + JCEF Chromium + Xvfb are thread-heavy;
+# without these limits the kernel can refuse pthread_create and OOM the process.
+# ulimit -s 1024 (1024 KB) is the tested baseline that allows CLR/JVM/JCEF/Chromium
+# to start cleanly on aarch64; operators may lower toward 512 only after validating
+# that Chromium, JCEF, and the CLR all start without abort on their specific kernel.
+# ulimit -u 4096 caps nproc so refusal is bounded and catchable.
+# These are set here (before exec gosu) so they are inherited by the privilege-
+# dropped process tree that gosu hands off to.
+ulimit -s 1024 || echo "warn: could not set thread stack ulimit (non-fatal)"
+ulimit -u 4096 || echo "warn: could not set nproc ulimit (non-fatal)"
+
 # Run the app as the correct user
 exec gosu "$user_name" xvfb-run --auto-servernum /app/KaizokuBackend

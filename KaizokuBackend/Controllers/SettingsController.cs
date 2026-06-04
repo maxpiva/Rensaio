@@ -98,6 +98,10 @@ namespace KaizokuBackend.Controllers
                 await _settingsService.SaveSettingsAsync(settings, false, token).ConfigureAwait(false);
                 return Ok(new { message = "Settings updated successfully" });
             }
+            catch (KaizokuBackend.Services.Auth.AuthLockoutException ex)
+            {
+                return Conflict(new { error = ex.Message, needsPassword = true });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating settings");

@@ -50,6 +50,13 @@ namespace KaizokuBackend.Models.Dto.Auth
         public bool RequiresSetup => !HasUsers;
 
         /// <summary>
+        /// True when auth is disabled and no admin account has a password set.
+        /// Signals the frontend that an admin must set a password before authentication can be enabled.
+        /// </summary>
+        [JsonPropertyName("needsAdminPassword")]
+        public bool NeedsAdminPassword { get; set; }
+
+        /// <summary>
         /// List of active users for the profile selector.
         /// Populated only when <see cref="AuthenticationEnabled"/> is false; omitted from
         /// the JSON response entirely when null (auth-enabled mode).

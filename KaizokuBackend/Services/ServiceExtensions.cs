@@ -121,6 +121,7 @@ namespace KaizokuBackend.Services
             services.TryAddScoped<OpdsPathGenerator>();
             services.TryAddScoped<AuthService>();
             services.TryAddScoped<UserService>();
+            services.TryAddScoped<UserInviteService>();
             services.TryAddScoped<PermissionService>();
             services.TryAddScoped<PermissionPresetService>();
             services.TryAddScoped<InviteLinkService>();

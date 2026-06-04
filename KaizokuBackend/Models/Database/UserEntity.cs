@@ -25,6 +25,7 @@ namespace KaizokuBackend.Models.Database
         public byte[]? AvatarBlob { get; set; }
         public string? AvatarContentType { get; set; }
         public string? PasswordSetToken { get; set; }
+        public DateTime? PasswordSetTokenExpiresAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastLoginAt { get; set; }

@@ -216,6 +216,7 @@ namespace KaizokuBackend.Services.Background
                             ""AvatarBlob"" BLOB,
                             ""AvatarContentType"" TEXT COLLATE BINARY,
                             ""PasswordSetToken"" TEXT COLLATE BINARY,
+                            ""PasswordSetTokenExpiresAt"" TEXT,
                             ""CreatedAt"" TEXT NOT NULL,
                             ""UpdatedAt"" TEXT NOT NULL,
                             ""LastLoginAt"" TEXT,
@@ -358,6 +359,10 @@ namespace KaizokuBackend.Services.Background
 
                     await AddColumnIfMissingAsync(db, "Users", "PasswordSetToken",
                         @"ALTER TABLE ""Users"" ADD COLUMN ""PasswordSetToken"" TEXT NULL;",
+                        cancellationToken).ConfigureAwait(false);
+
+                    await AddColumnIfMissingAsync(db, "Users", "PasswordSetTokenExpiresAt",
+                        @"ALTER TABLE ""Users"" ADD COLUMN ""PasswordSetTokenExpiresAt"" TEXT NULL;",
                         cancellationToken).ConfigureAwait(false);
 
                     // Backfill Level from Role for rows that still carry the default 0

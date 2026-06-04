@@ -337,6 +337,7 @@ namespace KaizokuBackend.Data
                 entity.Property(u => u.AvatarBlob).IsRequired(false);
                 entity.Property(u => u.AvatarContentType).UseCollation("BINARY").IsRequired(false);
                 entity.Property(u => u.PasswordSetToken).UseCollation("BINARY").IsRequired(false);
+                entity.Property(u => u.PasswordSetTokenExpiresAt).IsRequired(false);
                 entity.Property(u => u.CreatedAt).IsRequired();
                 entity.Property(u => u.UpdatedAt).IsRequired();
                 entity.Property(u => u.LastLoginAt).IsRequired(false);

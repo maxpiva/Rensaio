@@ -18,8 +18,6 @@ namespace KaizokuBackend.Controllers
         private readonly IAuthSettingsCache _authSettingsCache;
         private readonly AppDbContext _db;
         private readonly ILogger<AuthController> _logger;
-        private static readonly SemaphoreSlim _setupLock = new(1, 1);
-
         public AuthController(
             AuthService authService,
             UserService userService,
@@ -148,7 +146,9 @@ namespace KaizokuBackend.Controllers
                 var response = new AuthStatusDto
                 {
                     AuthenticationEnabled = authEnabled,
-                    HasUsers = hasUsers
+                    HasUsers = hasUsers,
+                    NeedsAdminPassword = !authEnabled && hasUsers
+                        && !(await _userService.AnyAdminHasPasswordAsync(token).ConfigureAwait(false))
                 };
 
                 if (!authEnabled)
@@ -230,6 +230,56 @@ namespace KaizokuBackend.Controllers
             }
         }
 
+        [HttpPost("set-password")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<UserDto>> SetPasswordAsync([FromBody] SetPasswordDto dto, CancellationToken token = default)
+        {
+            try
+            {
+                var result = await _userService.SetPasswordWithTokenAsync(dto.Token, dto.NewPassword, token).ConfigureAwait(false);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting password via invite token");
+                return StatusCode(500, new { error = "An error occurred while setting the password" });
+            }
+        }
+
+        [HttpPost("set-admin-password")]
+        [Authorize(Policy = "RequireAdmin")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> SetAdminPasswordAsync([FromBody] SetAdminPasswordDto dto, CancellationToken token = default)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                    return BadRequest(new { error = "Invalid user context" });
+
+                await _userService.ResetPasswordAsync(userId, dto.NewPassword, token).ConfigureAwait(false);
+                return Ok(new { message = "Password set successfully" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting admin password");
+                return StatusCode(500, new { error = "An error occurred while setting the admin password" });
+            }
+        }
+
         [HttpPost("setup")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
@@ -239,12 +289,15 @@ namespace KaizokuBackend.Controllers
         {
             // Prevent TOCTOU race: two concurrent requests could both pass AnyUsersExistAsync
             // and create duplicate admin accounts. Serialize setup with a lock.
-            await _setupLock.WaitAsync(token).ConfigureAwait(false);
+            await SetupGate.Lock.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 var hasUsers = await _userService.AnyUsersExistAsync(token).ConfigureAwait(false);
                 if (hasUsers)
                     return BadRequest(new { error = "Setup has already been completed. An admin user already exists." });
+
+                if (string.IsNullOrWhiteSpace(dto.Password))
+                    return BadRequest(new { error = "A password is required to create the first admin via setup." });
 
                 dto.Role = Models.Enums.UserRole.Admin;
                 var user = await _userService.CreateAsync(dto, token).ConfigureAwait(false);
@@ -272,7 +325,7 @@ namespace KaizokuBackend.Controllers
             }
             finally
             {
-                _setupLock.Release();
+                SetupGate.Lock.Release();
             }
         }
     }

@@ -184,6 +184,17 @@ namespace KaizokuBackend.Services.Settings
 
         public async Task SaveSettingsAsync(EditableSettingsDto set, bool force = false, CancellationToken token = default)
         {
+            if (set.AuthenticationEnabled && _settings?.AuthenticationEnabled != true)
+            {
+                var adminHasPassword = await _db.Users
+                    .AsNoTracking()
+                    .AnyAsync(u => u.IsActive && u.Role == KaizokuBackend.Models.Enums.UserRole.Admin && u.PasswordHash != null, token)
+                    .ConfigureAwait(false);
+
+                if (!adminHasPassword)
+                    throw new AuthLockoutException("Cannot enable authentication: no admin account has a password set.");
+            }
+
             if (set.NumberOfSimultaneousDownloads != _settings?.NumberOfSimultaneousDownloads ||
                 set.ChapterDownloadFailRetries != _settings?.ChapterDownloadFailRetries ||
                 set.ChapterDownloadFailRetryTime != _settings?.ChapterDownloadFailRetryTime || 

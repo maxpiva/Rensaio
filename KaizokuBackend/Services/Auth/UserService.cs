@@ -79,18 +79,26 @@ namespace KaizokuBackend.Services.Auth
             if (existing != null)
                 throw new InvalidOperationException("Username is already taken.");
 
-            var passwordError = PasswordPolicy.Validate(dto.Password);
-            if (passwordError != null)
-                throw new InvalidOperationException(passwordError);
+            string? passwordHash = null;
+            string? salt = null;
 
-            var salt = GenerateSalt();
+            if (!string.IsNullOrWhiteSpace(dto.Password))
+            {
+                var passwordError = PasswordPolicy.Validate(dto.Password);
+                if (passwordError != null)
+                    throw new InvalidOperationException(passwordError);
+
+                salt = GenerateSalt();
+                passwordHash = HashPassword(dto.Password, salt);
+            }
+
             var opdsPath = await _opdsPathGenerator.GenerateUniqueAsync(token).ConfigureAwait(false);
             var user = new UserEntity
             {
                 Id = Guid.NewGuid(),
                 Username = dto.Username.Trim(),
                 DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? dto.Username : dto.DisplayName.Trim(),
-                PasswordHash = HashPassword(dto.Password, salt),
+                PasswordHash = passwordHash,
                 Salt = salt,
                 Role = dto.Role,
                 Level = dto.Role == UserRole.Admin ? UserLevel.Admin : UserLevel.User,
@@ -380,6 +388,97 @@ namespace KaizokuBackend.Services.Auth
         public async Task<bool> AnyUsersExistAsync(CancellationToken token = default)
         {
             return await _db.Users.AnyAsync(token).ConfigureAwait(false);
+        }
+
+        public async Task<(string token, DateTime expiresAt)> GenerateInviteTokenAsync(Guid userId, CancellationToken token = default)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, token).ConfigureAwait(false);
+            if (user == null)
+                throw new InvalidOperationException("User not found.");
+
+            var randomBytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
+
+            var rawToken = Convert.ToBase64String(randomBytes)
+                .Replace('+', '-')
+                .Replace('/', '_')
+                .TrimEnd('=');
+
+            var expiresAt = DateTime.UtcNow.AddDays(7);
+            user.PasswordSetToken = rawToken;
+            user.PasswordSetTokenExpiresAt = expiresAt;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(token).ConfigureAwait(false);
+
+            return (rawToken, expiresAt);
+        }
+
+        public async Task<UserDto> SetPasswordWithTokenAsync(string token, string newPassword, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                throw new InvalidOperationException("Invalid or expired token.");
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.PasswordSetToken == token && u.IsActive, ct).ConfigureAwait(false);
+
+            if (user == null || user.PasswordSetTokenExpiresAt == null || user.PasswordSetTokenExpiresAt < DateTime.UtcNow)
+                throw new InvalidOperationException("Invalid or expired token.");
+
+            var passwordError = PasswordPolicy.Validate(newPassword);
+            if (passwordError != null)
+                throw new InvalidOperationException(passwordError);
+
+            var salt = GenerateSalt();
+            user.PasswordHash = HashPassword(newPassword, salt);
+            user.Salt = salt;
+            user.PasswordSetToken = null;
+            user.PasswordSetTokenExpiresAt = null;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            var sessions = await _db.UserSessions.Where(s => s.UserId == user.Id && !s.IsRevoked).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var session in sessions)
+                session.IsRevoked = true;
+
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return AuthService.MapUserDto(user);
+        }
+
+        public async Task<UserDto> ClaimUserAsync(Guid userId, string password, CancellationToken ct = default)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, ct).ConfigureAwait(false);
+            if (user == null)
+                throw new InvalidOperationException("User not found.");
+
+            if (user.PasswordHash != null)
+                throw new InvalidOperationException("This profile is already protected by a password.");
+
+            var passwordError = PasswordPolicy.Validate(password);
+            if (passwordError != null)
+                throw new InvalidOperationException(passwordError);
+
+            var salt = GenerateSalt();
+            user.PasswordHash = HashPassword(password, salt);
+            user.Salt = salt;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            var sessions = await _db.UserSessions.Where(s => s.UserId == userId && !s.IsRevoked).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var session in sessions) session.IsRevoked = true;
+
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return AuthService.MapUserDto(user);
+        }
+
+        public async Task<bool> AnyAdminHasPasswordAsync(CancellationToken token = default)
+        {
+            return await _db.Users
+                .AsNoTracking()
+                .AnyAsync(u => u.IsActive && u.Role == UserRole.Admin && u.PasswordHash != null, token)
+                .ConfigureAwait(false);
         }
 
         private static string GenerateSalt()

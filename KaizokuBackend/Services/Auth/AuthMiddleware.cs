@@ -38,6 +38,7 @@ namespace KaizokuBackend.Services.Auth
             "/api/auth/refresh",
             "/api/auth/register",
             "/api/auth/setup",
+            "/api/auth/set-password",
             "/api/users/first",
         };
 
@@ -154,27 +155,6 @@ namespace KaizokuBackend.Services.Auth
             // Exact-path check (HashSet lookup is O(1) and the set is already lowercase).
             if (_allowListExact.Contains(normPath))
                 return true;
-
-            // PUT /api/users/{id}/claim — the {id} segment must be a single non-empty,
-            // non-slash segment.  Matches: /api/users/some-id/claim
-            // Does NOT match: /api/users//claim  /api/users/a/b/claim  /api/users/claim
-            if (method.Equals("PUT", StringComparison.OrdinalIgnoreCase))
-            {
-                const string prefix = "/api/users/";
-                const string suffix = "/claim";
-                if (normPath.StartsWith(prefix, StringComparison.Ordinal) &&
-                    normPath.EndsWith(suffix, StringComparison.Ordinal))
-                {
-                    // Extract the segment between prefix and suffix.
-                    var idSegment = normPath.Substring(
-                        prefix.Length,
-                        normPath.Length - prefix.Length - suffix.Length);
-
-                    // Must be non-empty and contain no further slashes (single segment).
-                    if (idSegment.Length > 0 && idSegment.IndexOf('/') < 0)
-                        return true;
-                }
-            }
 
             return false;
         }

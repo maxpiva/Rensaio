@@ -37,7 +37,7 @@ const steps = {
 } satisfies Record<string, StepItem>;
 
 export function ImportWizard() {
-  const { isWizardActive, currentStep, totalSteps, nextStep, previousStep, completeWizard } = useImportWizard();
+  const { isWizardActive, currentStep, totalSteps, nextStep, previousStep, completeWizard, cancelWizard } = useImportWizard();
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [canProgress, setCanProgress] = React.useState(false);
@@ -48,11 +48,9 @@ export function ImportWizard() {
   }
 
   return (
-    <Dialog open={true} onOpenChange={() => { /* Prevent closing */ }} modal>
+   <Dialog open={isWizardActive} onOpenChange={(open) => { if (!open) cancelWizard(); }} modal> // we don't need to block this, setup has aleready run. 
       <DialogContent
-        className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90%] flex flex-col overflow-hidden"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90%] flex flex-col overflow-auto"// changed overflow-hidden to auto for better handling of content that exceeds viewport height
       >
         <DialogHeader>
           <DialogTitle>Import Wizard</DialogTitle>
@@ -172,7 +170,7 @@ function Footer({ currentStep, totalSteps, canProgress, isLoading, onNext, onPre
   const isLastStep = currentStep === totalSteps - 1;
 
   return (
-    <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0">
+    <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0 overflow-visible"> //prevent clipping of button
       <Button
         variant="outline"
         onClick={onPrevious}

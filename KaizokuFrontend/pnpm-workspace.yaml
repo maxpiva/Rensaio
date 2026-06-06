@@ -1,2 +1,7 @@
+allowBuilds:
+  '@tailwindcss/oxide': true
+  kaizoku: true
+  sharp: true
+  unrs-resolver: true
 ignoredBuiltDependencies:
   - kaizoku

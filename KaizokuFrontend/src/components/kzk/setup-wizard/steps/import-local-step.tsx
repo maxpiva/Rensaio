@@ -225,7 +225,7 @@ export function ImportLocalStep({ setError, setIsLoading, setCanProgress }: Impo
 
       <div
         ref={containerRef}
-        className={`max-h-[60vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+        className={`max-h-[30vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
       >
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Import Progress</h3>

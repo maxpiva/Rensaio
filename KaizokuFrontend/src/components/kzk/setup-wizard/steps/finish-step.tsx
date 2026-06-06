@@ -156,7 +156,7 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
 
       <div 
         ref={containerRef}
-        className={`max-h-[60vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+        className={`max-h-[30vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
       >
         <div className="space-y-6">
           <Card className={`w-full ${isActive ? 'ring-2 ring-primary' : ''}`}>

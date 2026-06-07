@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +12,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/contexts/auth-context";
+import { useMutation } from "@tanstack/react-query";
+import { userService } from "@/lib/api/services/userService";
+import { UserIcon, Upload } from "lucide-react";
+import { fetchGravatarBase64 } from "@/lib/gravatar";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Save, Loader2, GripVertical } from "lucide-react";
 import {
@@ -995,8 +1000,164 @@ function SocksSettingsSection({
   );
 }
 
+// Profile Settings Section
+function ProfileSection({
+  localSettings,
+  setLocalSettings,
+}: {
+  localSettings: Settings;
+  setLocalSettings: (updater: (prev: Settings) => Settings) => void;
+}) {
+  const { user } = useAuth();
+  const updateMutation = useMutation({
+    mutationFn: (data: { avatarBase64?: string; avatarContentType?: string; removeAvatar?: boolean }) =>
+      userService.updateMe(data),
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [gravatarEmail, setGravatarEmail] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  const avatarSrc = user?.avatarBase64
+    ? `data:${user.avatarContentType || 'image/png'};base64,${user.avatarBase64}`
+    : null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLocalError('');
+    if (file.size > 2 * 1024 * 1024) { setLocalError('Image must be less than 2MB'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        await updateMutation.mutateAsync({ avatarBase64: base64, avatarContentType: file.type });
+      } catch { setLocalError('Failed to upload avatar'); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGravatar = async () => {
+    if (!gravatarEmail.trim()) return;
+    setLocalError('');
+    try {
+      const { base64, contentType } = await fetchGravatarBase64(gravatarEmail);
+      await updateMutation.mutateAsync({ avatarBase64: base64, avatarContentType: contentType });
+      setGravatarEmail('');
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Gravatar error');
+    }
+  };
+
+  const handleRemove = async () => {
+    try {
+      await updateMutation.mutateAsync({ removeAvatar: true });
+    } catch { setLocalError('Failed to remove avatar'); }
+  };
+
+  return (
+    <CardContent className="space-y-4">
+      {user && (
+        <>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+              {avatarSrc ? (
+                <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <UserIcon className="w-8 h-8 text-muted-foreground" />
+              )}
+            </div>
+            <div>
+              <p className="font-medium">{user.username}</p>
+              <p className="text-sm text-muted-foreground">{user.opdsPath}</p>
+            </div>
+          </div>
+          {localError && (
+            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">{localError}</div>
+          )}
+          {updateMutation.isSuccess && (
+            <div className="p-3 text-sm text-green-600 bg-green-50 dark:bg-green-950 rounded-md">Avatar updated!</div>
+          )}
+          <div className="space-y-2">
+            <Label>Upload Image</Label>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-2" /> Choose File
+            </Button>
+            <p className="text-xs text-muted-foreground">PNG, JPG, GIF, WebP up to 2MB</p>
+            <input ref={fileInputRef} type="file" accept=".png,.jpg,.jpeg,.gif,.webp" className="hidden" onChange={handleFileUpload} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="gravatar">Get from Gravatar</Label>
+            <div className="flex gap-2">
+              <Input id="gravatar" type="email" placeholder="Enter email" value={gravatarEmail} onChange={(e) => setGravatarEmail(e.target.value)} />
+              <Button type="button" variant="secondary" size="sm" onClick={handleGravatar}>Fetch</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Email used only on the frontend — never sent to the backend.</p>
+          </div>
+          {avatarSrc && (
+            <Button type="button" variant="outline" size="sm" onClick={handleRemove}>Remove Avatar</Button>
+          )}
+        </>
+      )}
+    </CardContent>
+  );
+}
+
+// Security Settings Section
+function SecuritySection({
+  localSettings,
+  setLocalSettings,
+}: {
+  localSettings: Settings;
+  setLocalSettings: (updater: (prev: Settings) => Settings) => void;
+}) {
+  const authEnabled = localSettings.authenticationEnabled;
+
+  return (
+    <CardContent className="space-y-4">
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="auth-enabled"
+          checked={authEnabled}
+          onCheckedChange={(checked) =>
+            setLocalSettings((prev) => ({
+              ...prev,
+              authenticationEnabled: checked,
+            }))
+          }
+        />
+        <Label htmlFor="auth-enabled">Enable Authentication</Label>
+      </div>
+      {authEnabled && (
+        <div className="space-y-2">
+          <Label htmlFor="external-domain">External Domain</Label>
+          <Input
+            id="external-domain"
+            value={localSettings.externalDomain || ""}
+            onChange={(e) =>
+              setLocalSettings((prev) => ({
+                ...prev,
+                externalDomain: e.target.value,
+              }))
+            }
+            placeholder="https://kaizoku.example.com"
+          />
+          <p className="text-xs text-muted-foreground">
+            Used for invite links and OPDS URLs when accessed from outside your local network.
+          </p>
+        </div>
+      )}
+    </CardContent>
+  );
+}
+
 // Available settings sections
 const AVAILABLE_SECTIONS: SettingsSection[] = [
+  {
+    id: "security",
+    title: "Security",
+    description: "Configure authentication and security settings.",
+    component: SecuritySection,
+  },
   {
     id: "content-preferences",
     title: "Content Preferences",

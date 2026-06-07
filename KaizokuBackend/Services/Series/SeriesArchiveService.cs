@@ -38,9 +38,10 @@ namespace KaizokuBackend.Services.Series
         /// Verifies the integrity of series archive files
         /// </summary>
         /// <param name="seriesId">The series ID to verify</param>
+        /// <param name="force">If true, re-populate pages even if already present</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>Series integrity result</returns>
-        public async Task<SeriesIntegrityResultDto> VerifyIntegrityAsync(Guid seriesId, CancellationToken token = default)
+        public async Task<SeriesIntegrityResultDto> VerifyIntegrityAsync(Guid seriesId, bool force = false, CancellationToken token = default)
         {
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources).Where(a => a.Id == seriesId)
@@ -50,21 +51,85 @@ namespace KaizokuBackend.Services.Series
                 throw new ArgumentException("Invalid series Id");
             
             string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
-            
-            // Remove empty unknown providers
-            SeriesProviderEntity? sp = series.Sources.FirstOrDefault(a =>
-                a.IsUnknown && a.Chapters.All(a => string.IsNullOrEmpty(a.Filename)));
-            if (sp != null)
+            bool dbChanged = false;
+
+            // Process each provider
+            var providersToRemove = new List<SeriesProviderEntity>();
+
+            foreach (SeriesProviderEntity provider in series.Sources)
+            {
+                var chaptersToRemove = new List<Chapter>();
+
+                foreach (Chapter chapter in provider.Chapters)
+                {
+                    // Remove chapter if filename is empty
+                    if (string.IsNullOrEmpty(chapter.Filename))
+                    {
+                        chaptersToRemove.Add(chapter);
+                        continue;
+                    }
+
+                    string archivePath = Path.Combine(basePath, chapter.Filename);
+
+                    // Remove chapter if the archive file does not exist on disk
+                    if (!File.Exists(archivePath))
+                    {
+                        chaptersToRemove.Add(chapter);
+                        continue;
+                    }
+
+                    // Populate pages if empty or force is true
+                    if (chapter.Pages.Count == 0 || force)
+                    {
+                        var images = ArchiveHelperService.GetImageFiles(archivePath);
+                        chapter.Pages = images;
+                        chapter.PageCount = images.Count;
+                        _db.Touch(provider, c => c.Chapters);
+                        dbChanged = true;
+                    }
+                }
+
+                // Remove collected chapters from the provider
+                foreach (Chapter ch in chaptersToRemove)
+                {
+                    provider.Chapters.Remove(ch);
+                    dbChanged = true;
+                }
+
+                if (chaptersToRemove.Count > 0)
+                {
+                    _db.Touch(provider, c => c.Chapters);
+                }
+
+                // If provider has no chapters left, mark for removal
+                if (provider.Chapters.Count == 0)
+                {
+                    providersToRemove.Add(provider);
+                }
+            }
+
+            // Remove empty providers
+            foreach (SeriesProviderEntity sp in providersToRemove)
             {
                 _db.SeriesProviders.Remove(sp);
                 series.Sources.Remove(sp);
+                dbChanged = true;
+            }
+
+            // Persist all DB changes
+            if (dbChanged)
+            {
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
             }
 
-            List<Chapter> chaps = series.Sources.SelectMany(a => a.Chapters)
+            // Save kaizoku.json snapshot reflecting the current DB state
+            await series.SaveImportSeriesSnapshotToDirectoryAsync(basePath, _logger, token).ConfigureAwait(false);
+
+            // Return integrity result for remaining valid chapters
+            List<Chapter> validChapters = series.Sources.SelectMany(a => a.Chapters)
                 .Where(a => !string.IsNullOrEmpty(a.Filename)).ToList();
-            
-            return GetIntegrityResult(basePath, chaps);
+
+            return GetIntegrityResult(basePath, validChapters);
         }
 
         /// <summary>

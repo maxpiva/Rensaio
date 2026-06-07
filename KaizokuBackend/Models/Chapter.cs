@@ -16,4 +16,5 @@ public class Chapter : ChapterDescriptorBase
     public bool IsDeleted { get; set; }
     public int? PageCount { get; set; }
     public string? Filename { get; set; }
+    public List<string> Pages { get; set; } = [];
 }

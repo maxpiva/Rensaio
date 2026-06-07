@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Enums;
+using KaizokuBackend.Models.ReadState;
 
 namespace KaizokuBackend.Models
 {
@@ -79,6 +80,11 @@ namespace KaizokuBackend.Models
         {
             get => _series.KaizokuVersion;
             set => _series.KaizokuVersion = value;
+        }
+        public List<UserReadStateSnapshot>? UserReadStates
+        {
+            get => _series.UserReadStates;
+            set => _series.UserReadStates = value;
         }
         public string Path
         {

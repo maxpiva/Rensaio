@@ -3,7 +3,7 @@ import KzkBreadcrumb from "@/components/kzk/layout/breadcrumb";
 import { KzkNavbar } from "@/components/kzk/layout/sidebar";
 import { Button } from "@/components/ui/button";
 
-import { ThemeSwitcher } from "@/components/theme/theme-switcher";
+import { UserHeaderDropdown } from "@/components/kzk/layout/user-header-dropdown";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useSearch } from "@/contexts/search-context";
@@ -58,7 +58,7 @@ export default function KzkHeader({ seriesTitle }: KzkHeaderProps = {}) {
         />
       </div>
       
-      <ThemeSwitcher />
+      <UserHeaderDropdown />
     </header>
   );
 }

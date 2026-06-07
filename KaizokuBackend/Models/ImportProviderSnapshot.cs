@@ -13,9 +13,16 @@ public class ImportProviderSnapshot : ProviderSummaryBase
 
     [JsonPropertyName("status")]
     public override SeriesStatus Status { get; set; } = SeriesStatus.UNKNOWN;
-    public int ChapterCount { get; set; }
-    public List<StartStop> ChapterList { get; set; } = [];
-    public bool IsDisabled { get; set; }
-    public List<ProviderArchiveSnapshot> Archives { get; set; } = [];
 
+    [JsonPropertyName("chapterCount")]
+    public int ChapterCount { get; set; }
+
+    [JsonPropertyName("chapterList")]
+    public List<StartStop> ChapterList { get; set; } = [];
+
+    [JsonPropertyName("isDisabled")]
+    public bool IsDisabled { get; set; }
+
+    [JsonPropertyName("archives")]
+    public List<ProviderArchiveSnapshot> Archives { get; set; } = [];
 }

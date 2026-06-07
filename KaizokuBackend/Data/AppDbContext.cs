@@ -92,6 +92,9 @@ namespace KaizokuBackend.Data
         public DbSet<EnqueueEntity> Queues { get; set; }
         public DbSet<LatestSerieEntity> LatestSeries { get; set; }
         public DbSet<HealthStatusEntity> HealthStatuses { get; set; }
+        public DbSet<UserEntity> Users { get; set; }
+        public DbSet<UserScrobblerConfigEntity> UserScrobblerConfigs { get; set; }
+        public DbSet<UserSeriesMappingEntity> UserSeriesMappings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -342,6 +345,56 @@ namespace KaizokuBackend.Data
                 entity.HasIndex(h => new { h.TargetType, h.TargetId }).HasDatabaseName("IX_HealthStatus_Target");
                 entity.HasIndex(h => h.IsActive).HasDatabaseName("IX_HealthStatus_IsActive");
                 entity.HasIndex(h => h.Level).HasDatabaseName("IX_HealthStatus_Level");
+            });
+
+            modelBuilder.Entity<UserEntity>(entity =>
+            {
+                entity.HasKey(u => u.Id);
+                entity.Property(u => u.Username).UseCollation("BINARY").IsRequired();
+                entity.Property(u => u.AvatarBlob).IsRequired(false);
+                entity.Property(u => u.AvatarContentType).IsRequired(false);
+                entity.Property(u => u.PasswordHash).IsRequired(false);
+                entity.Property(u => u.Salt).IsRequired(false);
+                entity.Property(u => u.PasswordSetToken).IsRequired(false);
+                entity.Property(u => u.RefreshTokenHash).IsRequired(false);
+                entity.Property(u => u.RefreshTokenExpiresAt).IsRequired(false);
+                entity.Property(u => u.Level).IsRequired().HasConversion<int>();
+                entity.Property(u => u.OpdsPath).UseCollation("BINARY").IsRequired();
+                entity.Property(u => u.CreatedAt).IsRequired();
+                entity.Property(u => u.LastLoginAt).IsRequired(false);
+                entity.Property(u => u.IsActive).IsRequired().HasDefaultValue(true);
+                entity.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_User_Username");
+                entity.HasIndex(u => u.OpdsPath).IsUnique().HasDatabaseName("IX_User_OpdsPath");
+            });
+
+            modelBuilder.Entity<UserScrobblerConfigEntity>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.UserId).IsRequired();
+                entity.Property(c => c.Provider).IsRequired().HasConversion<int>();
+                entity.Property(c => c.AccessToken).IsRequired(false);
+                entity.Property(c => c.RefreshToken).IsRequired(false);
+                entity.Property(c => c.TokenExpiresAt).IsRequired(false);
+                entity.Property(c => c.IsEnabled).IsRequired().HasDefaultValue(true);
+                entity.Property(c => c.AutoSync).IsRequired().HasDefaultValue(true);
+                entity.Property(c => c.LastSyncAt).IsRequired(false);
+                entity.Property(c => c.LastUploadAt).IsRequired(false);
+                entity.Property(c => c.LastDownloadAt).IsRequired(false);
+                entity.HasIndex(c => new { c.UserId, c.Provider }).IsUnique()
+                    .HasDatabaseName("IX_UserScrobblerConfig_UserId_Provider");
+            });
+
+            modelBuilder.Entity<UserSeriesMappingEntity>(entity =>
+            {
+                entity.HasKey(m => m.Id);
+                entity.Property(m => m.UserId).IsRequired();
+                entity.Property(m => m.SeriesId).IsRequired();
+                entity.Property(m => m.Provider).IsRequired().HasConversion<int>();
+                entity.Property(m => m.ExternalSeriesId).UseCollation("BINARY").IsRequired();
+                entity.Property(m => m.ExternalSeriesTitle).UseCollation("BINARY").IsRequired(false);
+                entity.Property(m => m.MappingStatus).IsRequired().HasConversion<int>();
+                entity.HasIndex(m => new { m.UserId, m.SeriesId, m.Provider }).IsUnique()
+                    .HasDatabaseName("IX_UserSeriesMapping_UserId_SeriesId_Provider");
             });
         }
     }

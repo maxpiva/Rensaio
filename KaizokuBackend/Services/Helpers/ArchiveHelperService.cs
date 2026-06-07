@@ -24,6 +24,7 @@ using static System.Net.Mime.MediaTypeNames;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Services.Images;
+using KaizokuBackend.Services.Opds;
 
 namespace KaizokuBackend.Services.Helpers
 {
@@ -341,6 +342,21 @@ namespace KaizokuBackend.Services.Helpers
         {
             return imageExtensions.Any(ext => filename.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
         }
+
+        /// <summary>
+        /// Gets a list of image file names from an archive, ordered by natural sort
+        /// </summary>
+        /// <param name="archivePath">Path to the archive file</param>
+        /// <returns>Ordered list of image file names, or empty list if archive is not found or has no images</returns>
+        public static List<string> GetImageFiles(string archivePath)
+        {
+            var fileNames = GetArchiveFileNames(archivePath);
+            return fileNames
+                .Where(f => ArchiveIsImage(f))
+                .OrderBy(f => f, new NaturalSortComparer())
+                .ToList();
+        }
+
         public static bool IsTitleChap(string str)
         {
             str = str.ToLowerInvariant();

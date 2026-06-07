@@ -11,12 +11,12 @@ interface AlertBadgeProps {
 
 export function AlertBadge({ level, className = "" }: AlertBadgeProps) {
   if (level === HealthStatusLevel.Green) {
-    return <CheckCircle2 className={`h-4 w-4 text-green-500 ${className}`} />;
+    return <CheckCircle2 className={`h-3 w-3 text-green-500 mb-0.5 ${className}`} />;
   }
   if (level === HealthStatusLevel.Yellow) {
-    return <AlertTriangle className={`h-4 w-4 text-yellow-500 ${className}`} />;
+    return <AlertTriangle className={`h-3 w-3 text-yellow-500 mb-0.5 ${className}`} />;
   }
-  return <Circle className={`h-4 w-4 text-red-500 fill-red-500 ${className}`} />;
+  return <Circle className={`h-3 w-3 text-red-500 fill-red-500 mb-0.5 ${className}`} />;
 }
 
 export function AlertBadgeWithLabel({ level }: { level: HealthStatusLevel }) {

@@ -45,6 +45,9 @@ export interface Settings {
   // Setup Wizard properties
   isWizardSetupComplete: boolean;
   wizardSetupStepCompleted: number;
+  // Security settings
+  authenticationEnabled: boolean;
+  externalDomain: string;
 }
 
 export interface LinkedSeries {
@@ -280,6 +283,8 @@ export enum JobType {
   UpdateExtensions = 7,
   UpdateAllSeries = 8,
   DailyUpdate = 9,
+  StatusCheck = 10,
+  ScrobblerSync = 11,
 }
 
 export enum ProgressStatus {
@@ -598,4 +603,179 @@ export interface ArchiveIntegrityResult {
 export interface SeriesIntegrityResult {
   success: boolean;
   badFiles: ArchiveIntegrityResult[];
+}
+
+// --- User Management Types ---
+
+export interface User {
+  id: string;
+  username: string;
+  avatarBase64?: string;
+  avatarContentType?: string;
+  level: UserLevel;
+  opdsPath: string;
+  createdAt: string;
+  lastLoginAt?: string;
+  isActive: boolean;
+  hasPassword: boolean;
+  isFirstAdmin?: boolean;
+}
+
+export enum UserLevel {
+  User = 0,
+  Manager = 1,
+  Admin = 2,
+}
+
+export interface CreateUserRequest {
+  username: string;
+  level: UserLevel;
+}
+
+export interface UpdateUserRequest {
+  avatarBase64?: string;
+  avatarContentType?: string;
+  removeAvatar?: boolean;
+  level?: UserLevel;
+  isActive?: boolean;
+}
+
+export interface AuthStatus {
+  authenticationEnabled: boolean;
+  hasUsers: boolean;
+  users?: User[];
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+export interface SetPasswordRequest {
+  username: string;
+  token: string;
+  password: string;
+}
+
+export interface InviteMessage {
+  message: string;
+  token: string;
+  opdsPath: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface NeedsPasswordResponse {
+  needsPassword: boolean;
+}
+
+// ── Scrobbler Types ──
+
+export enum ScrobblerProvider {
+  MyAnimeList = 0,
+  AniList = 1,
+  ComicVine = 2,
+  Kitsu = 3,
+  MangaDex = 4,
+}
+
+export interface ScrobblerConfig {
+  provider: ScrobblerProvider;
+  displayName: string;
+  isEnabled: boolean;
+  isConnected: boolean;
+  autoSync: boolean;
+  lastSyncAt?: string;
+  lastUploadAt?: string;
+  lastDownloadAt?: string;
+}
+
+export interface ScrobblerSearchResult {
+  externalId: string;
+  title: string;
+  alternateTitles: string[];
+  coverUrl?: string;
+  type?: string;
+  chapterCount?: number;
+  status?: string;
+  synopsis?: string;
+  score?: number;
+}
+
+export interface SeriesMatchStatus {
+  seriesId: string;
+  seriesTitle: string;
+  provider: ScrobblerProvider;
+  mappingStatus: SeriesMappingStatus;
+  externalSeriesId?: string;
+  externalSeriesTitle?: string;
+  externalCoverUrl?: string;
+  matchScore?: number;
+}
+
+export enum SeriesMappingStatus {
+  Unmatched = 0,
+  AutoMatched = 1,
+  UserConfirmed = 2,
+  Ignored = 3,
+}
+
+export interface ScrobblerConfigUpdate {
+  isEnabled?: boolean;
+  autoSync?: boolean;
+}
+
+export interface OAuthCallbackRequest {
+  provider: ScrobblerProvider;
+  code: string;
+  state: string;
+  codeVerifier?: string;
+}
+
+export interface SeriesMatchSearchRequest {
+  provider: ScrobblerProvider;
+  query: string;
+}
+
+export interface ConfirmMatchRequest {
+  seriesId: string;
+  provider: ScrobblerProvider;
+  externalSeriesId: string;
+  externalSeriesTitle?: string;
+}
+
+export interface DisableLinkRequest {
+  seriesId: string;
+  provider: ScrobblerProvider;
+}
+
+export interface AutoMatchResult {
+  autoMatched: number;
+  leftUnmatched: number;
+  totalSeries: number;
+  suggestedMatches: SeriesMatchStatus[];
+}
+
+export interface SyncStatus {
+  provider: ScrobblerProvider;
+  lastSyncAt?: string;
+  lastUploadAt?: string;
+  lastDownloadAt?: string;
+  seriesMatched: number;
+  seriesUnmatched: number;
+  seriesIgnored: number;
+}
+
+export interface OAuthAuthorizeResponse {
+  authUrl: string;
+  state: string;
 }

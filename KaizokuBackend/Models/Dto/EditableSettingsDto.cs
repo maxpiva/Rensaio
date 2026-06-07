@@ -82,6 +82,13 @@ public class EditableSettingsDto
     [JsonPropertyName("providerErrorRedHours")]
     public int ProviderErrorRedHours { get; set; } = 168;
 
+    // --- Authentication Settings ---
+
+    [JsonPropertyName("authenticationEnabled")]
+    public bool AuthenticationEnabled { get; set; } = false;
+
+    [JsonPropertyName("externalDomain")]
+    public string ExternalDomain { get; set; } = string.Empty;
 }
 public enum NsfwVisibility
 {

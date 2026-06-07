@@ -24,7 +24,7 @@ interface SetupWizardContextType {
 }
 
 const WIZARD_STORAGE_KEY = 'setup-wizard-state';
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 const SetupWizardContext = createContext<SetupWizardContextType | undefined>(undefined);
 

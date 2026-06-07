@@ -1,5 +1,6 @@
 using System;
 using KaizokuBackend.Models.Enums;
+using KaizokuBackend.Models.ReadState;
 
 namespace KaizokuBackend.Models;
 
@@ -21,6 +22,7 @@ public class ImportSeriesResult
     public DateTime? LastUpdatedUTC { get; set; }
     public bool IsDisabled { get; set; }
     public int KaizokuVersion { get; set; } = 1;
+    public List<UserReadStateSnapshot>? UserReadStates { get; set; }
 
     public List<ImportProviderSnapshot> Providers
     {

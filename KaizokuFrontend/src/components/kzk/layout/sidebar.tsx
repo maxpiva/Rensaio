@@ -1,6 +1,6 @@
 "use client";
 
-import { List, LucideSettings, Plug, Sparkles, Library, Activity } from "lucide-react";
+import { List, LucideSettings, Plug, Sparkles, Library, Activity, Users } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -40,6 +40,12 @@ export const sidebarItems = [
     name: "Sources",
     href: "/providers",
     icon: <Plug className="h-6 w-6" />,
+    topSide: true,
+  },
+  {
+    name: "Users",
+    href: "/users",
+    icon: <Users className="h-6 w-6" />,
     topSide: true,
   },
   {

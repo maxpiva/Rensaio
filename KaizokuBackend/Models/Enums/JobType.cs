@@ -12,5 +12,6 @@ public enum JobType
     UpdateExtensions,
     UpdateAllSeries,
     DailyUpdate,
-    StatusCheck
+    StatusCheck,
+    ScrobblerSync
 }

@@ -2,6 +2,7 @@ using KaizokuBackend.Data;
 using KaizokuBackend.Hubs;
 using KaizokuBackend.Models;
 using KaizokuBackend.Services;
+using KaizokuBackend.Services.Auth;
 using KaizokuBackend.Services.Background;
 using KaizokuBackend.Utils;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -106,6 +107,10 @@ namespace KaizokuBackend
             services.AddDownloadServices();
             services.AddHelperServices();
             services.AddBackgroundServices();
+            services.AddAuthServices();
+            services.AddReadStateServices();
+            services.AddOpdsServices();
+            services.AddScrobblingServices(Configuration);
 
             // Configure ForwardedHeaders to support reverse proxy SSL termination.
             // Without this, Kestrel is unaware of the original HTTPS scheme when deployed
@@ -152,6 +157,9 @@ namespace KaizokuBackend
 
             // Order matters for the following middleware
             app.UseRouting();
+
+            // Auth middleware - after routing, before endpoints
+            app.UseAuthMiddleware();
 
             // Configure static file serving with proper MIME types for .txt files
             var provider = new FileExtensionContentTypeProvider();

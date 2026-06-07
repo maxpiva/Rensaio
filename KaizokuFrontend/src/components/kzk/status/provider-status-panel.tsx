@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Activity, CheckCircle2 } from 'lucide-react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { ChevronDown, ChevronRight, CheckCircle2, ExternalLink, Database } from 'lucide-react';
 import { HealthStatusLevel, type ProviderHealth, type SeriesHealth } from '@/lib/api/types';
-import { AlertBadgeWithLabel, AlertBadge } from '@/components/kzk/status/alert-badge';
+import { AlertBadge } from '@/components/kzk/status/alert-badge';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { formatThumbnailUrl } from '@/lib/utils/thumbnail';
 
 interface ProviderStatusPanelProps {
   providers: ProviderHealth[];
@@ -15,12 +18,41 @@ interface ProviderStatusPanelProps {
 }
 
 function SeriesRow({ series, onClearAlert }: { series: SeriesHealth; onClearAlert: (targetType: number, targetId: string) => void }) {
+  const router = useRouter();
+
+  const handleSeriesClick = (seriesId: string) => {
+    router.push(`/library/series?id=${seriesId}`);
+  };
+
   return (
     <div className="flex items-center justify-between py-2 px-4 rounded-lg hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <AlertBadge level={series.level} />
+        {/* Thumbnail on the left */}
+        <div className="relative flex-shrink-0">
+          <Image
+            src={formatThumbnailUrl(series.thumbnailUrl)}
+            alt={series.title}
+            width={36}
+            height={48}
+            className="rounded object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = '/kaizoku.net.png';
+            }}
+          />
+        </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{series.title}</p>
+          <div className="flex items-center gap-2">
+            <AlertBadge level={series.level} />
+            <span
+              className="text-sm font-medium truncate cursor-pointer hover:text-primary transition-colors flex items-center gap-1"
+              onClick={() => handleSeriesClick(series.id)}
+              title={`View ${series.title} details`}
+            >
+              {series.title}
+              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground hover:text-primary" />
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground truncate">{series.message}</p>
         </div>
       </div>
@@ -31,7 +63,7 @@ function SeriesRow({ series, onClearAlert }: { series: SeriesHealth; onClearAler
           </Badge>
         )}
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           className="h-7 text-xs"
           onClick={() => onClearAlert(0, series.id)}
@@ -58,9 +90,15 @@ function ProviderCard({ provider, onClearAlert }: { provider: ProviderHealth; on
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
-                <AlertBadgeWithLabel level={provider.level} />
+                {/* Source icon as thumbnail */}
+                <div className="flex-shrink-0 h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                  <Database className="h-5 w-5 text-muted-foreground" />
+                </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{provider.providerName}</p>
+                  <div className="flex items-center gap-2">
+                    <AlertBadge level={provider.level} />
+                    <p className="text-sm font-medium truncate">{provider.providerName}</p>
+                  </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {provider.language}{provider.scanlator ? ` · ${provider.scanlator}` : ""}
                     {provider.consecutiveErrors > 0 && ` · ${provider.consecutiveErrors} errors`}
@@ -78,7 +116,7 @@ function ProviderCard({ provider, onClearAlert }: { provider: ProviderHealth; on
                 </Badge>
               )}
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 className="h-7 text-xs"
                 onClick={() => onClearAlert(1, provider.providerId)}

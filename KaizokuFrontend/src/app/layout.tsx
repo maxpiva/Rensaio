@@ -8,6 +8,7 @@ import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import QueryProvider from "@/components/providers/query-provider";
+import { AuthProvider } from "@/contexts/auth-context";
 import { SetupWizardProvider } from "@/components/providers/setup-wizard-provider";
 import { ImportWizardProvider } from "@/components/providers/import-wizard-provider";
 import { ClientSideSetupWizard } from "@/components/kzk/setup-wizard/client-wrapper";
@@ -76,16 +77,18 @@ export default function RootLayout({
         >
           <TooltipProvider>
             <QueryProvider>
-              <SetupWizardProvider>
-                <ImportWizardProvider>
-                  <SearchProvider>
-                    <FontLoader />
-                    <ClientSideSetupWizard />
-                    <ImportWizard />
-                    {children}
-                  </SearchProvider>
-                </ImportWizardProvider>
-              </SetupWizardProvider>
+              <AuthProvider>
+                <SetupWizardProvider>
+                  <ImportWizardProvider>
+                    <SearchProvider>
+                      <FontLoader />
+                      <ClientSideSetupWizard />
+                      <ImportWizard />
+                      {children}
+                    </SearchProvider>
+                  </ImportWizardProvider>
+                </SetupWizardProvider>
+              </AuthProvider>
             </QueryProvider>
           </TooltipProvider>
         </ThemeProvider>

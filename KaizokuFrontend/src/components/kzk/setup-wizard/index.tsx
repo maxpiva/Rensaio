@@ -14,6 +14,8 @@ import { ImportLocalStep } from "./steps/import-local-step";
 import { ConfirmImportsStep } from "./steps/confirm-imports-step";
 import { ScheduleUpdatesStep } from "./steps/schedule-updates-step";
 import { FinishStep } from "./steps/finish-step";
+import { CreateAdminStep } from "./steps/create-admin-step";
+import { IdentifyUserStep } from "./steps/identify-user-step";
 
 const steps = {
   preferences: {
@@ -41,6 +43,11 @@ const steps = {
     description: "Check incoming updates",
     icon: Clock,
   },
+  userSetup: {
+    label: "User Setup",
+    description: "Create or identify admin",
+    icon: Flag,
+  },
   finish: {
     label: "Finish",
     description: "Complete Import",
@@ -54,6 +61,8 @@ export function SetupWizard() {
   const [error, setError] = React.useState<string | null>(null);
   const [canProgress, setCanProgress] = React.useState(false);
   const [disableDownloads, setDisableDownloads] = React.useState(false);
+  const [autoCreatedUsers, setAutoCreatedUsers] = React.useState<string[]>([]);
+  const [usersAutoCreated, setUsersAutoCreated] = React.useState(false);
 
   if (!isWizardActive) {
     return null;
@@ -173,9 +182,39 @@ export function SetupWizard() {
             setIsLoading={setIsLoading}
             setCanProgress={setCanProgress}
             disableDownloads={disableDownloads}
+            onUsersDetected={(users) => {
+              setAutoCreatedUsers(users);
+              setUsersAutoCreated(users.length > 0);
+            }}
           />
         </Step>
         {error && currentStep === 5 && (
+          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
+            {error}
+          </div>
+        )}
+
+        <Step
+          label={steps.userSetup.label}
+          description={steps.userSetup.description}
+          icon={steps.userSetup.icon}
+        >
+          {usersAutoCreated ? (
+            <IdentifyUserStep
+              setError={setError}
+              setIsLoading={setIsLoading}
+              setCanProgress={setCanProgress}
+              autoCreatedUsers={autoCreatedUsers}
+            />
+          ) : (
+            <CreateAdminStep
+              setError={setError}
+              setIsLoading={setIsLoading}
+              setCanProgress={setCanProgress}
+            />
+          )}
+        </Step>
+        {error && currentStep === 6 && (
           <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
             {error}
           </div>

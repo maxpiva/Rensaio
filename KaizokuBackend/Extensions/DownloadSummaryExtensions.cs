@@ -23,7 +23,6 @@ public static class DownloadSummaryExtensions
             Url = download.Url
         };
     }
-
     public static DownloadInfoDto ToInfoDto(this DownloadSummary summary)
     {
         return new DownloadInfoDto

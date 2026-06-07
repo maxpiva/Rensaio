@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mihon.ExtensionsBridge.Core
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mihon.ExtensionsBridge", "Mihon.ExtensionsBridge.Net\Internal.Tests\ExtensionBridge.Test\Mihon.ExtensionsBridge.csproj", "{C4A9A9B5-CA38-83DA-B660-C88108688CA1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KaizokuOAuthProxy", "KaizokuOAuthProxy\KaizokuOAuthProxy.csproj", "{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,18 @@ Global
 		{C4A9A9B5-CA38-83DA-B660-C88108688CA1}.Release|x64.Build.0 = Release|Any CPU
 		{C4A9A9B5-CA38-83DA-B660-C88108688CA1}.Release|x86.ActiveCfg = Release|Any CPU
 		{C4A9A9B5-CA38-83DA-B660-C88108688CA1}.Release|x86.Build.0 = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|x64.Build.0 = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Debug|x86.Build.0 = Debug|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|x64.ActiveCfg = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|x64.Build.0 = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|x86.ActiveCfg = Release|Any CPU
+		{D4F26E51-3C8A-4B1F-9A5D-8E7B2C1F0A3B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

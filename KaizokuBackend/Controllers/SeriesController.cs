@@ -66,11 +66,11 @@ namespace KaizokuBackend.Controllers
         [HttpGet("verify")]
         [ProducesResponseType(typeof(SeriesIntegrityResultDto), 200)]
         [ProducesResponseType(500)]
-        public async Task<ActionResult<SeriesIntegrityResultDto>> VerifyIntegrityAsync([FromQuery] Guid g, CancellationToken token = default)
+        public async Task<ActionResult<SeriesIntegrityResultDto>> VerifyIntegrityAsync([FromQuery] Guid g, [FromQuery] bool force = false, CancellationToken token = default)
         {
             try
             {
-                var result = await _archiveService.VerifyIntegrityAsync(g, token).ConfigureAwait(false);
+                var result = await _archiveService.VerifyIntegrityAsync(g, force, token).ConfigureAwait(false);
                 return Ok(result);
             }
             catch (Exception ex)

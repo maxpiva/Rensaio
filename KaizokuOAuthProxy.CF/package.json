@@ -1,0 +1,19 @@
+{
+  "name": "kaizoku-oauth-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply kaizoku-oauth-proxy",
+    "db:list": "wrangler d1 migrations list kaizoku-oauth-proxy"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240601.0",
+    "wrangler": "^3.60.0",
+    "typescript": "^5.5.0"
+  }
+}

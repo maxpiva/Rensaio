@@ -191,10 +191,30 @@ namespace KaizokuBackend.Utils
                     if (currentDb == expectedRelativeDb)
                     {
                         connectionStrings["DefaultConnection"] = expectedAbsoluteDb;
-                        updated = true;
-                    }
-                }
-                updated |= ReplacePath(destinationJson!, "BridgeFolder", new string[] { "mihon" });
+                                updated = true;
+                            }
+                        }
+        
+                        // Auto-generate Scrobbler proxy InstanceKey if missing
+                        var scrobblingNode = destinationJson["Scrobbling"];
+                        if (scrobblingNode == null)
+                        {
+                            scrobblingNode = new JsonObject();
+                            destinationJson["Scrobbling"] = scrobblingNode;
+                        }
+                        var proxyNode = scrobblingNode["Proxy"];
+                        if (proxyNode == null)
+                        {
+                            proxyNode = new JsonObject();
+                            scrobblingNode["Proxy"] = proxyNode;
+                        }
+                        if (proxyNode["InstanceKey"] == null || string.IsNullOrEmpty(proxyNode["InstanceKey"]?.ToString()))
+                        {
+                            proxyNode["InstanceKey"] = Guid.NewGuid().ToString("N");
+                            updated = true;
+                        }
+        
+                        updated |= ReplacePath(destinationJson!, "BridgeFolder", new string[] { "mihon" });
                 updated |= ReplacePath(destinationJson!, "ThumbCacheFolder", new string[] { "thumbs" });
                 updated |= ReplacePath(destinationJson!, "TempFolder", new string[] { "" });
 

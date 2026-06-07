@@ -52,11 +52,13 @@ interface FinishStepProps {
   setIsLoading: (loading: boolean) => void;
   setCanProgress: (canProgress: boolean) => void;
   disableDownloads?: boolean;
+  onUsersDetected?: (users: string[]) => void;
 }
 
-export function FinishStep({ setError, setIsLoading, setCanProgress, disableDownloads = false }: FinishStepProps) {
+export function FinishStep({ setError, setIsLoading, setCanProgress, disableDownloads = false, onUsersDetected }: FinishStepProps) {
   const hasTriggeredImportRef = useRef(false);
   const [importCompleted, setImportCompleted] = useState(false);
+  const hasCheckedUsersRef = useRef(false);
   const { hasScrollbar, containerRef } = useScrollbarDetection();
   const { data: imports } = useSetupWizardImports();
   const importMutation = useSetupWizardImportSeriesWithOptions();
@@ -108,6 +110,26 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
       }
     }
   }, [imports, importMutation, setError, isJobCompleted, isJobFailed, getJobProgress]);
+
+  // Check for auto-created users after import completes
+  useEffect(() => {
+    const isDone = importCompleted || isJobCompleted(JobType.ImportSeries);
+    if (isDone && onUsersDetected && !hasCheckedUsersRef.current) {
+      hasCheckedUsersRef.current = true;
+      // Fetch auto-created users from the backend
+      fetch('/api/setup/import/users')
+        .then(res => res.json() as Promise<{ autoCreatedUsers?: string[] }>)
+        .then(data => {
+          if (data.autoCreatedUsers) {
+            onUsersDetected(data.autoCreatedUsers);
+          }
+        })
+        .catch(() => {
+          // Silently fail - user can manually create admin later
+          onUsersDetected([]);
+        });
+    }
+  }, [importCompleted, isJobCompleted, onUsersDetected]);
 
   // Update loading and progress states
   useEffect(() => {

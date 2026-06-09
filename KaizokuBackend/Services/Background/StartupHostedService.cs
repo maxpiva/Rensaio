@@ -9,11 +9,14 @@ using KaizokuBackend.Services.Helpers;
 using KaizokuBackend.Services.Jobs;
 using KaizokuBackend.Services.Providers;
 using KaizokuBackend.Services.Settings;
+using KaizokuBackend.Utils;
 using Microsoft.EntityFrameworkCore;
 using Mihon.ExtensionsBridge.Core.Utilities;
 using Mihon.ExtensionsBridge.Models.Abstractions;
 using System.ComponentModel;
 using System.Data;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace KaizokuBackend.Services.Background
 {
@@ -21,6 +24,7 @@ namespace KaizokuBackend.Services.Background
     {
         private readonly ILogger<StartupHostedService> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IConfiguration _config;
         private readonly List<Task> _workerTasks = new();
         private CancellationTokenSource? _workerCts;
         private bool _disposed = false;
@@ -31,6 +35,7 @@ namespace KaizokuBackend.Services.Background
         {
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _config = config;
         }
 
         public void Dispose()
@@ -111,6 +116,7 @@ namespace KaizokuBackend.Services.Background
                 var fixes = scope.ServiceProvider.GetRequiredService<NouisanceFixer20ExtraLarge>();
                 await db.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
                 await EnsureAuthTablesAsync(db, cancellationToken).ConfigureAwait(false);
+                await ResetFirstAdminPasswordIfRequestedAsync(db, scope, cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
                 await fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
@@ -395,6 +401,98 @@ namespace KaizokuBackend.Services.Background
             {
                 _logger.LogError(ex, "Error creating/upgrading auth tables");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Lockout-recovery flag (upstream plan D.8): when Authentication:ResetFirstAdminPassword
+        /// is true, clears the first admin's password (the profile becomes passwordless), revokes
+        /// that admin's refresh-token sessions, and — if password authentication is currently
+        /// enforced — disables it, because a passwordless admin cannot log in through the JWT flow.
+        /// The instance falls back to profile-picker mode where the admin can sign in and set a
+        /// new password from Settings. The flag is rewritten to false in appsettings.json so the
+        /// reset does not repeat on the next start.
+        /// </summary>
+        private async Task ResetFirstAdminPasswordIfRequestedAsync(AppDbContext db, IServiceScope scope, CancellationToken cancellationToken)
+        {
+            if (!_config.GetValue<bool>("Authentication:ResetFirstAdminPassword"))
+                return;
+
+            var admin = await db.Users
+                .Where(u => u.IsActive && (u.Level == UserLevel.Admin || u.Role == UserRole.Admin))
+                .OrderBy(u => u.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+            if (admin == null)
+            {
+                _logger.LogWarning("Authentication:ResetFirstAdminPassword is set but no active admin user exists; nothing to reset.");
+            }
+            else
+            {
+                admin.PasswordHash = null;
+                admin.Salt = null;
+                admin.PasswordSetToken = null;
+                admin.PasswordSetTokenExpiresAt = null;
+                admin.UpdatedAt = DateTime.UtcNow;
+
+                var sessions = await db.UserSessions
+                    .Where(s => s.UserId == admin.Id)
+                    .ToListAsync(cancellationToken).ConfigureAwait(false);
+                db.UserSessions.RemoveRange(sessions);
+
+                var authRow = await db.Settings
+                    .FirstOrDefaultAsync(s => s.Name == "AuthenticationEnabled", cancellationToken)
+                    .ConfigureAwait(false);
+                if (authRow != null && bool.TryParse(authRow.Value, out var authEnabled) && authEnabled)
+                {
+                    authRow.Value = "false";
+                    scope.ServiceProvider.GetRequiredService<IAuthSettingsCache>().Update(false);
+                    _logger.LogWarning("Password authentication has been disabled as part of the admin password reset; the instance is back in profile-picker mode.");
+                }
+
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                _logger.LogWarning("Admin password for '{Username}' has been reset via Authentication:ResetFirstAdminPassword. " +
+                    "Select the profile and set a new password from Settings.", admin.Username);
+            }
+
+            await ClearResetFlagInAppSettingsAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Rewrites Authentication:ResetFirstAdminPassword to false in the data-folder
+        /// appsettings.json so the one-shot reset does not run again. If the flag was supplied
+        /// via an environment variable instead, it cannot be cleared from here — the warning
+        /// repeats on every start until the variable is removed, which is intentional.
+        /// </summary>
+        private async Task ClearResetFlagInAppSettingsAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var appSettingsPath = Path.Combine(EnvironmentSetup.Path, "appsettings.json");
+                if (!File.Exists(appSettingsPath))
+                    return;
+
+                var content = await File.ReadAllTextAsync(appSettingsPath, cancellationToken).ConfigureAwait(false);
+                if (JsonNode.Parse(content) is not JsonObject json)
+                    return;
+
+                // When the section or flag is absent the value came from an env var or another
+                // config source; nothing to rewrite here (see remark above).
+                if (json["Authentication"] is not JsonObject authSection)
+                    return;
+
+                if (authSection["ResetFirstAdminPassword"]?.GetValue<bool>() != true)
+                    return;
+
+                authSection["ResetFirstAdminPassword"] = false;
+                await File.WriteAllTextAsync(appSettingsPath,
+                    json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                    cancellationToken).ConfigureAwait(false);
+                _logger.LogInformation("Authentication:ResetFirstAdminPassword rewritten to false in appsettings.json.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not rewrite Authentication:ResetFirstAdminPassword in appsettings.json; the reset will run again on next start.");
             }
         }
 

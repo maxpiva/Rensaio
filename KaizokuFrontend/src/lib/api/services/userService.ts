@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import type {
+  User,
   UserDetail,
   UserPreferences,
   CreateUserRequest,
@@ -9,6 +10,7 @@ import type {
   ChangePasswordRequest,
   UpdateProfileRequest,
   UpdatePreferencesRequest,
+  GenerateInviteResponse,
 } from '@/lib/api/auth-types';
 
 export const userService = {
@@ -48,6 +50,16 @@ export const userService = {
 
   async enableUser(id: string): Promise<void> {
     return apiClient.post<void>(`/api/users/${id}/enable`);
+  },
+
+  /** Admin: generate a one-time set-password invite link for a user. */
+  async generateInvite(id: string): Promise<GenerateInviteResponse> {
+    return apiClient.post<GenerateInviteResponse>(`/api/users/${id}/generate-invite`);
+  },
+
+  /** Disabled-mode: protect a profile by setting its own password. */
+  async claimUser(id: string, password: string): Promise<User> {
+    return apiClient.put<User>(`/api/users/${id}/claim`, { password });
   },
 
   // ─── Current user ─────────────────────────────────────────────────────

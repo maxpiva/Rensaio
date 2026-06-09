@@ -11,12 +11,13 @@ interface RequireAuthProps {
 }
 
 /**
- * Wraps children — redirects to /login if not authenticated.
+ * Wraps children — redirects unauthenticated visitors to /login (auth enabled)
+ * or /user-select (auth disabled, profile picker).
  * Shows a spinner while auth state is loading.
  * Shows a blocking password-change dialog if the user's password doesn't meet the current policy.
  */
 export function RequireAuth({ children }: RequireAuthProps) {
-  const { isAuthenticated, isLoading, needsSetup, requiresPasswordChange, dismissPasswordChange } = useAuth();
+  const { isAuthenticated, isLoading, needsSetup, isAuthEnabled, requiresPasswordChange, dismissPasswordChange } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -26,9 +27,9 @@ export function RequireAuth({ children }: RequireAuthProps) {
       return;
     }
     if (!isAuthenticated) {
-      router.replace('/login');
+      router.replace(isAuthEnabled ? '/login' : '/user-select');
     }
-  }, [isAuthenticated, isLoading, needsSetup, router]);
+  }, [isAuthenticated, isLoading, needsSetup, isAuthEnabled, router]);
 
   if (isLoading) {
     return (

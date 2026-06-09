@@ -68,14 +68,13 @@ function PasswordStrengthBar({ password }: { password: string }) {
 }
 
 function RegisterForm() {
-  const { register, isAuthenticated, isLoading, needsSetup } = useAuth();
+  const { register, isAuthenticated, isLoading, needsSetup, isAuthEnabled } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const inviteCodeParam = searchParams.get('invite') ?? '';
   const [inviteCode, setInviteCode] = useState(inviteCodeParam);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -94,10 +93,16 @@ function RegisterForm() {
       router.replace('/setup');
       return;
     }
+    // Invite-code self-registration only applies when auth is enforced;
+    // in profile-picker mode admins create profiles from settings.
+    if (!isAuthEnabled) {
+      router.replace('/user-select');
+      return;
+    }
     if (isAuthenticated) {
       router.replace('/library');
     }
-  }, [isAuthenticated, isLoading, needsSetup, router]);
+  }, [isAuthenticated, isLoading, needsSetup, isAuthEnabled, router]);
 
   const isPasswordValid =
     password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
@@ -107,7 +112,6 @@ function RegisterForm() {
     inviteCode.trim() &&
     inviteValidation?.isValid &&
     username.trim() &&
-    email.trim() &&
     displayName.trim() &&
     isPasswordValid &&
     passwordsMatch &&
@@ -122,7 +126,6 @@ function RegisterForm() {
     try {
       await register(
         username.trim(),
-        email.trim(),
         password,
         displayName.trim(),
         inviteCode.trim()
@@ -272,20 +275,6 @@ function RegisterForm() {
                     placeholder="Choose a username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    disabled={isSubmitting}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="Enter your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                     disabled={isSubmitting}
                     required
                   />

@@ -12,26 +12,38 @@ import { useRouter } from 'next/navigation';
 import { tokenStore, registerLogoutCallback } from '@/lib/auth-token-store';
 import { authService } from '@/lib/api/services/authService';
 import { userService } from '@/lib/api/services/userService';
-import type { UserDetail } from '@/lib/api/auth-types';
+import type { StatusUserEntry, UserDetail } from '@/lib/api/auth-types';
 
 interface AuthContextType {
   user: UserDetail | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   needsSetup: boolean;
+  /** True when password-based JWT authentication is enforced by the server. */
+  isAuthEnabled: boolean;
+  /** Profile list for the user selector (populated only when auth is disabled). */
+  availableUsers: StatusUserEntry[];
+  /** True when auth is disabled and no admin has a password set yet. */
+  needsAdminPassword: boolean;
   /** True when the user logged in with a password that doesn't meet the current policy. */
   requiresPasswordChange: boolean;
-  login: (usernameOrEmail: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (
     username: string,
-    email: string,
     password: string,
     displayName: string,
     inviteCode: string
   ) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: UserDetail) => void;
-  setup: (username: string, email: string, password: string, displayName: string) => Promise<void>;
+  /** Legacy password-at-setup flow — used only when auth is already enabled. */
+  setup: (username: string, password: string, displayName: string) => Promise<void>;
+  /** Passwordless first-admin creation (default flow; auth disabled). */
+  createFirstUser: (username: string, displayName: string, password?: string) => Promise<void>;
+  /** Selects a profile in auth-disabled mode and loads it as the current user. */
+  selectUser: (username: string) => Promise<void>;
+  /** Re-fetches /api/auth/status (e.g. after user CRUD or toggling auth). */
+  refreshStatus: () => Promise<void>;
   /** Clear the password change requirement after the user has updated their password. */
   dismissPasswordChange: () => void;
 }
@@ -42,20 +54,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [isAuthEnabled, setIsAuthEnabled] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<StatusUserEntry[]>([]);
+  const [needsAdminPassword, setNeedsAdminPassword] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const router = useRouter();
   const initializedRef = useRef(false);
+  const isAuthEnabledRef = useRef(false);
+  isAuthEnabledRef.current = isAuthEnabled;
 
   const doLogout = useCallback(async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // swallow — clear tokens regardless
-    } finally {
+    if (isAuthEnabledRef.current) {
+      try {
+        await authService.logout();
+      } catch {
+        // swallow — clear tokens regardless
+      } finally {
+        tokenStore.clearTokens();
+        tokenStore.clearSelectedUser();
+        setUser(null);
+        setRequiresPasswordChange(false);
+        router.push('/login');
+      }
+    } else {
+      // Disabled mode: no server session to revoke — just clear the profile.
+      tokenStore.clearSelectedUser();
       tokenStore.clearTokens();
       setUser(null);
       setRequiresPasswordChange(false);
-      router.push('/login');
+      router.push('/user-select');
     }
   }, [router]);
 
@@ -64,11 +91,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerLogoutCallback(() => {
       setUser(null);
       setRequiresPasswordChange(false);
-      router.push('/login');
+      router.push(isAuthEnabledRef.current ? '/login' : '/user-select');
     });
   }, [router]);
 
-  // On mount: check if we have a stored token and validate it
+  const applyStatus = useCallback(
+    (status: {
+      authenticationEnabled: boolean;
+      requiresSetup: boolean;
+      needsAdminPassword: boolean;
+      users?: StatusUserEntry[];
+    }) => {
+      setIsAuthEnabled(status.authenticationEnabled);
+      isAuthEnabledRef.current = status.authenticationEnabled;
+      setAvailableUsers(status.users ?? []);
+      setNeedsAdminPassword(status.needsAdminPassword);
+      setNeedsSetup(status.requiresSetup);
+    },
+    []
+  );
+
+  const refreshStatus = useCallback(async () => {
+    const status = await authService.status();
+    applyStatus(status);
+  }, [applyStatus]);
+
+  // On mount: load auth status, then restore session (JWT or selected profile)
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -77,21 +125,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       try {
         const status = await authService.status();
+        applyStatus(status);
 
         if (status.requiresSetup) {
-          setNeedsSetup(true);
           setIsLoading(false);
           return;
         }
 
-        // Server has users — try to load current user via stored token
-        const accessToken = tokenStore.getAccessToken();
-        if (accessToken) {
-          try {
-            const currentUser = await userService.getCurrentUser();
-            setUser(currentUser);
-          } catch {
-            tokenStore.clearTokens();
+        if (status.authenticationEnabled) {
+          // JWT mode — try to load current user via stored token
+          const accessToken = tokenStore.getAccessToken();
+          if (accessToken) {
+            try {
+              const currentUser = await userService.getCurrentUser();
+              setUser(currentUser);
+            } catch {
+              tokenStore.clearTokens();
+            }
+          }
+        } else {
+          // Profile-picker mode — restore the previously selected profile
+          const selected = tokenStore.getSelectedUser();
+          if (selected) {
+            try {
+              const currentUser = await userService.getCurrentUser();
+              // Guard against the middleware falling back to the default admin
+              // when the stored username no longer exists.
+              if (currentUser.username === selected) {
+                setUser(currentUser);
+              } else {
+                tokenStore.clearSelectedUser();
+              }
+            } catch {
+              tokenStore.clearSelectedUser();
+            }
           }
         }
       } catch {
@@ -111,12 +178,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     void init();
-  }, []);
+  }, [applyStatus]);
 
   const login = useCallback(
-    async (usernameOrEmail: string, password: string, rememberMe = false) => {
-      const res = await authService.login({ usernameOrEmail, password, rememberMe });
+    async (username: string, password: string, rememberMe = false) => {
+      const res = await authService.login({ usernameOrEmail: username, password, rememberMe });
       tokenStore.setTokens(res.accessToken, res.refreshToken, rememberMe);
+      tokenStore.clearSelectedUser();
       setUser(res.user);
       setRequiresPasswordChange(res.requiresPasswordChange ?? false);
     },
@@ -124,21 +192,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (
-      username: string,
-      email: string,
-      password: string,
-      displayName: string,
-      inviteCode: string
-    ) => {
+    async (username: string, password: string, displayName: string, inviteCode: string) => {
       const res = await authService.register({
         username,
-        email,
         password,
         displayName,
         inviteCode,
       });
       tokenStore.setTokens(res.accessToken, res.refreshToken);
+      tokenStore.clearSelectedUser();
       setUser(res.user);
     },
     []
@@ -153,13 +215,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setup = useCallback(
-    async (username: string, email: string, password: string, displayName: string) => {
-      const res = await authService.setup({ username, email, password, displayName });
+    async (username: string, password: string, displayName: string) => {
+      const res = await authService.setup({ username, password, displayName });
       tokenStore.setTokens(res.accessToken, res.refreshToken);
       setUser(res.user);
       setNeedsSetup(false);
     },
     []
+  );
+
+  const selectUser = useCallback(async (username: string) => {
+    await authService.selectUser(username);
+    tokenStore.setSelectedUser(username);
+    try {
+      const currentUser = await userService.getCurrentUser();
+      setUser(currentUser);
+    } catch (err) {
+      tokenStore.clearSelectedUser();
+      throw err;
+    }
+  }, []);
+
+  const createFirstUser = useCallback(
+    async (username: string, displayName: string, password?: string) => {
+      await authService.createFirstUser({ username, displayName, password });
+      setNeedsSetup(false);
+      if (isAuthEnabledRef.current) {
+        // Auth already enforced (unusual for a fresh install) — caller must log in.
+        return;
+      }
+      await authService.selectUser(username);
+      tokenStore.setSelectedUser(username);
+      const currentUser = await userService.getCurrentUser();
+      setUser(currentUser);
+      await refreshStatus();
+    },
+    [refreshStatus]
   );
 
   const dismissPasswordChange = useCallback(() => {
@@ -171,12 +262,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     needsSetup,
+    isAuthEnabled,
+    availableUsers,
+    needsAdminPassword,
     requiresPasswordChange,
     login,
     register,
     logout,
     updateUser,
     setup,
+    createFirstUser,
+    selectUser,
+    refreshStatus,
     dismissPasswordChange,
   };
 

@@ -1,12 +1,21 @@
 // ─── Auth & Multi-User Types ─────────────────────────────────────────────────
 
+export type UserLevel = 'User' | 'Manager' | 'Admin';
+
 export interface User {
   id: string;
   username: string;
-  email: string;
   displayName: string;
   role: 'Admin' | 'User';
-  avatarPath: string | null;
+  /** Upstream-aligned 3-tier level (User/Manager/Admin). */
+  level: UserLevel;
+  /** Per-user OPDS path slug (e.g. "feather-flood"). */
+  opdsPath: string;
+  /** Base64-encoded avatar image, null when no avatar is set. */
+  avatarBase64: string | null;
+  avatarContentType: string | null;
+  /** True when the user has a password set (password login possible). */
+  hasPassword: boolean;
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
@@ -49,8 +58,26 @@ export interface AuthResponse {
   requiresPasswordChange?: boolean;
 }
 
+/** Slim user entry returned by GET /api/auth/status when auth is disabled. */
+export interface StatusUserEntry {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarBase64: string | null;
+  avatarContentType: string | null;
+}
+
 export interface AuthStatusResponse {
+  /** True when password-based JWT authentication is required. */
+  authenticationEnabled: boolean;
+  /** True when at least one user exists. */
+  hasUsers: boolean;
+  /** Back-compat alias: equals !hasUsers. */
   requiresSetup: boolean;
+  /** True when auth is disabled and no admin account has a password set. */
+  needsAdminPassword: boolean;
+  /** Profile list for the user selector. Present only when auth is disabled. */
+  users?: StatusUserEntry[];
 }
 
 export interface InviteLink {
@@ -111,7 +138,6 @@ export interface LoginRequest {
 
 export interface RegisterRequest {
   username: string;
-  email: string;
   password: string;
   displayName: string;
   inviteCode: string;
@@ -119,23 +145,58 @@ export interface RegisterRequest {
 
 export interface SetupRequest {
   username: string;
-  email: string;
   password: string;
   displayName: string;
+}
+
+/** POST /api/users/first — passwordless first-admin creation (auth disabled by default). */
+export interface FirstUserRequest {
+  username: string;
+  displayName: string;
+  password?: string;
+}
+
+/** POST /api/auth/select-user — profile selection when auth is disabled. */
+export interface SelectUserRequest {
+  username: string;
+}
+
+/** POST /api/auth/set-password — consume an invite token to set a password. */
+export interface SetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+/** POST /api/auth/set-admin-password — admin self-serve password set. */
+export interface SetAdminPasswordRequest {
+  newPassword: string;
+}
+
+/** PUT /api/users/{id}/claim — protect a disabled-mode profile with a password. */
+export interface ClaimUserRequest {
+  password: string;
+}
+
+/** Response of POST /api/users/{id}/generate-invite. */
+export interface GenerateInviteResponse {
+  token: string;
+  url: string;
+  expiresAt: string;
+  message: string;
 }
 
 export interface CreateUserRequest {
   username: string;
-  email: string;
+  /** Empty string creates a passwordless profile (invite link sets it later). */
   password: string;
   displayName: string;
   role: 'Admin' | 'User';
   permissions?: UserPermissions;
+  permissionPresetId?: string;
 }
 
 export interface UpdateUserRequest {
   displayName?: string;
-  email?: string;
   role?: 'Admin' | 'User';
   isActive?: boolean;
 }

@@ -116,7 +116,7 @@ namespace KaizokuBackend.Services.Background
                 var fixes = scope.ServiceProvider.GetRequiredService<NouisanceFixer20ExtraLarge>();
                 await db.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
                 await EnsureAuthTablesAsync(db, cancellationToken).ConfigureAwait(false);
-                await ResetFirstAdminPasswordIfRequestedAsync(db, scope, cancellationToken).ConfigureAwait(false);
+                await ResetFirstAdminPasswordIfRequestedAsync(db, scope, settings, cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
                 await fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
@@ -384,6 +384,13 @@ namespace KaizokuBackend.Services.Background
                         WHERE ""Level"" = 0 AND ""Role"" = 0;",
                         cancellationToken).ConfigureAwait(false);
 
+                    // Tables created by earlier releases declared Email/PasswordHash/Salt as
+                    // NOT NULL (plus a unique IX_User_Email). The current model no longer sets
+                    // Email and allows passwordless users, so every INSERT/UPDATE would hit a
+                    // NOT NULL constraint. SQLite cannot drop NOT NULL via ALTER — rebuild the
+                    // table once when the legacy shape is detected. Runs after the column adds
+                    // above so the copy column list is always the full current set.
+                    await RebuildUsersTableIfLegacyShapeAsync(db, cancellationToken).ConfigureAwait(false);
                 }
 
                 // ── OpdsPath per-row backfill (C# required — SQL cannot generate word-pairs) ──
@@ -413,7 +420,7 @@ namespace KaizokuBackend.Services.Background
         /// new password from Settings. The flag is rewritten to false in appsettings.json so the
         /// reset does not repeat on the next start.
         /// </summary>
-        private async Task ResetFirstAdminPasswordIfRequestedAsync(AppDbContext db, IServiceScope scope, CancellationToken cancellationToken)
+        private async Task ResetFirstAdminPasswordIfRequestedAsync(AppDbContext db, IServiceScope scope, SettingsDto settings, CancellationToken cancellationToken)
         {
             if (!_config.GetValue<bool>("Authentication:ResetFirstAdminPassword"))
                 return;
@@ -449,6 +456,12 @@ namespace KaizokuBackend.Services.Background
                     scope.ServiceProvider.GetRequiredService<IAuthSettingsCache>().Update(false);
                     _logger.LogWarning("Password authentication has been disabled as part of the admin password reset; the instance is back in profile-picker mode.");
                 }
+                // The settings DTO loaded earlier in StartAsync is saved again later in the
+                // startup sequence (SaveSettingsAsync after CheckStorageStatusAsync). Without
+                // this in-memory update that save would write the stale 'true' back to the DB
+                // and re-enable auth with a passwordless admin — the exact lockout this flag
+                // exists to recover from.
+                settings.AuthenticationEnabled = false;
 
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogWarning("Admin password for '{Username}' has been reset via Authentication:ResetFirstAdminPassword. " +
@@ -494,6 +507,104 @@ namespace KaizokuBackend.Services.Background
             {
                 _logger.LogWarning(ex, "Could not rewrite Authentication:ResetFirstAdminPassword in appsettings.json; the reset will run again on next start.");
             }
+        }
+
+        /// <summary>
+        /// Detects the legacy Users table shape (NOT NULL on Email/PasswordHash/Salt, written by
+        /// earlier releases) and rebuilds the table with the current relaxed schema using the
+        /// standard SQLite copy-and-rename procedure. Foreign keys are disabled for the duration:
+        /// the child tables (UserPermissions, UserSessions, ...) declare ON DELETE CASCADE, so
+        /// dropping the old parent with FKs on would wipe their rows. The legacy unique
+        /// IX_User_Email disappears with the old table by design (Email is no longer used).
+        /// </summary>
+        private async Task RebuildUsersTableIfLegacyShapeAsync(AppDbContext db, CancellationToken cancellationToken)
+        {
+            // Probe NOT NULL flags via PRAGMA table_info.
+            var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var conn = db.Database.GetDbConnection();
+            bool wasOpen = conn.State == System.Data.ConnectionState.Open;
+            if (!wasOpen)
+                await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "PRAGMA table_info(\"Users\");";
+                using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    if (reader.GetInt32(reader.GetOrdinal("notnull")) == 1)
+                        notNullColumns.Add(reader.GetString(reader.GetOrdinal("name")));
+                }
+            }
+            finally
+            {
+                if (!wasOpen)
+                    await conn.CloseAsync().ConfigureAwait(false);
+            }
+
+            if (!notNullColumns.Contains("Email") &&
+                !notNullColumns.Contains("PasswordHash") &&
+                !notNullColumns.Contains("Salt"))
+                return;
+
+            _logger.LogInformation("Rebuilding Users table to drop legacy NOT NULL constraints (Email/PasswordHash/Salt)...");
+
+            // Pin a single connection so the foreign_keys PRAGMA applies to every statement.
+            await db.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys=OFF;", cancellationToken).ConfigureAwait(false);
+                using (var tx = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    await db.Database.ExecuteSqlRawAsync(@"
+                        CREATE TABLE ""Users_rebuild"" (
+                            ""Id"" TEXT NOT NULL PRIMARY KEY,
+                            ""Username"" TEXT NOT NULL COLLATE BINARY,
+                            ""Email"" TEXT COLLATE BINARY,
+                            ""DisplayName"" TEXT NOT NULL COLLATE BINARY,
+                            ""PasswordHash"" TEXT COLLATE BINARY,
+                            ""Salt"" TEXT COLLATE BINARY,
+                            ""Role"" INTEGER NOT NULL,
+                            ""Level"" INTEGER NOT NULL DEFAULT 0,
+                            ""OpdsPath"" TEXT NOT NULL DEFAULT '' COLLATE BINARY,
+                            ""AvatarPath"" TEXT COLLATE BINARY,
+                            ""AvatarBlob"" BLOB,
+                            ""AvatarContentType"" TEXT COLLATE BINARY,
+                            ""PasswordSetToken"" TEXT COLLATE BINARY,
+                            ""PasswordSetTokenExpiresAt"" TEXT,
+                            ""CreatedAt"" TEXT NOT NULL,
+                            ""UpdatedAt"" TEXT NOT NULL,
+                            ""LastLoginAt"" TEXT,
+                            ""IsActive"" INTEGER NOT NULL
+                        );", cancellationToken).ConfigureAwait(false);
+
+                    await db.Database.ExecuteSqlRawAsync(@"
+                        INSERT INTO ""Users_rebuild""
+                            (""Id"", ""Username"", ""Email"", ""DisplayName"", ""PasswordHash"", ""Salt"",
+                             ""Role"", ""Level"", ""OpdsPath"", ""AvatarPath"", ""AvatarBlob"", ""AvatarContentType"",
+                             ""PasswordSetToken"", ""PasswordSetTokenExpiresAt"", ""CreatedAt"", ""UpdatedAt"",
+                             ""LastLoginAt"", ""IsActive"")
+                        SELECT ""Id"", ""Username"", ""Email"", ""DisplayName"", ""PasswordHash"", ""Salt"",
+                               ""Role"", ""Level"", ""OpdsPath"", ""AvatarPath"", ""AvatarBlob"", ""AvatarContentType"",
+                               ""PasswordSetToken"", ""PasswordSetTokenExpiresAt"", ""CreatedAt"", ""UpdatedAt"",
+                               ""LastLoginAt"", ""IsActive""
+                        FROM ""Users"";", cancellationToken).ConfigureAwait(false);
+
+                    await db.Database.ExecuteSqlRawAsync(@"DROP TABLE ""Users"";", cancellationToken).ConfigureAwait(false);
+                    await db.Database.ExecuteSqlRawAsync(@"ALTER TABLE ""Users_rebuild"" RENAME TO ""Users"";", cancellationToken).ConfigureAwait(false);
+                    await db.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_User_Username"" ON ""Users"" (""Username"");", cancellationToken).ConfigureAwait(false);
+                    // IX_User_OpdsPath is recreated unconditionally after BackfillOpdsPathsAsync.
+
+                    await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys=ON;", cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                await db.Database.CloseConnectionAsync().ConfigureAwait(false);
+            }
+
+            _logger.LogInformation("Users table rebuild complete.");
         }
 
         /// <summary>

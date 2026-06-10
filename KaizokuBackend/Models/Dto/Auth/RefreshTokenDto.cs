@@ -25,6 +25,13 @@ namespace KaizokuBackend.Models.Dto.Auth
 
         [JsonPropertyName("permissions")]
         public PermissionDto? Permissions { get; set; }
+
+        /// <summary>
+        /// Optional permission preset applied as the permission base. An explicit
+        /// <see cref="Permissions"/> object overrides individual preset values.
+        /// </summary>
+        [JsonPropertyName("permissionPresetId")]
+        public Guid? PermissionPresetId { get; set; }
     }
 
     public class ResetPasswordDto

@@ -18,7 +18,23 @@ namespace KaizokuBackend.Models.Dto.Auth
         public NsfwVisibility NsfwVisibility { get; set; } = NsfwVisibility.HideByDefault;
     }
 
-    public class UpdatePreferencesDto : UserPreferencesDto
+    /// <summary>
+    /// Partial update: only the properties present in the request body are applied;
+    /// omitted properties keep their stored values.
+    /// </summary>
+    public class UpdatePreferencesDto
     {
+        [JsonPropertyName("theme")]
+        public string? Theme { get; set; }
+
+        [JsonPropertyName("defaultLanguage")]
+        public string? DefaultLanguage { get; set; }
+
+        [JsonPropertyName("cardSize")]
+        public string? CardSize { get; set; }
+
+        [JsonPropertyName("nsfwVisibility")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public NsfwVisibility? NsfwVisibility { get; set; }
     }
 }

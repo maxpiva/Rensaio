@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, AlertCircle, User as UserIcon } from 'lucide-react';
+import { Loader2, AlertCircle, Lock, User as UserIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/auth-context';
+import { ApiError } from '@/lib/api/client';
 import type { StatusUserEntry } from '@/lib/api/auth-types';
 
 function ProfileAvatar({ entry }: { entry: StatusUserEntry }) {
@@ -40,6 +43,9 @@ export default function UserSelectPage() {
 
   const [selecting, setSelecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Profile awaiting its password (claimed profiles only). */
+  const [passwordPrompt, setPasswordPrompt] = useState<StatusUserEntry | null>(null);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (isLoading) return;
@@ -64,15 +70,29 @@ export default function UserSelectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
 
-  const handleSelect = async (username: string) => {
+  const handleSelect = async (entry: StatusUserEntry, enteredPassword?: string) => {
     if (selecting) return;
     setError(null);
-    setSelecting(username);
+
+    // Claimed profiles need their password — show the prompt instead of selecting.
+    if (entry.hasPassword && !enteredPassword) {
+      setPasswordPrompt(entry);
+      setPassword('');
+      return;
+    }
+
+    setSelecting(entry.username);
     try {
-      await selectUser(username);
+      await selectUser(entry.username, enteredPassword);
       router.push('/library');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not select this profile.');
+      if (err instanceof ApiError && err.status === 401) {
+        // Wrong or missing password — (re)open the prompt with the server message.
+        setPasswordPrompt(entry);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Could not select this profile.');
+      }
       setSelecting(null);
     }
   };
@@ -127,31 +147,88 @@ export default function UserSelectPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-start justify-center gap-6">
-            {availableUsers.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => void handleSelect(entry.username)}
-                disabled={!!selecting}
-                className="group flex w-28 flex-col items-center gap-2 rounded-xl p-3 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-              >
+          {passwordPrompt ? (
+            <form
+              className="flex w-full max-w-xs flex-col items-center gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSelect(passwordPrompt, password);
+              }}
+            >
+              <div className="flex flex-col items-center gap-2">
                 <div className="relative">
-                  <ProfileAvatar entry={entry} />
-                  {selecting === entry.username && (
+                  <ProfileAvatar entry={passwordPrompt} />
+                  {selecting === passwordPrompt.username && (
                     <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/60">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                   )}
                 </div>
-                <span className="w-full truncate text-center text-sm font-medium text-foreground">
-                  {entry.displayName || entry.username}
+                <span className="text-sm font-medium text-foreground">
+                  {passwordPrompt.displayName || passwordPrompt.username}
                 </span>
-              </button>
-            ))}
-          </div>
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Lock className="h-3 w-3" />
+                  This profile is protected by a password
+                </p>
+              </div>
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+                disabled={!!selecting}
+              />
+              <div className="flex w-full gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={!!selecting}
+                  onClick={() => {
+                    setPasswordPrompt(null);
+                    setPassword('');
+                    setError(null);
+                  }}
+                >
+                  Back
+                </Button>
+                <Button type="submit" className="flex-1" disabled={!!selecting || !password}>
+                  Continue
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-wrap items-start justify-center gap-6">
+              {availableUsers.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => void handleSelect(entry)}
+                  disabled={!!selecting}
+                  className="group flex w-28 flex-col items-center gap-2 rounded-xl p-3 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                >
+                  <div className="relative">
+                    <ProfileAvatar entry={entry} />
+                    {selecting === entry.username && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/60">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="max-w-full truncate text-center text-sm font-medium text-foreground">
+                      {entry.displayName || entry.username}
+                    </span>
+                    {entry.hasPassword && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-          {availableUsers.length === 0 && (
+          {!passwordPrompt && availableUsers.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No profiles available. Ask your administrator to create one.
             </p>

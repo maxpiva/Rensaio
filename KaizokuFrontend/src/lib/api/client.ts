@@ -93,8 +93,10 @@ class KaizokuApiClient {
       ...options,
     });
 
-    // Handle 401 — attempt token refresh once
-    if (response.status === 401 && _retry) {
+    // Handle 401 — attempt token refresh once. Only applies to JWT mode: in
+    // profile-picker mode there is no session to refresh, and a 401 (e.g. a
+    // claimed profile's password check) must surface to the caller as ApiError.
+    if (response.status === 401 && _retry && accessToken) {
       // Deduplicate concurrent refresh attempts
       if (!refreshPromise) {
         refreshPromise = doRefresh(this.baseUrl).finally(() => {

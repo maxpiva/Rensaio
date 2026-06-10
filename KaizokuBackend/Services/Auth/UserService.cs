@@ -111,6 +111,33 @@ namespace KaizokuBackend.Services.Auth
             _db.Users.Add(user);
 
             var permissions = new UserPermissionEntity { UserId = user.Id };
+
+            // Preset (when chosen) forms the permission base; an explicit Permissions
+            // object below overrides it, and the Admin role overrides everything.
+            if (dto.PermissionPresetId != null)
+            {
+                var preset = await _db.PermissionPresets
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == dto.PermissionPresetId.Value, token)
+                    .ConfigureAwait(false);
+
+                if (preset == null)
+                    throw new InvalidOperationException("Permission preset not found.");
+
+                permissions.CanViewLibrary = preset.CanViewLibrary;
+                permissions.CanRequestSeries = preset.CanRequestSeries;
+                permissions.CanAddSeries = preset.CanAddSeries;
+                permissions.CanEditSeries = preset.CanEditSeries;
+                permissions.CanDeleteSeries = preset.CanDeleteSeries;
+                permissions.CanManageDownloads = preset.CanManageDownloads;
+                permissions.CanViewQueue = preset.CanViewQueue;
+                permissions.CanBrowseSources = preset.CanBrowseSources;
+                permissions.CanViewNSFW = preset.CanViewNSFW;
+                permissions.CanManageRequests = preset.CanManageRequests;
+                permissions.CanManageJobs = preset.CanManageJobs;
+                permissions.CanViewStatistics = preset.CanViewStatistics;
+            }
+
             if (dto.Permissions != null)
             {
                 permissions.CanViewLibrary = dto.Permissions.CanViewLibrary;
@@ -261,9 +288,16 @@ namespace KaizokuBackend.Services.Auth
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
         }
 
-        public async Task<UserDto> UpdateProfileAsync(Guid userId, UpdateUserDto dto, CancellationToken token = default)
+        public async Task<UserDetailDto> UpdateProfileAsync(Guid userId, UpdateUserDto dto, CancellationToken token = default)
         {
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token).ConfigureAwait(false);
+            // Returns the full detail DTO (incl. permissions/preferences): the frontend
+            // replaces its auth-context user with this response, and a permissions-less
+            // payload would blank out every permission-gated UI element.
+            var user = await _db.Users
+                .Include(u => u.Permissions)
+                .Include(u => u.Preferences)
+                .FirstOrDefaultAsync(u => u.Id == userId, token)
+                .ConfigureAwait(false);
             if (user == null) throw new InvalidOperationException("User not found.");
 
             if (dto.DisplayName != null)
@@ -271,7 +305,7 @@ namespace KaizokuBackend.Services.Auth
 
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
-            return AuthService.MapUserDto(user);
+            return MapToDetailDto(user);
         }
 
         public async Task ChangePasswordAsync(Guid userId, ChangePasswordDto dto, CancellationToken token = default)
@@ -408,7 +442,9 @@ namespace KaizokuBackend.Services.Auth
                 .TrimEnd('=');
 
             var expiresAt = DateTime.UtcNow.AddDays(7);
-            user.PasswordSetToken = rawToken;
+            // Store only a SHA-256 digest: a leaked database copy must not be enough to
+            // take over an account via /api/auth/set-password during the 7-day window.
+            user.PasswordSetToken = HashInviteToken(rawToken);
             user.PasswordSetTokenExpiresAt = expiresAt;
             user.UpdatedAt = DateTime.UtcNow;
 
@@ -422,7 +458,8 @@ namespace KaizokuBackend.Services.Auth
             if (string.IsNullOrWhiteSpace(token))
                 throw new InvalidOperationException("Invalid or expired token.");
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.PasswordSetToken == token && u.IsActive, ct).ConfigureAwait(false);
+            var tokenHash = HashInviteToken(token);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.PasswordSetToken == tokenHash && u.IsActive, ct).ConfigureAwait(false);
 
             if (user == null || user.PasswordSetTokenExpiresAt == null || user.PasswordSetTokenExpiresAt < DateTime.UtcNow)
                 throw new InvalidOperationException("Invalid or expired token.");
@@ -499,6 +536,18 @@ namespace KaizokuBackend.Services.Auth
         private static bool VerifyPassword(string password, string hash, string salt)
         {
             return BCrypt.Net.BCrypt.Verify(password + salt, hash);
+        }
+
+        /// <summary>Verifies a plain-text password against a user's stored hash. False for passwordless users.</summary>
+        internal static bool VerifyUserPassword(UserEntity user, string password)
+        {
+            return user.PasswordHash != null && user.Salt != null &&
+                   VerifyPassword(password, user.PasswordHash, user.Salt);
+        }
+
+        private static string HashInviteToken(string rawToken)
+        {
+            return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawToken)));
         }
 
         private static UserDetailDto MapToDetailDto(UserEntity user)

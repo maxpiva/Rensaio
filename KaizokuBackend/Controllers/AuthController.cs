@@ -166,7 +166,8 @@ namespace KaizokuBackend.Controllers
                             AvatarBase64 = u.AvatarBlob != null && u.AvatarBlob.Length > 0
                                 ? Convert.ToBase64String(u.AvatarBlob)
                                 : null,
-                            AvatarContentType = u.AvatarContentType
+                            AvatarContentType = u.AvatarContentType,
+                            HasPassword = u.PasswordHash != null
                         })
                         .ToListAsync(token)
                         .ConfigureAwait(false);
@@ -191,6 +192,7 @@ namespace KaizokuBackend.Controllers
         [AllowAnonymous]
         [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<UserDto>> SelectUserAsync([FromBody] SelectUserDto dto, CancellationToken token = default)
         {
@@ -209,6 +211,17 @@ namespace KaizokuBackend.Controllers
 
                 if (user == null)
                     return NotFound(new { error = "User not found." });
+
+                // Claimed profiles require their password even in profile-picker mode;
+                // otherwise claiming would be purely cosmetic.
+                if (user.PasswordHash != null)
+                {
+                    if (string.IsNullOrEmpty(dto.Password))
+                        return Unauthorized(new { error = "This profile is protected by a password.", passwordRequired = true });
+
+                    if (!UserService.VerifyUserPassword(user, dto.Password))
+                        return Unauthorized(new { error = "Invalid password.", passwordRequired = true });
+                }
 
                 user.LastLoginAt = DateTime.UtcNow;
                 try

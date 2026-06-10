@@ -44,9 +44,11 @@ export const authService = {
     return apiClient.post<UserDetail>('/api/users/first', data);
   },
 
-  /** Selects a profile in auth-disabled mode. No JWT issued. */
-  async selectUser(username: string): Promise<User> {
-    return apiClient.post<User>('/api/auth/select-user', { username });
+  /** Selects a profile in auth-disabled mode. No JWT issued.
+   *  Claimed (password-protected) profiles require their password — the server
+   *  answers 401 { passwordRequired: true } when it is missing or wrong. */
+  async selectUser(username: string, password?: string): Promise<User> {
+    return apiClient.post<User>('/api/auth/select-user', password ? { username, password } : { username });
   },
 
   /** Consumes an invite token to set a password (public, allow-listed). */

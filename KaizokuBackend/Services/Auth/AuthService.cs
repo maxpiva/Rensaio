@@ -154,8 +154,10 @@ namespace KaizokuBackend.Services.Auth
             if (!user.IsActive)
                 throw new InvalidOperationException("Account is disabled.");
 
+            // Same message as the unknown-user case: a distinct "no password set" error
+            // would let an attacker enumerate which usernames exist as passwordless profiles.
             if (user.PasswordHash == null || user.Salt == null)
-                throw new InvalidOperationException("This account does not have a password set.");
+                throw new InvalidOperationException("Invalid username or password.");
 
             if (!VerifyPassword(dto.Password, user.PasswordHash!, user.Salt!))
                 throw new InvalidOperationException("Invalid username or password.");

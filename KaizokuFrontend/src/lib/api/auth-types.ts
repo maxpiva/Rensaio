@@ -65,6 +65,8 @@ export interface StatusUserEntry {
   displayName: string;
   avatarBase64: string | null;
   avatarContentType: string | null;
+  /** True when the profile is claimed: selecting it requires its password. */
+  hasPassword: boolean;
 }
 
 export interface AuthStatusResponse {
@@ -159,6 +161,8 @@ export interface FirstUserRequest {
 /** POST /api/auth/select-user — profile selection when auth is disabled. */
 export interface SelectUserRequest {
   username: string;
+  /** Required when the profile is claimed (password-protected). */
+  password?: string;
 }
 
 /** POST /api/auth/set-password — consume an invite token to set a password. */

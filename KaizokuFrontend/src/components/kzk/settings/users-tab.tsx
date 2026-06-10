@@ -597,28 +597,39 @@ function AuthenticationSection() {
 
   const domainValue = externalDomain ?? settings?.externalDomain ?? '';
 
-  const saveAuthSettings = async (enabled: boolean) => {
+  const saveAuthSettings = async (enabled: boolean, opts?: { saveDomain?: boolean }) => {
     if (!settings) return;
     setSaving(true);
     try {
-      await updateSettings.mutateAsync({
-        ...settings,
-        authenticationEnabled: enabled,
-        externalDomain: domainValue.trim(),
-      });
-      await refreshStatus();
+      try {
+        await updateSettings.mutateAsync({
+          ...settings,
+          authenticationEnabled: enabled,
+          // The domain field saves via its own button — toggling auth must not
+          // silently persist an unsaved edit.
+          ...(opts?.saveDomain ? { externalDomain: domainValue.trim() } : {}),
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && (err.body as { needsPassword?: boolean } | null)?.needsPassword) {
+          // Lockout guard: no admin has a password yet — collect one first (plan D.6).
+          setShowPasswordDialog(true);
+        } else {
+          toast({ title: 'Failed to save authentication settings', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+        }
+        return;
+      }
+      // Save succeeded — a status-refresh failure past this point must not be
+      // reported as a save failure, and the sign-out redirect must still run.
+      try {
+        await refreshStatus();
+      } catch {
+        // best-effort; the settings query invalidation will catch up
+      }
       if (enabled && !isAuthEnabled) {
         toast({ title: 'Authentication enabled', description: 'Please sign in with your password.', variant: 'success' });
         await logout();
       } else {
         toast({ title: 'Authentication settings saved', variant: 'success' });
-      }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && (err.body as { needsPassword?: boolean } | null)?.needsPassword) {
-        // Lockout guard: no admin has a password yet — collect one first (plan D.6).
-        setShowPasswordDialog(true);
-      } else {
-        toast({ title: 'Failed to save authentication settings', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
       }
     } finally {
       setSaving(false);
@@ -682,7 +693,7 @@ function AuthenticationSection() {
             size="sm"
             variant="outline"
             disabled={saving || domainValue.trim() === (settings.externalDomain ?? '')}
-            onClick={() => void saveAuthSettings(settings.authenticationEnabled)}
+            onClick={() => void saveAuthSettings(settings.authenticationEnabled, { saveDomain: true })}
           >
             Save
           </Button>

@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { tokenStore, registerLogoutCallback } from '@/lib/auth-token-store';
 import { authService } from '@/lib/api/services/authService';
 import { userService } from '@/lib/api/services/userService';
@@ -40,8 +41,9 @@ interface AuthContextType {
   setup: (username: string, password: string, displayName: string) => Promise<void>;
   /** Passwordless first-admin creation (default flow; auth disabled). */
   createFirstUser: (username: string, displayName: string, password?: string) => Promise<void>;
-  /** Selects a profile in auth-disabled mode and loads it as the current user. */
-  selectUser: (username: string) => Promise<void>;
+  /** Selects a profile in auth-disabled mode and loads it as the current user.
+   *  Claimed (password-protected) profiles require their password. */
+  selectUser: (username: string, password?: string) => Promise<void>;
   /** Re-fetches /api/auth/status (e.g. after user CRUD or toggling auth). */
   refreshStatus: () => Promise<void>;
   /** Clear the password change requirement after the user has updated their password. */
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [needsAdminPassword, setNeedsAdminPassword] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const initializedRef = useRef(false);
   const isAuthEnabledRef = useRef(false);
   isAuthEnabledRef.current = isAuthEnabled;
@@ -72,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         tokenStore.clearTokens();
         tokenStore.clearSelectedUser();
+        queryClient.clear(); // cached per-user data must not leak to the next identity
         setUser(null);
         setRequiresPasswordChange(false);
         router.push('/login');
@@ -80,11 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Disabled mode: no server session to revoke — just clear the profile.
       tokenStore.clearSelectedUser();
       tokenStore.clearTokens();
+      queryClient.clear();
       setUser(null);
       setRequiresPasswordChange(false);
       router.push('/user-select');
     }
-  }, [router]);
+  }, [router, queryClient]);
 
   // Register the module-level logout callback so the API client can trigger it
   useEffect(() => {
@@ -144,7 +149,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
-          // Profile-picker mode — restore the previously selected profile
+          // Profile-picker mode. Drop any JWT left over from a previous auth-enabled
+          // period first: the API client prefers Bearer over X-Kaizoku-User, so a stale
+          // token would make the backend resolve the fallback admin instead of the
+          // selected profile.
+          tokenStore.clearTokens();
+          // Restore the previously selected profile.
           const selected = tokenStore.getSelectedUser();
           if (selected) {
             try {
@@ -185,10 +195,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await authService.login({ usernameOrEmail: username, password, rememberMe });
       tokenStore.setTokens(res.accessToken, res.refreshToken, rememberMe);
       tokenStore.clearSelectedUser();
+      queryClient.clear();
       setUser(res.user);
       setRequiresPasswordChange(res.requiresPasswordChange ?? false);
     },
-    []
+    [queryClient]
   );
 
   const register = useCallback(
@@ -201,9 +212,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       tokenStore.setTokens(res.accessToken, res.refreshToken);
       tokenStore.clearSelectedUser();
+      queryClient.clear();
       setUser(res.user);
     },
-    []
+    [queryClient]
   );
 
   const logout = useCallback(async () => {
@@ -224,30 +236,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const selectUser = useCallback(async (username: string) => {
-    await authService.selectUser(username);
+  const selectUser = useCallback(async (username: string, password?: string) => {
+    await authService.selectUser(username, password);
+    // A stale JWT would take precedence over X-Kaizoku-User in the API client and
+    // silently resolve the fallback admin — clear it before loading the profile.
+    tokenStore.clearTokens();
     tokenStore.setSelectedUser(username);
     try {
       const currentUser = await userService.getCurrentUser();
+      if (currentUser.username !== username) {
+        // Middleware fell back to the default admin — refuse the mismatched identity.
+        throw new Error('Profile could not be selected.');
+      }
+      queryClient.clear(); // drop the previous profile's cached data
       setUser(currentUser);
     } catch (err) {
       tokenStore.clearSelectedUser();
       throw err;
     }
-  }, []);
+  }, [queryClient]);
 
   const createFirstUser = useCallback(
     async (username: string, displayName: string, password?: string) => {
       await authService.createFirstUser({ username, displayName, password });
-      setNeedsSetup(false);
       if (isAuthEnabledRef.current) {
         // Auth already enforced (unusual for a fresh install) — caller must log in.
+        setNeedsSetup(false);
         return;
       }
       await authService.selectUser(username);
       tokenStore.setSelectedUser(username);
       const currentUser = await userService.getCurrentUser();
       setUser(currentUser);
+      // Flip needsSetup only after the user is set: the setup page redirects to
+      // /user-select the moment needsSetup goes false without an authenticated user.
+      setNeedsSetup(false);
       await refreshStatus();
     },
     [refreshStatus]

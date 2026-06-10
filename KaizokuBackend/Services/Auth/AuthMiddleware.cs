@@ -1,5 +1,6 @@
 using KaizokuBackend.Data;
 using KaizokuBackend.Models.Database;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -51,6 +52,19 @@ namespace KaizokuBackend.Services.Auth
         public async Task InvokeAsync(HttpContext context, AppDbContext db)
         {
             var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+
+            // Only API routes and the SignalR hub need a resolved user / enforcement.
+            // Static assets and SPA pages pass straight through in both modes — in
+            // enabled mode the login page itself could never load otherwise, and in
+            // disabled mode this skips 1-2 user queries per asset request.
+            var isProtectedSurface = path.StartsWith("/api/", StringComparison.Ordinal) ||
+                                     path == "/api" ||
+                                     path.StartsWith("/progress", StringComparison.Ordinal);
+            if (!isProtectedSurface)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
 
             if (_authSettingsCache.AuthenticationEnabled)
             {
@@ -110,7 +124,14 @@ namespace KaizokuBackend.Services.Auth
 
         private async Task HandleEnabledModeAsync(HttpContext context, AppDbContext db, string path)
         {
-            if (IsAllowListed(path, context.Request.Method))
+            // Honour [AllowAnonymous] endpoint metadata (this middleware runs after
+            // UseRouting, so the endpoint is resolved). Covers login/register/status,
+            // image thumbnails, avatars, invite validation, first-user and claim —
+            // each of which carries its own internal guard where needed. The static
+            // allow-list below remains as a fallback.
+            var endpoint = context.GetEndpoint();
+            if (endpoint?.Metadata.GetMetadata<IAllowAnonymous>() != null ||
+                IsAllowListed(path, context.Request.Method))
             {
                 await _next(context).ConfigureAwait(false);
                 return;

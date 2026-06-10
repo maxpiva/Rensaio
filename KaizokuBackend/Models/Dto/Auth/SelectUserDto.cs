@@ -7,6 +7,10 @@ namespace KaizokuBackend.Models.Dto.Auth
     {
         [JsonPropertyName("username")]
         public string Username { get; set; } = string.Empty;
+
+        /// <summary>Required when the selected profile has been claimed (password-protected).</summary>
+        [JsonPropertyName("password")]
+        public string? Password { get; set; }
     }
 
     /// <summary>
@@ -29,6 +33,10 @@ namespace KaizokuBackend.Models.Dto.Auth
 
         [JsonPropertyName("avatarContentType")]
         public string? AvatarContentType { get; set; }
+
+        /// <summary>True when this profile is claimed: select-user requires its password.</summary>
+        [JsonPropertyName("hasPassword")]
+        public bool HasPassword { get; set; }
     }
 
     /// <summary>Response shape for <c>GET /api/auth/status</c>.</summary>

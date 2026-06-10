@@ -261,9 +261,9 @@ namespace KaizokuBackend.Controllers
         }
 
         [HttpPatch("me")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<UserDto>> UpdateProfileAsync([FromBody] UpdateUserDto dto, CancellationToken token = default)
+        public async Task<ActionResult<UserDetailDto>> UpdateProfileAsync([FromBody] UpdateUserDto dto, CancellationToken token = default)
         {
             try
             {

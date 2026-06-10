@@ -1,3 +1,4 @@
+using System.Text.Json;
 using KaizokuBackend.Data;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
@@ -18,7 +19,7 @@ public class ScrobblerController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ScrobblerProviderFactory _providerFactory;
-    private readonly ScrobblerTokenProtector _tokenProtector;
+    private readonly ITokenStorageService _tokenStorage;
     private readonly ScrobblerSyncService _syncService;
     private readonly SeriesMatchingService _matchingService;
     private readonly ILogger<ScrobblerController> _logger;
@@ -26,14 +27,14 @@ public class ScrobblerController : ControllerBase
     public ScrobblerController(
         AppDbContext db,
         ScrobblerProviderFactory providerFactory,
-        ScrobblerTokenProtector tokenProtector,
+        ITokenStorageService tokenStorage,
         ScrobblerSyncService syncService,
         SeriesMatchingService matchingService,
         ILogger<ScrobblerController> logger)
     {
         _db = db;
         _providerFactory = providerFactory;
-        _tokenProtector = tokenProtector;
+        _tokenStorage = tokenStorage;
         _syncService = syncService;
         _matchingService = matchingService;
         _logger = logger;
@@ -84,12 +85,18 @@ public class ScrobblerController : ControllerBase
             {
                 Provider = provider.ProviderType,
                 DisplayName = provider.DisplayName,
+                Icon = provider.Icon ?? "",
+                Link = provider.Link,
+                LinkDescription = provider.LinkDescription,
+                SeriesUrlTemplate = provider.SeriesUrlTemplate,
+                ImageTemplateUrl = provider.ImageTemplateUrl,
                 IsEnabled = config?.IsEnabled ?? false,
                 IsConnected = isConnected,
                 AutoSync = config?.AutoSync ?? false,
                 LastSyncAt = config?.LastSyncAt,
                 LastUploadAt = config?.LastUploadAt,
-                LastDownloadAt = config?.LastDownloadAt
+                LastDownloadAt = config?.LastDownloadAt,
+                SupportsDirectAuth = provider.SupportsDirectAuth
             });
         }
 
@@ -129,15 +136,21 @@ public class ScrobblerController : ControllerBase
             {
                 Provider = provider.ProviderType,
                 DisplayName = provider.DisplayName,
+                Icon = provider.Icon ?? "",
+                Link = provider.Link,
+                LinkDescription = provider.LinkDescription,
+                SeriesUrlTemplate = provider.SeriesUrlTemplate,
+                ImageTemplateUrl = provider.ImageTemplateUrl,
                 IsEnabled = config?.IsEnabled ?? false,
                 IsConnected = isConnected,
                 AutoSync = config?.AutoSync ?? false,
                 LastSyncAt = config?.LastSyncAt,
                 LastUploadAt = config?.LastUploadAt,
-                LastDownloadAt = config?.LastDownloadAt
+                LastDownloadAt = config?.LastDownloadAt,
+                SupportsDirectAuth = provider.SupportsDirectAuth
             });
         }
-
+        result = result.OrderBy(a => a.DisplayName).ToList();
         return Ok(result);
     }
 
@@ -166,7 +179,92 @@ public class ScrobblerController : ControllerBase
         return Ok(new { message = "Config updated" });
     }
 
-    // ── OAuth ──
+    // ── Direct Auth (Kitsu, MangaDex) ──
+
+    /// <summary>
+    /// POST /api/scrobbler/config/kitsu/direct
+    /// Authenticate with Kitsu via email + password (public OAuth password grant).
+    /// </summary>
+    [HttpPost("config/kitsu/direct")]
+    public async Task<ActionResult> KitsuDirectAuth([FromBody] KitsuDirectAuthDto dto)
+    {
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
+
+        var provider = _providerFactory.GetProvider(ScrobblerProvider.Kitsu);
+        if (provider == null || !provider.SupportsDirectAuth)
+            return BadRequest(new { message = "Kitsu direct auth not supported" });
+
+        var tokenResult = await provider.AuthenticateDirectAsync(new DirectAuthRequest
+        {
+            Username = dto.Email,
+            Password = dto.Password
+        });
+
+        if (!tokenResult.Success || tokenResult.AccessToken == null)
+            return BadRequest(new { message = tokenResult.ErrorMessage ?? "Authentication failed" });
+
+        // The token result from Kitsu has the refresh token as a raw token.
+        // We need to wrap it in a ScrobblerRefreshPayload before storing.
+        var kitsuTokenResult = new ScrobblerTokenResult
+        {
+            Success = tokenResult.Success,
+            AccessToken = tokenResult.AccessToken,
+            RefreshToken = JsonSerializer.Serialize(new ScrobblerRefreshPayload
+            {
+                RefreshToken = tokenResult.RefreshToken ?? string.Empty
+            }),
+            ExpiresAt = tokenResult.ExpiresAt
+        };
+
+        await _tokenStorage.StoreTokenResultAsync(userId, ScrobblerProvider.Kitsu, kitsuTokenResult);
+        return Ok(new { connected = true });
+    }
+
+    /// <summary>
+    /// POST /api/scrobbler/config/mangadex/direct
+    /// Authenticate with MangaDex via username + password + personal client credentials.
+    /// </summary>
+    [HttpPost("config/mangadex/direct")]
+    public async Task<ActionResult> MangaDexDirectAuth([FromBody] MangaDexDirectAuthDto dto)
+    {
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
+
+        var provider = _providerFactory.GetProvider(ScrobblerProvider.MangaDex);
+        if (provider == null || !provider.SupportsDirectAuth)
+            return BadRequest(new { message = "MangaDex direct auth not supported" });
+
+        var tokenResult = await provider.AuthenticateDirectAsync(new DirectAuthRequest
+        {
+            Username = dto.Username,
+            Password = dto.Password,
+            ClientId = dto.ClientId,
+            ClientSecret = dto.ClientSecret
+        });
+
+        if (!tokenResult.Success || tokenResult.AccessToken == null)
+            return BadRequest(new { message = tokenResult.ErrorMessage ?? "Authentication failed" });
+
+        // Pack the refresh token + personal client credentials into a JSON payload
+        var mdTokenResult = new ScrobblerTokenResult
+        {
+            Success = tokenResult.Success,
+            AccessToken = tokenResult.AccessToken,
+            RefreshToken = JsonSerializer.Serialize(new ScrobblerRefreshPayload
+            {
+                RefreshToken = tokenResult.RefreshToken ?? string.Empty,
+                ClientId = dto.ClientId,
+                ClientSecret = dto.ClientSecret
+            }),
+            ExpiresAt = tokenResult.ExpiresAt
+        };
+
+        await _tokenStorage.StoreTokenResultAsync(userId, ScrobblerProvider.MangaDex, mdTokenResult);
+        return Ok(new { connected = true });
+    }
+
+    // ── OAuth (AniList, MAL via proxy) ──
 
     /// <summary>
     /// POST /api/scrobbler/config/{provider}/authorize
@@ -184,6 +282,9 @@ public class ScrobblerController : ControllerBase
 
         if (!scrobbler.RequiresOAuth)
             return BadRequest(new { message = "Provider does not use OAuth. Use API key configuration instead." });
+
+        if (scrobbler.SupportsDirectAuth)
+            return BadRequest(new { message = "Provider uses direct authentication. Use the /direct endpoint instead." });
 
         var state = Guid.NewGuid().ToString("N");
         var redirectUri = $"{Request.Scheme}://{Request.Host}/api/scrobbler/config/{provider}/callback";
@@ -227,41 +328,12 @@ public class ScrobblerController : ControllerBase
 
         HttpContextHelper.CurrentState = null;
 
-        if (!tokenResult.Success || tokenResult.AccessToken == null)
+        if (!tokenResult.Success || string.IsNullOrEmpty(tokenResult.AccessToken))
             return BadRequest(new { message = tokenResult.ErrorMessage ?? "Failed to retrieve tokens from proxy" });
 
-        // Encrypt tokens before storing
-        var encryptedAccessToken = _tokenProtector.Encrypt(tokenResult.AccessToken);
-        var encryptedRefreshToken = tokenResult.RefreshToken != null
-            ? _tokenProtector.Encrypt(tokenResult.RefreshToken)
-            : null;
+        // Delegate encryption + storage to ITokenStorageService
+        await _tokenStorage.StoreTokenResultAsync(userId, providerEnum, tokenResult);
 
-        var config = await _db.UserScrobblerConfigs
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Provider == providerEnum);
-
-        if (config != null)
-        {
-            config.AccessToken = encryptedAccessToken;
-            config.RefreshToken = encryptedRefreshToken;
-            config.TokenExpiresAt = tokenResult.ExpiresAt;
-            config.IsEnabled = true;
-        }
-        else
-        {
-            _db.UserScrobblerConfigs.Add(new UserScrobblerConfigEntity
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Provider = providerEnum,
-                AccessToken = encryptedAccessToken,
-                RefreshToken = encryptedRefreshToken,
-                TokenExpiresAt = tokenResult.ExpiresAt,
-                IsEnabled = true,
-                AutoSync = true
-            });
-        }
-
-        await _db.SaveChangesAsync();
         return Ok(new { connected = true });
     }
 
@@ -288,38 +360,9 @@ public class ScrobblerController : ControllerBase
         if (!tokenResult.Success || tokenResult.AccessToken == null)
             return BadRequest(new { message = tokenResult.ErrorMessage ?? "Token exchange failed" });
 
-        // Encrypt tokens before storing
-        var encryptedAccessToken = _tokenProtector.Encrypt(tokenResult.AccessToken);
-        var encryptedRefreshToken = tokenResult.RefreshToken != null
-            ? _tokenProtector.Encrypt(tokenResult.RefreshToken)
-            : null;
+        // Delegate encryption + storage to ITokenStorageService
+        await _tokenStorage.StoreTokenResultAsync(userId, providerEnum, tokenResult);
 
-        var config = await _db.UserScrobblerConfigs
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Provider == providerEnum);
-
-        if (config != null)
-        {
-            config.AccessToken = encryptedAccessToken;
-            config.RefreshToken = encryptedRefreshToken;
-            config.TokenExpiresAt = tokenResult.ExpiresAt;
-            config.IsEnabled = true;
-        }
-        else
-        {
-            _db.UserScrobblerConfigs.Add(new UserScrobblerConfigEntity
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Provider = providerEnum,
-                AccessToken = encryptedAccessToken,
-                RefreshToken = encryptedRefreshToken,
-                TokenExpiresAt = tokenResult.ExpiresAt,
-                IsEnabled = true,
-                AutoSync = true
-            });
-        }
-
-        await _db.SaveChangesAsync();
         return Ok(new { connected = true });
     }
 
@@ -389,7 +432,10 @@ public class ScrobblerController : ControllerBase
     [HttpPost("matches/search")]
     public async Task<ActionResult<SeriesMatchSearchResultDto>> SearchExternal([FromBody] SeriesMatchSearchDto search)
     {
-        var results = await _matchingService.SearchExternalSeriesAsync(search.Provider, search.Query);
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
+
+        var results = await _matchingService.SearchExternalSeriesAsync(userId, search.Provider, search.Query);
         return Ok(new SeriesMatchSearchResultDto
         {
             Provider = search.Provider,

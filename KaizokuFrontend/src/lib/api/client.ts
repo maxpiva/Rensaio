@@ -6,7 +6,19 @@ class KaizokuApiClient {
     // Use relative URLs when no baseUrl is provided (production mode)
     // Use absolute URL when baseUrl is provided (development mode)
     this.baseUrl = baseUrl;
-  }  private async request<T>(
+  }
+
+  private getAuthToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('kaizoku_token');
+  }
+
+  private getSelectedUser(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('kaizoku_selected_user');
+  }
+
+  private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -15,13 +27,29 @@ class KaizokuApiClient {
     // Determine if we're sending FormData
     const isFormData = options.body instanceof FormData;
     
+    // Build headers
+    const headers: Record<string, string> = {
+      // Only set Content-Type for non-FormData requests
+      // FormData requests need the browser to set Content-Type with boundary
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    // Attach Bearer token if available (JWT-based auth)
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      // Fallback to header-based user selection for non-auth mode
+      const username = this.getSelectedUser();
+      if (username) {
+        headers['X-Kaizoku-User'] = username;
+      }
+    }
+
     const response = await fetch(url, {
-      headers: {
-        // Only set Content-Type for non-FormData requests
-        // FormData requests need the browser to set Content-Type with boundary
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-        ...options.headers,
-      }, credentials: 'include', // Include cookies for session management
+      headers,
+      credentials: 'include', // Include cookies for session management
       ...options,
     });
 

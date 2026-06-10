@@ -1,128 +1,50 @@
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Scrobbling.Abstractions;
+using KaizokuBackend.Services.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace KaizokuBackend.Services.Scrobbling.Providers;
 
 /// <summary>
-/// MyAnimeList scrobbler provider using OAuth2 Authorization Code and REST v2 API.
+/// MyAnimeList scrobbler provider using OAuth2 (via proxy) and REST v2 API.
+/// OAuth authorization is handled by ProxyScrobblerProvider base class;
+/// search, read-state, and upload operations call the MAL API directly.
 /// https://myanimelist.net/apiconfig
 /// </summary>
-public class MyAnimeListScrobblerProvider : IScrobblerProvider
+public class MyAnimeListScrobblerProvider : ProxyScrobblerProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<MyAnimeListScrobblerProvider> _logger;
-    private readonly ScrobblerConfiguration _config;
-
-    private const string AuthBase = "https://myanimelist.net/v1/oauth2";
     private const string ApiBase = "https://api.myanimelist.net/v2";
 
-    public ScrobblerProvider ProviderType => ScrobblerProvider.MyAnimeList;
-    public string DisplayName => "MyAnimeList";
-    public bool RequiresOAuth => true;
-
-    public MyAnimeListScrobblerProvider(IHttpClientFactory httpClientFactory, ILogger<MyAnimeListScrobblerProvider> logger, IConfiguration configuration)
+    public MyAnimeListScrobblerProvider(
+        IHttpClientFactory httpClientFactory,
+        ILogger<MyAnimeListScrobblerProvider> logger,
+        IConfiguration configuration,
+        ITokenStorageService tokenStorage,
+        ScrobblerTokenProtector tokenProtector,
+        SettingsService settingsService)
+        : base(httpClientFactory, configuration, ScrobblerProvider.MyAnimeList, logger, tokenStorage, tokenProtector)
     {
-        _httpClient = httpClientFactory.CreateClient("Scrobbler_MAL");
-        _logger = logger;
-        _config = configuration.GetSection("Scrobbling:MyAnimeList").Get<ScrobblerConfiguration>() ?? new ScrobblerConfiguration();
+        _apiHttpClient = httpClientFactory.CreateClient("Scrobbler_MAL");
+        _settingsService = settingsService;
     }
 
-    public Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
+    private readonly SettingsService _settingsService;
+
+    public override string? SeriesUrlTemplate => "https://myanimelist.net/manga/{0}";
+
+    public override async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
     {
-        var authUrl = $"{AuthBase}/authorize?response_type=code" +
-                      $"&client_id={_config.ClientId}" +
-                      $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-                      $"&state={state}" +
-                      $"&code_challenge=kaizoku_mal_state_{state}";
-
-        return Task.FromResult(new ScrobblerAuthUrlResult
-        {
-            AuthUrl = authUrl,
-            State = state
-        });
-    }
-
-    public async Task<ScrobblerTokenResult> ExchangeCodeAsync(string code, string redirectUri)
-    {
-        try
-        {
-            var formData = new Dictionary<string, string>
-            {
-                ["grant_type"] = "authorization_code",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
-                ["redirect_uri"] = redirectUri,
-                ["code"] = code
-            };
-
-            var response = await _httpClient.PostAsync($"{AuthBase}/token",
-                new FormUrlEncodedContent(formData));
-
-            var json = await response.Content.ReadFromJsonAsync<MalTokenResponse>();
-            if (json == null || string.IsNullOrEmpty(json.AccessToken))
-                return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to parse token response" };
-
-            return new ScrobblerTokenResult
-            {
-                Success = true,
-                AccessToken = json.AccessToken,
-                RefreshToken = json.RefreshToken,
-                ExpiresAt = DateTime.UtcNow.AddSeconds(json.ExpiresIn)
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "MAL token exchange failed");
-            return new ScrobblerTokenResult { Success = false, ErrorMessage = ex.Message };
-        }
-    }
-
-    public async Task<ScrobblerTokenResult> RefreshTokenAsync(string refreshToken)
-    {
-        try
-        {
-            var formData = new Dictionary<string, string>
-            {
-                ["grant_type"] = "refresh_token",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
-                ["refresh_token"] = refreshToken
-            };
-
-            var response = await _httpClient.PostAsync($"{AuthBase}/token",
-                new FormUrlEncodedContent(formData));
-
-            var json = await response.Content.ReadFromJsonAsync<MalTokenResponse>();
-            if (json == null || string.IsNullOrEmpty(json.AccessToken))
-                return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to refresh token" };
-
-            return new ScrobblerTokenResult
-            {
-                Success = true,
-                AccessToken = json.AccessToken,
-                RefreshToken = json.RefreshToken ?? refreshToken,
-                ExpiresAt = DateTime.UtcNow.AddSeconds(json.ExpiresIn)
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "MAL token refresh failed");
-            return new ScrobblerTokenResult { Success = false, ErrorMessage = ex.Message };
-        }
-    }
-
-    public Task<bool> ValidateApiKeyAsync(string apiKey) => Task.FromResult(false);
-
-    public async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
-    {
-        var response = await _httpClient.GetAsync(
-            $"{ApiBase}/manga?q={Uri.EscapeDataString(query)}&limit=25&fields=id,title,alternative_titles,main_picture,media_type,status,num_chapters,synopsis,mean,start_date",
+        _apiHttpClient.ApplyBearerToken(_accessToken);
+        var nsfwParam = _settingsService.DirectSettings?.NsfwVisibility == NsfwVisibility.Show ? "&nsfw=true" : "";
+        var response = await _apiHttpClient.GetAsync(
+            $"{ApiBase}/manga?q={Uri.EscapeDataString(query)}&limit=25&fields=id,title,alternative_titles,main_picture,media_type,status,num_chapters,synopsis,mean,start_date{nsfwParam}",
             token);
 
         response.EnsureSuccessStatusCode();
+
         var result = await response.Content.ReadFromJsonAsync<MalSearchResponse>(cancellationToken: token);
         var results = new List<ScrobblerSearchResult>();
 
@@ -132,7 +54,8 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
         {
             var node = item.Node;
             if (node == null) continue;
-
+            if (node.MediaType!=null && node.MediaType.Contains("novel", StringComparison.InvariantCultureIgnoreCase))
+                continue;
             var altTitles = new List<string>();
             if (node.AlternativeTitles != null)
             {
@@ -163,7 +86,7 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
         return results;
     }
 
-    public async Task<Dictionary<decimal, int>> GetReadChaptersAsync(string externalSeriesId, CancellationToken token = default)
+    public override async Task<Dictionary<decimal, int>> GetReadChaptersAsync(string externalSeriesId, CancellationToken token = default)
     {
         var total = await GetTotalChaptersReadAsync(externalSeriesId, token);
         var chapters = new Dictionary<decimal, int>();
@@ -172,11 +95,12 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
         return chapters;
     }
 
-    public async Task<int> GetTotalChaptersReadAsync(string externalSeriesId, CancellationToken token = default)
+    public override async Task<int> GetTotalChaptersReadAsync(string externalSeriesId, CancellationToken token = default)
     {
         try
         {
-            var response = await _httpClient.GetAsync(
+            _apiHttpClient.ApplyBearerToken(_accessToken);
+            var response = await _apiHttpClient.GetAsync(
                 $"{ApiBase}/manga/{externalSeriesId}?fields=my_list_status",
                 token);
 
@@ -186,12 +110,12 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get MAL read state for series {Id}", externalSeriesId);
+            base._logger.LogError(ex, "Failed to get MAL read state for series {Id}", externalSeriesId);
             return 0;
         }
     }
 
-    public async Task<bool> UploadChapterReadAsync(string externalSeriesId, decimal chapterNumber, int page, CancellationToken token = default)
+    public override async Task<bool> UploadChapterReadAsync(string externalSeriesId, decimal chapterNumber, int page, CancellationToken token = default)
     {
         try
         {
@@ -203,7 +127,8 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
                 ["num_chapters_read"] = newTotal.ToString()
             };
 
-            var response = await _httpClient.PatchAsync(
+            _apiHttpClient.ApplyBearerToken(_accessToken);
+            var response = await _apiHttpClient.PatchAsync(
                 $"{ApiBase}/manga/{externalSeriesId}/my_list_status",
                 new FormUrlEncodedContent(formData),
                 token);
@@ -212,89 +137,83 @@ public class MyAnimeListScrobblerProvider : IScrobblerProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload read state to MAL for series {Id}", externalSeriesId);
+            base._logger.LogError(ex, "Failed to upload read state to MAL for series {Id}", externalSeriesId);
             return false;
         }
     }
 
-    public Task<bool> UpdateTotalChaptersReadAsync(string externalSeriesId, int totalChapters, CancellationToken token = default)
+    public override Task<bool> UpdateTotalChaptersReadAsync(string externalSeriesId, int totalChapters, CancellationToken token = default)
         => UploadChapterReadAsync(externalSeriesId, totalChapters, 0, token);
-
-    public async Task<bool> ValidateTokenAsync(CancellationToken token = default)
-    {
-        try
-        {
-            var response = await _httpClient.GetAsync($"{ApiBase}/users/@me", token);
-            return response.IsSuccessStatusCode;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 
     // ── JSON Models ──
 
-    private class MalTokenResponse
-    {
-        [System.Text.Json.Serialization.JsonPropertyName("access_token")]
-        public string? AccessToken { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
-        public string? RefreshToken { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
-        public int ExpiresIn { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("token_type")]
-        public string? TokenType { get; set; }
-    }
-
     private class MalSearchResponse
     {
+        [JsonPropertyName("data")]
         public List<MalSearchDataItem>? Data { get; set; }
     }
 
     private class MalSearchDataItem
     {
+        [JsonPropertyName("node")]
         public MalMangaNode? Node { get; set; }
     }
 
     private class MalMangaNode
     {
+        [JsonPropertyName("id")]
         public int Id { get; set; }
+        [JsonPropertyName("title")]
         public string? Title { get; set; }
+        [JsonPropertyName("alternative_titles")]
         public MalAlternativeTitles? AlternativeTitles { get; set; }
+        [JsonPropertyName("main_picture")]
         public MalMainPicture? MainPicture { get; set; }
+        [JsonPropertyName("media_type")]
         public string? MediaType { get; set; }
+        [JsonPropertyName("status")]
         public string? Status { get; set; }
+        [JsonPropertyName("num_chapters")]
         public int? NumChapters { get; set; }
+        [JsonPropertyName("synopsis")]
         public string? Synopsis { get; set; }
+        [JsonPropertyName("mean")]
         public decimal? Mean { get; set; }
+        [JsonPropertyName("start_date")]
         public string? StartDate { get; set; }
     }
 
     private class MalAlternativeTitles
     {
+        [JsonPropertyName("en")]
         public string? En { get; set; }
+        [JsonPropertyName("ja")]
         public string? Ja { get; set; }
+        [JsonPropertyName("synonyms")]
         public List<string>? Synonyms { get; set; }
     }
 
     private class MalMainPicture
     {
+        [JsonPropertyName("medium")]
         public string? Medium { get; set; }
+        [JsonPropertyName("large")]
         public string? Large { get; set; }
     }
 
     private class MalMangaDetailResponse
     {
+        [JsonPropertyName("id")]
         public int Id { get; set; }
+        [JsonPropertyName("title")]
         public string? Title { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("my_list_status")]
+        [JsonPropertyName("my_list_status")]
         public MalMyListStatus? MyListStatus { get; set; }
     }
 
     private class MalMyListStatus
     {
-        [System.Text.Json.Serialization.JsonPropertyName("num_chapters_read")]
+        [JsonPropertyName("num_chapters_read")]
         public int NumChaptersRead { get; set; }
     }
 }

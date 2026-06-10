@@ -11,19 +11,23 @@ import {
   type ScrobblerProvider,
   type SeriesMatchStatus,
   type SyncStatus,
+  type KitsuDirectAuthRequest,
+  type MangaDexDirectAuthRequest,
 } from '@/lib/api/types';
 
-export const useScrobblerProviders = () => {
+export const useScrobblerProviders = (enabled?: boolean) => {
   return useQuery({
     queryKey: ['scrobbler', 'providers'],
     queryFn: () => scrobblerService.getProviders(),
+    enabled,
   });
 };
 
-export const useScrobblerConfigs = () => {
+export const useScrobblerConfigs = (enabled?: boolean) => {
   return useQuery({
     queryKey: ['scrobbler', 'configs'],
     queryFn: () => scrobblerService.getConfigs(),
+    enabled,
   });
 };
 
@@ -69,17 +73,19 @@ export const useScrobblerDisconnect = () => {
   });
 };
 
-export const useScrobblerMatches = () => {
+export const useScrobblerMatches = (enabled?: boolean) => {
   return useQuery({
     queryKey: ['scrobbler', 'matches'],
     queryFn: () => scrobblerService.getMatches(),
+    enabled,
   });
 };
 
-export const useScrobblerUnmatched = () => {
+export const useScrobblerUnmatched = (enabled?: boolean) => {
   return useQuery({
     queryKey: ['scrobbler', 'unmatched'],
     queryFn: () => scrobblerService.getUnmatched(),
+    enabled,
   });
 };
 
@@ -158,10 +164,31 @@ export const useTriggerSync = () => {
   });
 };
 
-export const useSyncStatus = () => {
+export const useKitsuDirectAuth = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: KitsuDirectAuthRequest) => scrobblerService.kitsuDirectAuth(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scrobbler'] });
+    },
+  });
+};
+
+export const useMangaDexDirectAuth = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: MangaDexDirectAuthRequest) => scrobblerService.mangaDexDirectAuth(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scrobbler'] });
+    },
+  });
+};
+
+export const useSyncStatus = (enabled?: boolean) => {
   return useQuery({
     queryKey: ['scrobbler', 'sync'],
     queryFn: () => scrobblerService.getSyncStatus(),
+    enabled,
   });
 };
 

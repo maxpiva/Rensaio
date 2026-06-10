@@ -13,6 +13,8 @@ using Mihon.ExtensionsBridge.Models.Extensions;
 using System.Collections.Concurrent;
 using System.Globalization;
 
+using KaizokuBackend.Services.Scrobbling;
+
 namespace KaizokuBackend.Services.Search
 {
     /// <summary>
@@ -270,7 +272,32 @@ namespace KaizokuBackend.Services.Search
                     a.IsStorage = sourceDict[a.MihonProviderId!].IsStorage;
                 });
 
-                var finalResults = linked.DistinctBy(a => a.MihonId).OrderByLevenshteinDistance(a => a.Title, keyword).ToList();
+                // Reorder results by fuzzy relevance to the search keyword
+                var finalResults = linked.DistinctBy(a => a.MihonId).ToList();
+
+                // Only try to reorder if we have a non-empty keyword
+                if (!string.IsNullOrWhiteSpace(keyword) && finalResults.Count > 0)
+                {
+                    var candidates = finalResults
+                        .Where(r => r.MihonId != null)
+                        .Select(r => (r.Title, Id: r.MihonId!))
+                        .ToList();
+
+                    if (candidates.Count > 0)
+                    {
+                        var scored = TitleMatcher.MatchTitles(
+                            originalTitles: new[] { keyword },
+                            candidates: candidates,
+                            minimumScore: 0);
+
+                        var scoreLookup = scored.ToDictionary(s => s.Id, s => s.Percentage);
+
+                        finalResults = finalResults
+                            .OrderByDescending(r => r.MihonId != null && scoreLookup.TryGetValue(r.MihonId, out var score) ? score : -1)
+                            .ThenBy(r => r.Title)
+                            .ToList();
+                    }
+                }
 
                 // Cache results for 30 seconds
                 _memoryCache.Set(cacheKey, finalResults, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30) });

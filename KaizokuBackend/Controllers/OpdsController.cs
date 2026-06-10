@@ -9,7 +9,6 @@ using KaizokuBackend.Services.Opds;
 using KaizokuBackend.Services.ReadState;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -31,12 +30,6 @@ public class OpdsController : ControllerBase
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-
-    // ── Client capabilities cache ──────────────────────────────────────────
-    // Keyed by "user-agent:client-ip" so we know what image formats each client supports.
-    // Overwritten when the detected formats differ from the cached value.
-    private static readonly ConcurrentDictionary<string, List<string>> _clientCapabilitiesCache = new();
-    private static readonly TimeSpan _clientCapabilitiesTtl = TimeSpan.FromMinutes(5);
 
     public OpdsController(UserQueryService userQueryService, OpdsFeedService feedService,
         OpdsImageService imageService, ReadStateService readStateService,
@@ -97,16 +90,21 @@ public class OpdsController : ControllerBase
         string feed = await _feedService.BuildSeriesFeedAsync(user, seriesId, null, token);
 
         // After responding, proactively preload the first unread chapter
+        // Query DB here (within the request scope) and capture the result
+        var series = await _db.Series
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == seriesId, token);
         var capturedUser = user;
-        var capturedFormats = GetSupportedImageFormats();
-        Response.OnCompleted(async () =>
+        var capturedFormats = ClientCapabilitiesHelper.GetSupportedImageFormats(Request, HttpContext);
+        var capturedStoragePath = series?.StoragePath;
+        Response.OnCompleted(() =>
         {
-            var series = await _db.Series.FindAsync(seriesId);
-            if (series?.StoragePath != null)
+            if (!string.IsNullOrWhiteSpace(capturedStoragePath))
             {
                 _imageService.PreloadFirstUnreadChapterAsync(
-                    capturedUser, seriesId, null, series.StoragePath, capturedFormats);
+                    capturedUser, seriesId, null, capturedStoragePath, capturedFormats);
             }
+            return Task.CompletedTask;
         });
 
         return Content(feed, "application/atom+xml", System.Text.Encoding.UTF8);
@@ -183,16 +181,21 @@ public class OpdsController : ControllerBase
         string feed = await _feedService.BuildSeriesFeedAsync(user, seriesId, null, token);
 
         // After responding, proactively preload the first unread chapter
+        // Query DB here (within the request scope) and capture the result
+        var series = await _db.Series
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == seriesId, token);
         var capturedUser = user;
-        var capturedFormats = GetSupportedImageFormats();
-        Response.OnCompleted(async () =>
+        var capturedFormats = ClientCapabilitiesHelper.GetSupportedImageFormats(Request, HttpContext);
+        var capturedStoragePath = series?.StoragePath;
+        Response.OnCompleted(() =>
         {
-            var series = await _db.Series.FindAsync(seriesId);
-            if (series?.StoragePath != null)
+            if (!string.IsNullOrWhiteSpace(capturedStoragePath))
             {
                 _imageService.PreloadFirstUnreadChapterAsync(
-                    capturedUser, seriesId, null, series.StoragePath, capturedFormats);
+                    capturedUser, seriesId, null, capturedStoragePath, capturedFormats);
             }
+            return Task.CompletedTask;
         });
 
         return Content(feed, "application/atom+xml", System.Text.Encoding.UTF8);
@@ -213,16 +216,21 @@ public class OpdsController : ControllerBase
         string feed = await _feedService.BuildSeriesFeedAsync(user, seriesId, language, token);
 
         // After responding, proactively preload the first unread chapter (in this language)
+        // Query DB here (within the request scope) and capture the result
+        var series = await _db.Series
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == seriesId, token);
         var capturedUser = user;
-        var capturedFormats = GetSupportedImageFormats();
-        Response.OnCompleted(async () =>
+        var capturedFormats = ClientCapabilitiesHelper.GetSupportedImageFormats(Request, HttpContext);
+        var capturedStoragePath = series?.StoragePath;
+        Response.OnCompleted(() =>
         {
-            var series = await _db.Series.FindAsync(seriesId);
-            if (series?.StoragePath != null)
+            if (!string.IsNullOrWhiteSpace(capturedStoragePath))
             {
                 _imageService.PreloadFirstUnreadChapterAsync(
-                    capturedUser, seriesId, language, series.StoragePath, capturedFormats);
+                    capturedUser, seriesId, language, capturedStoragePath, capturedFormats);
             }
+            return Task.CompletedTask;
         });
 
         return Content(feed, "application/atom+xml", System.Text.Encoding.UTF8);
@@ -287,7 +295,7 @@ public class OpdsController : ControllerBase
             return NotFound();
 
         // Capture and cache client image capabilities
-        CacheClientCapabilities();
+        ClientCapabilitiesHelper.Capture(Request, HttpContext);
 
         var result = await _thumbCache.ProcessKeyAsync(key, Request.GetETagFromRequest() ?? string.Empty, token);
         if (result.StatusCode == HttpStatusCode.OK)
@@ -311,7 +319,7 @@ public class OpdsController : ControllerBase
             return NotFound();
 
         // Capture and cache client image capabilities
-        CacheClientCapabilities();
+        ClientCapabilitiesHelper.Capture(Request, HttpContext);
 
         var series = await _db.Series
             .AsNoTracking()
@@ -390,13 +398,9 @@ public class OpdsController : ControllerBase
         bool shouldPreloadNext = isCompleted || (totalPages > 0 && lastReadPage >= (int)(totalPages * 0.8));
         if (shouldPreloadNext)
         {
-            var capturedUser = user;
-            var capturedFormats = GetSupportedImageFormats();
-            _ = Task.Run(async () =>
-            {
-                _imageService.PreloadNextChapterAsync(
-                    capturedUser, seriesId, language, chapterNumber, series.StoragePath, capturedFormats);
-            });
+            var capturedFormats = ClientCapabilitiesHelper.GetSupportedImageFormats(Request, HttpContext);
+            _imageService.PreloadNextChapterAsync(
+                user, seriesId, language, chapterNumber, series.StoragePath, capturedFormats);
         }
 
         // Return the updated state
@@ -457,59 +461,6 @@ public class OpdsController : ControllerBase
     // ──────────────────────────────────────────────────────────────────────────
     // Client Capabilities Helpers
     // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Derives a cache key for client capabilities from the current request.
-    /// Uses User-Agent + client IP (respecting X-Forwarded-For for reverse proxies).
-    /// </summary>
-    private string GetClientCapabilitiesKey()
-    {
-        string userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "";
-        string ip = Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                    ?? HttpContext.Connection.RemoteIpAddress?.ToString()
-                    ?? "unknown";
-        return $"{userAgent}:{ip}";
-    }
-
-    /// <summary>
-    /// Captures and caches client image capabilities from the current request.
-    /// Overwrites the cached entry if the formats differ from what's already cached
-    /// (i.e., the client's Accept header changed since the last request).
-    /// </summary>
-    private void CacheClientCapabilities()
-    {
-        string key = GetClientCapabilitiesKey();
-        List<string> formats = Request.SupportedImageTypesFromRequest();
-
-        // Overwrite if cached value differs — client capabilities may change
-        _clientCapabilitiesCache.AddOrUpdate(key, formats, (_, existing) =>
-        {
-            if (existing.Count != formats.Count ||
-                !existing.OrderBy(x => x).SequenceEqual(formats.OrderBy(x => x)))
-            {
-                return formats; // Overwrite with new value
-            }
-            return existing; // Keep existing (no change)
-        });
-
-        // Evict after TTL (fire-and-forget)
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(_clientCapabilitiesTtl);
-            _clientCapabilitiesCache.TryRemove(key, out _);
-        });
-    }
-
-    /// <summary>
-    /// Gets cached client capabilities for this request, or empty list if not cached.
-    /// </summary>
-    private List<string> GetSupportedImageFormats()
-    {
-        string key = GetClientCapabilitiesKey();
-        return _clientCapabilitiesCache.TryGetValue(key, out var formats)
-            ? formats
-            : [];
-    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Private Helpers

@@ -20,9 +20,44 @@ public interface IScrobblerProvider
     string DisplayName { get; }
 
     /// <summary>
+    /// Human-readable name (e.g. "MyAnimeList", "AniList").
+    /// </summary>
+    string? Icon { get; }
+
+    /// <summary>
+    /// Optional URL to the provider's website or profile settings page.
+    /// </summary>
+    string? Link { get; }
+
+    /// <summary>
+    /// Optional short description for the link (e.g. "Settings page", "Create API client").
+    /// </summary>
+    string? LinkDescription { get; }
+
+    /// <summary>
+    /// URL template for a series detail page on this provider.
+    /// Use {0} as placeholder for the external series ID.
+    /// Example: "https://anilist.co/manga/{0}"
+    /// </summary>
+    string? SeriesUrlTemplate { get; }
+
+    /// <summary>
+    /// URL template for cover/thumbnail images from this provider.
+    /// Use {0} as placeholder for the image identifier.
+    /// Example: "https://uploads.mangadex.org/covers/{0}"
+    /// </summary>
+    string? ImageTemplateUrl { get; }
+
+    /// <summary>
     /// Whether this provider requires OAuth (true) or an API key (false).
     /// </summary>
     bool RequiresOAuth { get; }
+
+    /// <summary>
+    /// Whether this provider supports direct password-based authentication.
+    /// True for Kitsu and MangaDex, false for providers using the OAuth proxy.
+    /// </summary>
+    bool SupportsDirectAuth { get; }
 
     // ── Auth: OAuth ──
     /// <summary>
@@ -39,6 +74,18 @@ public interface IScrobblerProvider
     /// Refreshes an expired access token using the refresh token.
     /// </summary>
     Task<ScrobblerTokenResult> RefreshTokenAsync(string refreshToken);
+
+    // ── Auth: Direct (password grant) ──
+    /// <summary>
+    /// Authenticates via password grant. Only valid when <see cref="SupportsDirectAuth"/> is true.
+    /// Throws <see cref="NotSupportedException"/> otherwise.
+    /// </summary>
+    Task<ScrobblerTokenResult> AuthenticateDirectAsync(DirectAuthRequest request);
+
+    /// <summary>
+    /// Sets the bearer access token on the underlying HTTP client for subsequent API calls.
+    /// </summary>
+    void SetAccessToken(string accessToken);
 
     // ── Auth: API Key ──
     /// <summary>
@@ -78,6 +125,15 @@ public interface IScrobblerProvider
     /// </summary>
     Task<bool> UpdateTotalChaptersReadAsync(string externalSeriesId, int totalChapters, CancellationToken token = default);
 
+    // ── Token Lifecycle ──
+    /// <summary>
+    /// Loads the user's stored credentials, decrypts them, checks expiry,
+    /// refreshes via the provider's auth endpoint if needed, persists the
+    /// new tokens back to the DB, and sets the active token on this provider.
+    /// Each provider implements this according to its own auth architecture.
+    /// </summary>
+    Task EnsureAuthenticatedAsync(Guid userId, CancellationToken token = default);
+
     // ── Health ──
     /// <summary>
     /// Validates that the stored credentials are still valid.
@@ -101,4 +157,27 @@ public class ScrobblerTokenResult
     public string? RefreshToken { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Request DTO for direct password-based authentication.
+/// </summary>
+public class DirectAuthRequest
+{
+    public string? Username { get; set; }   // email for Kitsu, username for MangaDex
+    public string? Password { get; set; }
+    public string? ClientId { get; set; }       // MangaDex personal client only
+    public string? ClientSecret { get; set; }   // MangaDex personal client only
+}
+
+/// <summary>
+/// Deserialized payload stored inside the encrypted RefreshToken field for direct auth providers.
+/// For Kitsu: only RefreshToken is populated.
+/// For MangaDex: RefreshToken + ClientId + ClientSecret are populated.
+/// </summary>
+internal class ScrobblerRefreshPayload
+{
+    public string RefreshToken { get; set; } = string.Empty;
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
 }

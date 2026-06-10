@@ -93,22 +93,75 @@ namespace KaizokuBackend.Controllers
         }
 
         /// <summary>
-        /// Augment series metadata
+        /// Search series against providers during import wizard
         /// </summary>
-        [HttpPost("augment")]
+        [HttpPost("search")]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult> AugmentSeriesAsync(CancellationToken token = default)
+        public async Task<ActionResult> SearchSeriesAsync(CancellationToken token = default)
         {
             try
             {
-                await _jobManagementService.EnqueueJobAsync(JobType.SearchProviders, default(object), Priority.High, null, null, null, "Default", token).ConfigureAwait(false);
-                return Ok(new { success = true, message = "Search providers scheduled" });
+                await _jobManagementService.EnqueueJobAsync<string?>(JobType.SearchProviders, null, Priority.High, null, null, null, "Default", token).ConfigureAwait(false);
+                return Ok(new { success = true, message = "Search Series Scheduled" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error searching providers");
-                return StatusCode(500, new { error = $"An error occurred during searching: {ex.Message}" });
+                _logger.LogError(ex, "Error scheduling Search Series");
+                return StatusCode(500, new { error = $"An error occurred during scheduling: {ex.Message}" });
+            }
+        }
+        /// <summary>
+        /// Update import information.
+        /// </summary>
+        /// <param name="info">Import information to update.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Status of the update operation.</returns>
+        /// <response code="200">Update completed successfully</response>
+        /// <response code="400">If no import was provided</response>
+        /// <response code="500">If an error occurs during update</response>
+        [HttpPost("update")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> UpdateAsync([FromBody] ImportSeriesEntry info, CancellationToken token = default)
+        {
+            try
+            {
+                if (info == null)
+                {
+                    return BadRequest(new { error = "No Import provided" });
+                }
+                await _importCommandService.UpdateImportSeriesEntryAsync(info, token).ConfigureAwait(false);
+                return Ok(new { success = true, message = "Import updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating Import: {Message}", ex.Message);
+                return StatusCode(500, new { error = "An error occurred while updating Import" });
+            }
+        }
+        /// <summary>
+        /// Augment series metadata
+        /// </summary>
+        [HttpPost("augment")]
+        [ProducesResponseType(typeof(ImportSeriesEntry), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ImportSeriesEntry>> AugmentAsync([FromQuery] string path, [FromBody] List<LinkedSeriesDto> linkedSeries, CancellationToken token = default)
+        {
+            try
+            {
+                if (linkedSeries == null || linkedSeries.Count == 0)
+                {
+                    return BadRequest(new { error = "No series provided to augment" });
+                }
+                return Ok(await _importQueryService.AugmentAsync(path, linkedSeries, token).ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error augmenting series: {Message}", ex.Message);
+                return StatusCode(500, new { error = "An error occurred while augmenting series." });
             }
         }
 

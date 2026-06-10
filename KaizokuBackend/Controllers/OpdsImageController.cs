@@ -18,10 +18,6 @@ public class OpdsImageController : ControllerBase
     private readonly HashCacheService _hashCacheService;
     private readonly AppDbContext _db;
 
-    // ── Client capabilities cache ──────────────────────────────────────────
-    // Shared with OpdsController via static. Same key derivation.
-    private static readonly ConcurrentDictionary<string, List<string>> _clientCapabilitiesCache = new();
-    private static readonly TimeSpan _clientCapabilitiesTtl = TimeSpan.FromMinutes(5);
 
     public OpdsImageController(UserQueryService userQueryService, OpdsImageService imageService, HashCacheService hashCacheService, AppDbContext db)
     {
@@ -96,8 +92,8 @@ public class OpdsImageController : ControllerBase
         }
 
         // Capture and cache client image capabilities
-        CacheClientCapabilities();
-        var supportedFormats = GetSupportedImageFormats();
+        ClientCapabilitiesHelper.Capture(Request, HttpContext);
+        var supportedFormats = ClientCapabilitiesHelper.GetSupportedImageFormats(Request, HttpContext);
 
         // Get the image stream, content type, and MD5 hash with format conversion support.
         // GetPageImageAsync handles the full chapter-loading lifecycle internally:
@@ -116,48 +112,5 @@ public class OpdsImageController : ControllerBase
         }
 
         return File(imageStream, contentType ?? "image/jpeg");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // Client Capabilities Helpers
-    // ──────────────────────────────────────────────────────────────────────
-
-    private string GetClientCapabilitiesKey()
-    {
-        string userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "";
-        string ip = Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                    ?? HttpContext.Connection.RemoteIpAddress?.ToString()
-                    ?? "unknown";
-        return $"{userAgent}:{ip}";
-    }
-
-    private void CacheClientCapabilities()
-    {
-        string key = GetClientCapabilitiesKey();
-        List<string> formats = Request.SupportedImageTypesFromRequest();
-
-        _clientCapabilitiesCache.AddOrUpdate(key, formats, (_, existing) =>
-        {
-            if (existing.Count != formats.Count ||
-                !existing.OrderBy(x => x).SequenceEqual(formats.OrderBy(x => x)))
-            {
-                return formats;
-            }
-            return existing;
-        });
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(_clientCapabilitiesTtl);
-            _clientCapabilitiesCache.TryRemove(key, out _);
-        });
-    }
-
-    private List<string> GetSupportedImageFormats()
-    {
-        string key = GetClientCapabilitiesKey();
-        return _clientCapabilitiesCache.TryGetValue(key, out var formats)
-            ? formats
-            : [];
     }
 }

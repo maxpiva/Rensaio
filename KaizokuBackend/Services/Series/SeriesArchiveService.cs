@@ -23,9 +23,13 @@ namespace KaizokuBackend.Services.Series
         private readonly ArchiveHelperService _archiveHelper;
         private readonly JobHubReportService _reportingService;
         private readonly ILogger<SeriesArchiveService> _logger;
+        private readonly SeriesStateService _stateService;
+        private readonly ReadState.HashCacheService _hashCache;
 
         public SeriesArchiveService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
-            JobHubReportService reportingService, ILogger<SeriesArchiveService> logger)
+            JobHubReportService reportingService, ILogger<SeriesArchiveService> logger,
+            SeriesStateService stateService,
+            ReadState.HashCacheService hashCache)
         {
             _db = db;
             _settings = settings;
@@ -122,8 +126,16 @@ namespace KaizokuBackend.Services.Series
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
             }
 
-            // Save kaizoku.json snapshot reflecting the current DB state
-            await series.SaveImportSeriesSnapshotToDirectoryAsync(basePath, _logger, token).ConfigureAwait(false);
+            // Clean up hash cache entries for removed chapters
+            try
+            {
+                // This method also handles hash cleanup internally via its loops
+                await _stateService.SyncToKaizokuJsonAsync(series.Id, token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to sync kaizoku.json after integrity verify for series {SeriesId}", series.Id);
+            }
 
             // Return integrity result for remaining valid chapters
             List<Chapter> validChapters = series.Sources.SelectMany(a => a.Chapters)
@@ -173,6 +185,12 @@ namespace KaizokuBackend.Services.Series
                 {
                     foreach (Chapter ch in s.Chapters.Where(a => a.Filename == r.Filename))
                     {
+                        // Clean up hash cache before removing the filename reference
+                        if (!string.IsNullOrEmpty(ch.Filename))
+                        {
+                            _hashCache.DeleteChapterHash(series.StoragePath, ch.Filename);
+                        }
+
                         ch.Filename = null;
                         ch.IsDeleted = true;
                         _db.Touch(s, c => c.Chapters);
@@ -185,6 +203,10 @@ namespace KaizokuBackend.Services.Series
 
             if (update)
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
+
+            // Sync kaizoku.json after cleanup - always sync even if no changes detected
+            // since file deletions may have occurred
+            await _stateService.SyncToKaizokuJsonAsync(series.Id, token).ConfigureAwait(false);
         }
 
         /// <summary>

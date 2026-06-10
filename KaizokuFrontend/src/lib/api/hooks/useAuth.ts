@@ -64,7 +64,7 @@ export function useCreateFirstUser() {
 
   return useMutation({
     mutationFn: (data: { username: string }) =>
-      userService.createFirstUser({ username: data.username, level: 2 }),
+      userService.createFirstUser({ username: data.username, level: 3 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTH_STATUS_KEY });
     },

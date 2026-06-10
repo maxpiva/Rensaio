@@ -1,37 +1,69 @@
 using KaizokuBackend.Data;
+using KaizokuBackend.Models;
+using KaizokuBackend.Services.Images;
+using KaizokuBackend.Services.Settings;
+using KaizokuBackend.Extensions;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Scrobbling.Abstractions;
+using KaizokuBackend.Services.Series;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace KaizokuBackend.Services.Scrobbling;
 
 /// <summary>
 /// Handles automatic and manual series matching between local series and external scrobbling services.
 /// Provides auto-matching with 95% word-coverage threshold, manual search/confirm, and disable logic.
+/// Token lifecycle is delegated to each provider's EnsureAuthenticatedAsync.
+/// 
+/// Cascading match order:
+/// 1. SeriesMappings (global table, shared across users, role-based overwrite)
+/// 2. ImportSeriesSnapshot.ExternalMappings (from kaizoku.json / DB snapshot)
+/// 3. Scrobbler provider search (original behavior)
 /// </summary>
 public class SeriesMatchingService
 {
     private readonly AppDbContext _db;
     private readonly ScrobblerProviderFactory _providerFactory;
-    private readonly ScrobblerTokenProtector _tokenProtector;
     private readonly TitleMatcher _titleMatcher;
+    private readonly SeriesStateService _seriesStateService;
+    private readonly SettingsService _settings;
+    private readonly ThumbCacheService _thumbCache;
     private readonly ILogger<SeriesMatchingService> _logger;
+    private const string ImagePrefix = "/api/image/";
 
     public SeriesMatchingService(
         AppDbContext db,
         ScrobblerProviderFactory providerFactory,
-        ScrobblerTokenProtector tokenProtector,
         TitleMatcher titleMatcher,
+        SeriesStateService seriesStateService,
+        SettingsService settings,
+        ThumbCacheService thumbCache,
         ILogger<SeriesMatchingService> logger)
     {
         _db = db;
         _providerFactory = providerFactory;
-        _tokenProtector = tokenProtector;
         _titleMatcher = titleMatcher;
+        _seriesStateService = seriesStateService;
+        _settings = settings;
+        _thumbCache = thumbCache;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolve a series thumbnail URL to an /api/image/{key} endpoint URL.
+    /// </summary>
+    private async ValueTask<string?> ResolveCoverUrlAsync(string? thumbnailUrl, CancellationToken token = default)
+    {
+        if (string.IsNullOrEmpty(thumbnailUrl))
+            return null;
+        var key = await _thumbCache.GetKeyAsync(thumbnailUrl, token).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(key))
+            return null;
+        return ImagePrefix + key;
     }
 
     /// <summary>
@@ -76,6 +108,7 @@ public class SeriesMatchingService
 
         foreach (var series in seriesList)
         {
+            // Check user-level mapping first
             var existingMapping = await _db.UserSeriesMappings
                 .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
                     && m.Provider == provider, token);
@@ -86,6 +119,40 @@ public class SeriesMatchingService
                 continue;
             }
 
+            // Check if a global SeriesMapping exists (cascade source 1)
+            var globalMapping = await _db.SeriesMappings
+                .FirstOrDefaultAsync(m => m.SeriesId == series.Id && m.Provider == provider, token);
+
+            if (globalMapping != null && !string.IsNullOrEmpty(globalMapping.ExternalSeriesId))
+            {
+                // Auto-create user mapping from global mapping
+                if (existingMapping == null)
+                {
+                    _db.UserSeriesMappings.Add(new UserSeriesMappingEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        SeriesId = series.Id,
+                        Provider = provider,
+                        ExternalSeriesId = globalMapping.ExternalSeriesId,
+                        ExternalSeriesTitle = globalMapping.ExternalSeriesTitle,
+                        MappingStatus = SeriesMappingStatus.AutoMatched
+                    });
+                    await _db.SaveChangesAsync(token);
+                }
+                else
+                {
+                    existingMapping.ExternalSeriesId = globalMapping.ExternalSeriesId;
+                    existingMapping.ExternalSeriesTitle = globalMapping.ExternalSeriesTitle;
+                    existingMapping.MappingStatus = SeriesMappingStatus.AutoMatched;
+                    await _db.SaveChangesAsync(token);
+                }
+
+                result.AutoMatched++;
+                continue;
+            }
+
+            // Fall through to scrobbler provider search (cascade source 3)
             var matchResult = await TryAutoMatchAsync(userId, series, provider, token);
             if (matchResult != null)
             {
@@ -106,12 +173,15 @@ public class SeriesMatchingService
 
     /// <summary>
     /// Search for a series on an external scrobbling service.
+    /// Loads the user's stored token via EnsureAuthenticatedAsync, then calls the provider search.
     /// </summary>
     public async Task<List<ScrobblerSearchResult>> SearchExternalSeriesAsync(
-        ScrobblerProvider provider, string query, CancellationToken token = default)
+        Guid userId, ScrobblerProvider provider, string query, CancellationToken token = default)
     {
         var scrobbler = _providerFactory.GetProvider(provider);
         if (scrobbler == null) return [];
+
+        await scrobbler.EnsureAuthenticatedAsync(userId, token);
 
         return await scrobbler.SearchSeriesAsync(query, token);
     }
@@ -119,6 +189,7 @@ public class SeriesMatchingService
     /// <summary>
     /// Confirm a manual match between a local series and an external series ID.
     /// Creates a mapping with UserConfirmed status.
+    /// Also upserts the global SeriesMapping and syncs kaizoku.json.
     /// </summary>
     public async Task ConfirmMatchAsync(Guid userId, Guid seriesId, ScrobblerProvider provider,
         string externalSeriesId, string? externalTitle = null, CancellationToken token = default)
@@ -148,6 +219,11 @@ public class SeriesMatchingService
         }
 
         await _db.SaveChangesAsync(token);
+
+        // Also upsert global SeriesMapping (no raw data on manual confirm)
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token);
+        await UpsertSeriesMappingAsync(userId, seriesId, provider, externalSeriesId, externalTitle,
+             user?.Level ?? UserLevel.User, token);
     }
 
     /// <summary>
@@ -163,7 +239,9 @@ public class SeriesMatchingService
 
         foreach (var config in configs)
         {
-            var seriesList = await _db.Series.ToListAsync(token);
+            var seriesList = await _db.Series
+                .Include(s => s.Sources)
+                .ToListAsync(token);
 
             foreach (var series in seriesList)
             {
@@ -171,10 +249,19 @@ public class SeriesMatchingService
                     .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
                         && m.Provider == config.Provider, token);
 
+                var altTitles = string.Join(", ", series.Sources?
+                    .Where(s => !string.IsNullOrEmpty(s.Title)
+                             && !s.Title.Equals(series.Title, StringComparison.OrdinalIgnoreCase))
+                    .Select(s => s.Title)
+                    .Distinct() ?? []);
+
+                var coverUrl = await ResolveCoverUrlAsync(series.ThumbnailUrl, token);
                 result.Add(new SeriesMatchStatusDto
                 {
                     SeriesId = series.Id,
                     SeriesTitle = series.Title,
+                    SeriesCoverUrl = coverUrl,
+                    AlternativeTitles = altTitles,
                     Provider = config.Provider,
                     MappingStatus = mapping?.MappingStatus ?? SeriesMappingStatus.Unmatched,
                     ExternalSeriesId = mapping?.ExternalSeriesId,
@@ -238,7 +325,9 @@ public class SeriesMatchingService
     /// </summary>
     public async Task<List<SeriesMatchStatusDto>> GetMatchStatusesAsync(Guid userId, CancellationToken token = default)
     {
-        var allSeries = await _db.Series.ToListAsync(token);
+        var allSeries = await _db.Series
+            .Include(s => s.Sources)
+            .ToListAsync(token);
         var allMappings = await _db.UserSeriesMappings
             .Where(m => m.UserId == userId)
             .ToListAsync(token);
@@ -248,19 +337,41 @@ public class SeriesMatchingService
 
         foreach (var series in allSeries)
         {
+            var altTitles = string.Join(", ", series.Sources?
+                .Where(s => !string.IsNullOrEmpty(s.Title)
+                         && !s.Title.Equals(series.Title, StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.Title)
+                .Distinct() ?? []);
+
             foreach (var provider in allProviders)
             {
                 var mapping = allMappings.FirstOrDefault(m =>
                     m.SeriesId == series.Id && m.Provider == provider);
 
+                var externalId = mapping?.ExternalSeriesId;
+                string? externalUrl = null;
+                if (!string.IsNullOrEmpty(externalId))
+                {
+                    var prov = _providerFactory.GetProvider(provider);
+                    if (prov?.SeriesUrlTemplate != null)
+                    {
+                        try { externalUrl = string.Format(prov.SeriesUrlTemplate, externalId); }
+                        catch { /* ignore format errors */ }
+                    }
+                }
+
+                var coverUrl = await ResolveCoverUrlAsync(series.ThumbnailUrl, token);
                 result.Add(new SeriesMatchStatusDto
                 {
                     SeriesId = series.Id,
                     SeriesTitle = series.Title,
+                    SeriesCoverUrl = coverUrl,
+                    AlternativeTitles = altTitles,
                     Provider = provider,
                     MappingStatus = mapping?.MappingStatus ?? SeriesMappingStatus.Unmatched,
-                    ExternalSeriesId = mapping?.ExternalSeriesId,
+                    ExternalSeriesId = externalId,
                     ExternalSeriesTitle = mapping?.ExternalSeriesTitle,
+                    ExternalSeriesUrl = externalUrl,
                     MatchScore = null
                 });
             }
@@ -318,83 +429,285 @@ public class SeriesMatchingService
         await TryAutoMatchAsync(userId, series, provider, token);
     }
 
+    /// <summary>
+    /// Cascading lookup for an existing mapping:
+    /// 1. SeriesMappings (global table, shared across users)
+    /// 2. ImportSeriesSnapshot.ExternalMappings (from kaizoku.json / DB snapshot)
+    /// Returns the match info if found via cascade sources 1 or 2.
+    /// </summary>
+    private async Task<(string? ExternalId, string? ExternalTitle)?> TryGetExistingMappingFromCascadeAsync(
+        SeriesEntity? series, ScrobblerProvider provider, CancellationToken token)
+    {
+        // Step 1: Check global SeriesMappings table
+        if (series != null)
+        {
+            var globalMapping = await _db.SeriesMappings
+                .FirstOrDefaultAsync(m => m.SeriesId == series.Id && m.Provider == provider, token);
+
+            if (globalMapping != null && !string.IsNullOrEmpty(globalMapping.ExternalSeriesId))
+            {
+                _logger.LogDebug("Found SeriesMapping cascade for series {SeriesId} provider {Provider}: {ExternalId}",
+                    series.Id, provider, globalMapping.ExternalSeriesId);
+                return (globalMapping.ExternalSeriesId, globalMapping.ExternalSeriesTitle);
+            }
+        }
+
+        // Step 2: Check kaizoku.json on disk for persisted ExternalMappings
+        if (series != null && !string.IsNullOrEmpty(series.StoragePath))
+        {
+            try
+            {
+                var settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+                var seriesFolder = System.IO.Path.Combine(settings.StorageFolder, series.StoragePath);
+                var kaizokuJsonPath = System.IO.Path.Combine(seriesFolder, "kaizoku.json");
+
+                if (File.Exists(kaizokuJsonPath))
+                {
+                    var jsonContent = await File.ReadAllTextAsync(kaizokuJsonPath, token).ConfigureAwait(false);
+                    var snapshot = System.Text.Json.JsonSerializer.Deserialize<ImportSeriesSnapshot>(jsonContent);
+
+                    if (snapshot?.Series.ExternalMappings!=null)
+                    {
+                        ExternalMapping? mapping = snapshot.Series.ExternalMappings.FirstOrDefault(m => m.Provider == provider.ToString());
+                        if (mapping!=null)
+                        {
+                            _logger.LogDebug("Found kaizoku.json ExternalMappings cascade for series {SeriesId} provider {Provider}: {ExternalId} {ExternalTitle}",     series.Id, mapping.Provider, mapping.ExternalId, mapping.ExternalTitle);
+                            return (mapping.ExternalId, mapping.ExternalTitle);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read kaizoku.json for ExternalMappings cascade (series {SeriesId})", series.Id);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Upserts a global SeriesMapping with role-based overwrite protection.
+    /// Only overwrites existing mapping if the new user's level >= existing user's level.
+    /// After upserting, syncs kaizoku.json via SeriesStateService.
+    /// </summary>
+    private async Task UpsertSeriesMappingAsync(Guid userId, Guid seriesId, ScrobblerProvider provider,
+        string externalSeriesId, string? externalTitle, UserLevel userLevel,
+        CancellationToken token)
+    {
+        var existing = await _db.SeriesMappings
+            .FirstOrDefaultAsync(m => m.SeriesId == seriesId && m.Provider == provider, token);
+
+        if (existing != null)
+        {
+            // Only overwrite if the new user's level is >= existing user's level
+            if (userLevel >= existing.UserRole)
+            {
+                existing.ExternalSeriesId = externalSeriesId;
+                existing.ExternalSeriesTitle = externalTitle;
+                existing.UserUid = userId;
+                existing.UserRole = userLevel;
+                existing.UpdateDate = DateTime.UtcNow;
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Skipping SeriesMapping overwrite for series {SeriesId} provider {Provider}: " +
+                    "new user level {NewLevel} < existing user level {ExistingLevel}",
+                    seriesId, provider, userLevel, existing.UserRole);
+                // Don't overwrite, but still sync kaizoku.json to ensure consistency
+            }
+        }
+        else
+        {
+            _db.SeriesMappings.Add(new SeriesMappingEntity
+            {
+                Id = Guid.NewGuid(),
+                SeriesId = seriesId,
+                Provider = provider,
+                ExternalSeriesId = externalSeriesId,
+                ExternalSeriesTitle = externalTitle,
+                UserUid = userId,
+                UserRole = userLevel,
+                UpdateDate = DateTime.UtcNow
+            });
+        }
+
+        await _db.SaveChangesAsync(token);
+
+        // After upserting, sync kaizoku.json via SeriesStateService
+        await _seriesStateService.SyncToKaizokuJsonAsync(seriesId, token);
+    }
+
     private async Task<SeriesMatchStatusDto?> TryAutoMatchAsync(Guid userId, SeriesEntity series,
         ScrobblerProvider provider, CancellationToken token)
     {
+        // Step 0: Cascading match check — check global mappings before hitting the scrobbler
+        var cascadeResult = await TryGetExistingMappingFromCascadeAsync(series, provider, token);
+        if (cascadeResult.HasValue)
+        {
+            var (existingId, existingTitle) = cascadeResult.Value;
+
+            // Create or update user-level mapping from cascade
+            var existingUserMapping = await _db.UserSeriesMappings
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
+                    && m.Provider == provider, token);
+
+            if (existingUserMapping != null)
+            {
+                existingUserMapping.ExternalSeriesId = existingId;
+                existingUserMapping.ExternalSeriesTitle = existingTitle;
+                existingUserMapping.MappingStatus = SeriesMappingStatus.AutoMatched;
+            }
+            else
+            {
+                _db.UserSeriesMappings.Add(new UserSeriesMappingEntity
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    SeriesId = series.Id,
+                    Provider = provider,
+                    ExternalSeriesId = existingId,
+                    ExternalSeriesTitle = existingTitle,
+                    MappingStatus = SeriesMappingStatus.AutoMatched
+                });
+            }
+
+            await _db.SaveChangesAsync(token);
+
+            return new SeriesMatchStatusDto
+            {
+                SeriesId = series.Id,
+                SeriesTitle = series.Title,
+                Provider = provider,
+                MappingStatus = SeriesMappingStatus.AutoMatched,
+                ExternalSeriesId = existingId,
+                ExternalSeriesTitle = existingTitle,
+                MatchScore = 1.0 // 100% — it's an existing mapping
+            };
+        }
+
         var scrobbler = _providerFactory.GetProvider(provider);
         if (scrobbler == null) return null;
 
+        await scrobbler.EnsureAuthenticatedAsync(userId, token);
+
+        // Step 1: build deduped local title candidates
         var localCandidates = _titleMatcher.BuildTitleCandidates(series);
+        var uniqueTitles = localCandidates
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        // Try search with each candidate
-        ScrobblerSearchResult? bestMatch = null;
-        double bestScore = 0;
+        if (uniqueTitles.Length == 0) return null;
 
-        foreach (var candidate in localCandidates)
+        // Step 2: search each unique title against the scrobbler,
+        //          collecting ALL results keyed by external ID (deduped).
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allCandidates = new List<(string SearchTitle, string Id)>();
+        var resultLookup = new Dictionary<string, ScrobblerSearchResult>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var title in uniqueTitles)
         {
-            if (string.IsNullOrWhiteSpace(candidate)) continue;
+            var searchResults = await scrobbler.SearchSeriesAsync(title, token);
 
-            var searchResults = await scrobbler.SearchSeriesAsync(candidate, token);
             foreach (var result in searchResults)
             {
-                var score = _titleMatcher.ScoreMatch(result, localCandidates);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestMatch = result;
-                }
-            }
-        }
+                if (string.IsNullOrWhiteSpace(result.ExternalId)) continue;
+                if (string.IsNullOrWhiteSpace(result.Title)) continue;
 
-        if (bestMatch == null || bestScore < 0.95)
-        {
-            if (bestMatch != null)
-            {
-                // Suggest as candidate
-                var existingMapping = await _db.UserSeriesMappings
-                    .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
-                        && m.Provider == provider, token);
-
-                if (existingMapping == null)
+                // Dedup by external ID across all searches (first title wins for lookup).
+                if (seenIds.Add(result.ExternalId))
                 {
-                    _db.UserSeriesMappings.Add(new UserSeriesMappingEntity
+                    allCandidates.Add((result.Title, result.ExternalId));
+                    foreach(string alttitle in result.AlternateTitles)
                     {
-                        Id = Guid.NewGuid(),
-                        UserId = userId,
-                        SeriesId = series.Id,
-                        Provider = provider,
-                        ExternalSeriesId = bestMatch.ExternalId,
-                        ExternalSeriesTitle = bestMatch.Title,
-                        MappingStatus = SeriesMappingStatus.Unmatched
-                    });
-                    await _db.SaveChangesAsync(token);
+                        allCandidates.Add((alttitle, result.ExternalId));
+                    }
+                    resultLookup[result.ExternalId] = result;
                 }
-
-                return new SeriesMatchStatusDto
-                {
-                    SeriesId = series.Id,
-                    SeriesTitle = series.Title,
-                    Provider = provider,
-                    MappingStatus = SeriesMappingStatus.Unmatched,
-                    ExternalSeriesId = bestMatch.ExternalId,
-                    ExternalSeriesTitle = bestMatch.Title,
-                    ExternalCoverUrl = bestMatch.CoverUrl,
-                    MatchScore = bestScore
-                };
             }
-
-            return null;
         }
 
-        // Auto-match
+        if (allCandidates.Count == 0) return null;
+
+        // Step 3: score all unique results against all local candidates at once
+        var scored = TitleMatcher.MatchTitles(
+            originalTitles: localCandidates,
+            candidates: allCandidates,
+            minimumScore: 0);
+
+        if (scored.Length == 0) return null;
+
+        // Step 4: pick the best match
+        var best = scored[0];
+        var bestPercentage = best.Percentage;
+        var bestExternalId = best.Id;
+        var bestExternalTitle = best.SearchTitle;
+        var bestResult = resultLookup.GetValueOrDefault(bestExternalId);
+
+        const int autoMatchThreshold = 95;
+
+        if (bestPercentage < autoMatchThreshold)
+        {
+            // Suggest as candidate (below threshold)
+            // NOTE: This does NOT touch the global SeriesMappings table — only auto-approved
+            // (>=95%) or user-confirmed matches create/update global mappings.
+            var existingMapping = await _db.UserSeriesMappings
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
+                    && m.Provider == provider, token);
+
+            if (existingMapping == null)
+            {
+                _db.UserSeriesMappings.Add(new UserSeriesMappingEntity
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    SeriesId = series.Id,
+                    Provider = provider,
+                    ExternalSeriesId = bestExternalId,
+                    ExternalSeriesTitle = bestExternalTitle,
+                    MappingStatus = SeriesMappingStatus.Unmatched
+                });
+                await _db.SaveChangesAsync(token);
+            }
+
+            var altTitlesSuggest = string.Join(", ", series.Sources?
+                .Where(s => !string.IsNullOrEmpty(s.Title)
+                         && !s.Title.Equals(series.Title, StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.Title)
+                .Distinct() ?? []);
+
+            var coverUrlSuggest = await ResolveCoverUrlAsync(series.ThumbnailUrl, token);
+            return new SeriesMatchStatusDto
+            {
+                SeriesId = series.Id,
+                SeriesTitle = series.Title,
+                SeriesCoverUrl = coverUrlSuggest,
+                AlternativeTitles = altTitlesSuggest,
+                Provider = provider,
+                MappingStatus = SeriesMappingStatus.Unmatched,
+                ExternalSeriesId = bestExternalId,
+                ExternalSeriesTitle = bestExternalTitle,
+                ExternalCoverUrl = bestResult?.CoverUrl,
+                MatchScore = bestPercentage / 100.0
+            };
+        }
+
+        // Auto-match (>=95%) — only auto-approved matches create/update global SeriesMappings
+
+        // Load user-level for role-based overwrite
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, token);
+        var userLevel = user?.Level ?? UserLevel.User;
+
         var existing = await _db.UserSeriesMappings
             .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == series.Id
                 && m.Provider == provider, token);
 
         if (existing != null)
         {
-            existing.ExternalSeriesId = bestMatch.ExternalId;
-            existing.ExternalSeriesTitle = bestMatch.Title;
+            existing.ExternalSeriesId = bestExternalId;
+            existing.ExternalSeriesTitle = bestExternalTitle;
             existing.MappingStatus = SeriesMappingStatus.AutoMatched;
         }
         else
@@ -405,24 +718,37 @@ public class SeriesMatchingService
                 UserId = userId,
                 SeriesId = series.Id,
                 Provider = provider,
-                ExternalSeriesId = bestMatch.ExternalId,
-                ExternalSeriesTitle = bestMatch.Title,
+                ExternalSeriesId = bestExternalId,
+                ExternalSeriesTitle = bestExternalTitle,
                 MappingStatus = SeriesMappingStatus.AutoMatched
             });
         }
 
         await _db.SaveChangesAsync(token);
 
+        // Upsert global SeriesMapping with externalRaw and role-check
+        await UpsertSeriesMappingAsync(userId, series.Id, provider, bestExternalId,
+            bestExternalTitle, userLevel, token);
+
+        var altTitlesAuto = string.Join(", ", series.Sources?
+            .Where(s => !string.IsNullOrEmpty(s.Title)
+                     && !s.Title.Equals(series.Title, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Title)
+            .Distinct() ?? []);
+
+        var coverUrlAuto = await ResolveCoverUrlAsync(series.ThumbnailUrl, token);
         return new SeriesMatchStatusDto
         {
             SeriesId = series.Id,
             SeriesTitle = series.Title,
+            SeriesCoverUrl = coverUrlAuto,
+            AlternativeTitles = altTitlesAuto,
             Provider = provider,
             MappingStatus = SeriesMappingStatus.AutoMatched,
-            ExternalSeriesId = bestMatch.ExternalId,
-            ExternalSeriesTitle = bestMatch.Title,
-            ExternalCoverUrl = bestMatch.CoverUrl,
-            MatchScore = bestScore
+            ExternalSeriesId = bestExternalId,
+            ExternalSeriesTitle = bestExternalTitle,
+            ExternalCoverUrl = bestResult?.CoverUrl,
+            MatchScore = bestPercentage / 100.0
         };
     }
 }

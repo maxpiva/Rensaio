@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using KaizokuBackend.Data;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Scrobbling.Abstractions;
@@ -8,8 +10,9 @@ using Microsoft.Extensions.Logging;
 namespace KaizokuBackend.Services.Scrobbling.Providers;
 
 /// <summary>
-/// MangaDex scrobbler provider using OAuth2 (OpenID Connect) and REST v5 API.
-/// Most comprehensive manga-specific tracking support.
+/// MangaDex scrobbler provider using OAuth2 password grant (personal client) and REST v5 API.
+/// Users must create a personal API client at https://mangadex.org/settings > API Clients
+/// and supply those credentials for authentication.
 /// https://api.mangadex.org
 /// </summary>
 public class MangaDexScrobblerProvider : IScrobblerProvider
@@ -17,47 +20,80 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger<MangaDexScrobblerProvider> _logger;
     private readonly ScrobblerConfiguration _config;
+    private readonly ITokenStorageService _tokenStorage;
+    private readonly ScrobblerTokenProtector _tokenProtector;
+    private string? _accessToken;
+    private string? _personalClientId;
+    private string? _personalClientSecret;
 
     private const string AuthBase = "https://auth.mangadex.org/realms/mangadex/protocol/openid-connect";
     private const string ApiBase = "https://api.mangadex.org";
 
     public ScrobblerProvider ProviderType => ScrobblerProvider.MangaDex;
     public string DisplayName => "MangaDex";
+    public string? Icon => ProviderIcons.MangaDex;
+    public string? Link => "https://mangadex.org/settings#api-clients";
+    public string? LinkDescription => "Create API client";
+    public string? SeriesUrlTemplate => "https://mangadex.org/title/{0}";
+    public string? ImageTemplateUrl => "https://uploads.mangadex.org/covers/{0}";
     public bool RequiresOAuth => true;
+    public bool SupportsDirectAuth => true;
 
-    public MangaDexScrobblerProvider(IHttpClientFactory httpClientFactory, ILogger<MangaDexScrobblerProvider> logger, IConfiguration configuration)
+    public MangaDexScrobblerProvider(
+        IHttpClientFactory httpClientFactory,
+        ILogger<MangaDexScrobblerProvider> logger,
+        IConfiguration configuration,
+        ITokenStorageService tokenStorage,
+        ScrobblerTokenProtector tokenProtector)
     {
         _httpClient = httpClientFactory.CreateClient("Scrobbler_MangaDex");
         _logger = logger;
         _config = configuration.GetSection("Scrobbling:MangaDex").Get<ScrobblerConfiguration>() ?? new ScrobblerConfiguration();
+        _tokenStorage = tokenStorage;
+        _tokenProtector = tokenProtector;
     }
 
-    public Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
+    public void SetAccessToken(string accessToken)
     {
-        var authUrl = $"{AuthBase}/auth?response_type=code" +
-                      $"&client_id={_config.ClientId}" +
-                      $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-                      $"&state={state}" +
-                      $"&scope=openid";
-
-        return Task.FromResult(new ScrobblerAuthUrlResult
-        {
-            AuthUrl = authUrl,
-            State = state
-        });
+        _accessToken = accessToken;
     }
 
-    public async Task<ScrobblerTokenResult> ExchangeCodeAsync(string code, string redirectUri)
+    /// <summary>
+    /// Stores personal client credentials for token refresh.
+    /// </summary>
+    public void SetPersonalCredentials(string clientId, string clientSecret)
+    {
+        _personalClientId = clientId;
+        _personalClientSecret = clientSecret;
+    }
+
+    /// <summary>
+    /// Not supported for direct auth providers. Use <see cref="AuthenticateDirectAsync"/> instead.
+    /// </summary>
+    public Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
+        => throw new NotSupportedException("MangaDex uses direct personal client auth, not OAuth proxy.");
+
+    /// <summary>
+    /// Not supported for direct auth providers. Use <see cref="AuthenticateDirectAsync"/> instead.
+    /// </summary>
+    public Task<ScrobblerTokenResult> ExchangeCodeAsync(string code, string redirectUri)
+        => throw new NotSupportedException("MangaDex uses direct personal client auth, not OAuth proxy.");
+
+    /// <summary>
+    /// Authenticates via password grant using a MangaDex personal client.
+    /// Users must supply their personal client_id and client_secret along with username/password.
+    /// </summary>
+    public async Task<ScrobblerTokenResult> AuthenticateDirectAsync(DirectAuthRequest request)
     {
         try
         {
             var formData = new Dictionary<string, string>
             {
-                ["grant_type"] = "authorization_code",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
-                ["redirect_uri"] = redirectUri,
-                ["code"] = code
+                ["grant_type"] = "password",
+                ["username"] = request.Username ?? string.Empty,
+                ["password"] = request.Password ?? string.Empty,
+                ["client_id"] = request.ClientId ?? string.Empty,
+                ["client_secret"] = request.ClientSecret ?? string.Empty
             };
 
             var response = await _httpClient.PostAsync($"{AuthBase}/token",
@@ -66,6 +102,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
             var json = await response.Content.ReadFromJsonAsync<MdTokenResponse>();
             if (json == null || string.IsNullOrEmpty(json.AccessToken))
                 return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to parse token response" };
+
+            _accessToken = json.AccessToken;
 
             return new ScrobblerTokenResult
             {
@@ -77,11 +115,15 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "MangaDex token exchange failed");
+            _logger.LogError(ex, "MangaDex personal client auth failed");
             return new ScrobblerTokenResult { Success = false, ErrorMessage = ex.Message };
         }
     }
 
+    /// <summary>
+    /// Refreshes an expired access token.
+    /// Uses personal client credentials if set, otherwise falls back to global config.
+    /// </summary>
     public async Task<ScrobblerTokenResult> RefreshTokenAsync(string refreshToken)
     {
         try
@@ -89,10 +131,20 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
             var formData = new Dictionary<string, string>
             {
                 ["grant_type"] = "refresh_token",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
                 ["refresh_token"] = refreshToken
             };
+
+            // Use personal client credentials if available (from JSON payload), else fallback to config
+            if (!string.IsNullOrEmpty(_personalClientId))
+            {
+                formData["client_id"] = _personalClientId;
+                formData["client_secret"] = _personalClientSecret ?? string.Empty;
+            }
+            else if (!string.IsNullOrEmpty(_config.ClientId))
+            {
+                formData["client_id"] = _config.ClientId;
+                formData["client_secret"] = _config.ClientSecret ?? string.Empty;
+            }
 
             var response = await _httpClient.PostAsync($"{AuthBase}/token",
                 new FormUrlEncodedContent(formData));
@@ -100,6 +152,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
             var json = await response.Content.ReadFromJsonAsync<MdTokenResponse>();
             if (json == null || string.IsNullOrEmpty(json.AccessToken))
                 return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to refresh token" };
+
+            _accessToken = json.AccessToken;
 
             return new ScrobblerTokenResult
             {
@@ -116,10 +170,60 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
         }
     }
 
+    public async Task EnsureAuthenticatedAsync(Guid userId, CancellationToken token = default)
+    {
+        var (accessToken, refreshToken, expiresAt) = await _tokenStorage.LoadTokensAsync(userId, ProviderType, token);
+        if (accessToken == null) return;
+
+        SetAccessToken(accessToken);
+
+        // MangaDex stores personal client credentials inside the refresh payload
+        if (!string.IsNullOrEmpty(refreshToken))
+        {
+            try
+            {
+                var payload = JsonSerializer.Deserialize<ScrobblerRefreshPayload>(refreshToken);
+                if (payload != null)
+                {
+                    if (!string.IsNullOrEmpty(payload.ClientId))
+                        SetPersonalCredentials(payload.ClientId, payload.ClientSecret ?? string.Empty);
+
+                    if (expiresAt.HasValue && expiresAt.Value < DateTime.UtcNow.AddMinutes(5))
+                    {
+                        var refreshResult = await RefreshTokenAsync(payload.RefreshToken);
+                        if (refreshResult.Success && refreshResult.AccessToken != null)
+                        {
+                            // Build new payload with updated refresh token + preserved client credentials
+                            var newPayload = new ScrobblerRefreshPayload
+                            {
+                                RefreshToken = refreshResult.RefreshToken ?? payload.RefreshToken,
+                                ClientId = payload.ClientId,
+                                ClientSecret = payload.ClientSecret
+                            };
+                            var newPayloadJson = JsonSerializer.Serialize(newPayload);
+                            var encryptedAccess = _tokenProtector.Encrypt(refreshResult.AccessToken);
+                            var encryptedRefresh = _tokenProtector.Encrypt(newPayloadJson);
+
+                            await _tokenStorage.PersistRefreshedTokensAsync(userId, ProviderType,
+                                encryptedAccess, encryptedRefresh, refreshResult.ExpiresAt, token);
+                            SetAccessToken(refreshResult.AccessToken);
+                        }
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize MangaDex refresh payload for user {UserId}", userId);
+            }
+        }
+    }
+
     public Task<bool> ValidateApiKeyAsync(string apiKey) => Task.FromResult(false);
 
     public async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
     {
+        _httpClient.ApplyBearerToken(_accessToken);
+
         var response = await _httpClient.GetAsync(
             $"{ApiBase}/manga?title={Uri.EscapeDataString(query)}&limit=25&includes[]=cover_art",
             token);
@@ -178,6 +282,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+
             var chapters = new Dictionary<decimal, int>();
             var userId = await GetUserIdAsync(token);
             if (userId == null) return chapters;
@@ -227,6 +333,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+
             var payload = new
             {
                 chapter = chapterNumber.ToString()
@@ -253,6 +361,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+
             var response = await _httpClient.GetAsync($"{ApiBase}/user/me", token);
             return response.IsSuccessStatusCode;
         }
@@ -268,6 +378,8 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+
             var response = await _httpClient.GetAsync($"{ApiBase}/user/me", token);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<MdUserResponse>(cancellationToken: token);
@@ -278,6 +390,7 @@ public class MangaDexScrobblerProvider : IScrobblerProvider
             return null;
         }
     }
+
 
     private static string? GetCoverUrl(List<MdRelationship>? relationships)
     {

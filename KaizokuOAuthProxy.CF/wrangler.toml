@@ -32,3 +32,17 @@ PROXY_MANGADEX_CLIENT_ID = ""
 
 [env.dev]
 vars = { PROXY_ANILIST_CLIENT_ID = "dev_anilist_id", PROXY_MYANIMELIST_CLIENT_ID = "dev_mal_id", PROXY_KITSU_CLIENT_ID = "dev_kitsu_id", PROXY_MANGADEX_CLIENT_ID = "dev_mangadex_id" }
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

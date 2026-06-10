@@ -85,6 +85,7 @@ namespace KaizokuBackend
             services.AddSignalR();
             services.AddHttpContextAccessor();
             services.AddMemoryCache();
+            services.AddDataProtection();
             services.Configure<Paths>(a =>
             {
                 a.BridgeFolder = Configuration.GetValue<string>("BridgeFolder", "extensions");

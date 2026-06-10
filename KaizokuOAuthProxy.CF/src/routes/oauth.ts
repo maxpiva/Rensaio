@@ -3,7 +3,8 @@ import type { Env } from '../types';
 import { SUPPORTED_PROVIDERS, PROVIDER_DISPLAY_NAMES } from '../types';
 import { generateAuthUrl, exchangeCode, refreshToken } from '../services/provider-api';
 import { store, retrieve, setTokens, remove } from '../services/token-store';
-import { renderCallbackHtml } from '../utils/callback-html';
+import { renderCallbackHtml, renderErrorHtml } from '../utils/callback-html';
+import { generateCodeVerifier } from '../utils/pkce';
 import type { ErrorResponse, OAuthUrlResponse, TokenRetrieveResponse, TokenRefreshResponse } from '../models/responses';
 import type { TokenRetrieveRequest, TokenRefreshRequest } from '../models/requests';
 
@@ -48,11 +49,21 @@ oauthRoutes.post('/:provider/url', async (c) => {
     const url = new URL(c.req.url);
     const redirectUri = `${url.protocol}//${url.host}/api/oauth/${provider}/callback`;
 
-    // Generate auth URL
-    const authUrl = generateAuthUrl(provider, redirectUri, state, c.env);
+    // PKCE: Generate code_verifier for MyAnimeList.
+    // MAL requires plain method (challenge = verifier) — S256 fails server-side despite being accepted.
+    let codeChallenge: string | undefined;
+    let codeVerifier: string | undefined;
+    if (provider === 'myanimelist') {
+      codeVerifier = generateCodeVerifier();
+      codeChallenge = codeVerifier; // plain: challenge === verifier
+      console.log(`[PKCE] /url - Generated verifier len=${codeVerifier.length} (plain mode)`);
+    }
+
+    // Generate auth URL (pass codeChallenge for MyAnimeList PKCE)
+    const authUrl = generateAuthUrl(provider, redirectUri, state, c.env, codeChallenge);
 
     // Store session in D1 (matching original: _tokenStore.Store(state, instanceKey, provider))
-    await store(c.env.DB, state, instanceKey, provider);
+    await store(c.env.DB, state, instanceKey, provider, codeVerifier);
 
     return c.json<OAuthUrlResponse>({ authUrl, state });
   } catch (err) {
@@ -92,8 +103,11 @@ oauthRoutes.get('/:provider/callback', async (c) => {
     const url = new URL(c.req.url);
     const callbackUri = redirectUriQuery ?? `${url.protocol}//${url.host}/api/oauth/${provider}/callback`;
 
-    // Exchange code for tokens (matching original: _providerApi.ExchangeCodeAsync(provider, code, callbackUri))
-    const tokenResult = await exchangeCode(provider, code, callbackUri, c.env);
+    // PKCE: Retrieve stored code_verifier from session (MyAnimeList)
+    const codeVerifier = session.code_verifier ?? undefined;
+    // Exchange code for tokens (matching original: _providerApi.ExchangeCodeAsync)
+    // Pass code_verifier for MyAnimeList PKCE flow
+    const tokenResult = await exchangeCode(provider, code, callbackUri, c.env, codeVerifier);
 
     // Store tokens in session (matching original: _tokenStore.SetTokens(state, accessToken, refreshToken, expiresAt))
     await setTokens(c.env.DB, state, tokenResult.accessToken, tokenResult.refreshToken, tokenResult.expiresAt);
@@ -106,7 +120,10 @@ oauthRoutes.get('/:provider/callback', async (c) => {
     return c.html(html);
   } catch (err) {
     console.error(`OAuth callback failed for provider ${provider}:`, err);
-    return c.json<ErrorResponse>({ error: 'Token exchange failed' }, 500);
+    const errorMessage = err instanceof Error ? err.message : 'Token exchange failed';
+    const displayName = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
+    const errorHtml = renderErrorHtml(displayName, errorMessage);
+    return c.html(errorHtml, 500);
   }
 });
 

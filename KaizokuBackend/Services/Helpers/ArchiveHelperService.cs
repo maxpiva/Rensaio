@@ -34,12 +34,18 @@ namespace KaizokuBackend.Services.Helpers
         private readonly ILogger<ArchiveHelperService> _logger;
         private readonly SettingsService _settings;
         private readonly ThumbCacheService _thumbs;
-        public ArchiveHelperService(AppDbContext db, ILogger<ArchiveHelperService> logger, ThumbCacheService thumbs, SettingsService settings)
+        private readonly ReadState.HashCacheService _hashCache;
+        private readonly Series.SeriesStateService _stateService;
+        public ArchiveHelperService(AppDbContext db, ILogger<ArchiveHelperService> logger, ThumbCacheService thumbs, SettingsService settings,
+            ReadState.HashCacheService hashCache,
+            Series.SeriesStateService stateService)
         {
             _db = db;
             _logger = logger;
             _settings = settings;
             _thumbs = thumbs;
+            _hashCache = hashCache;
+            _stateService = stateService;
         }
         public async Task WriteComicThumbnailAsync(Models.Database.SeriesEntity series, CancellationToken token = default)
         {
@@ -107,6 +113,12 @@ namespace KaizokuBackend.Services.Helpers
                         string newFullPath = Path.Combine(basePath, newFileName);
                         try
                         {
+                            // Clean up hash cache before renaming, since hashes are keyed by filename
+                            if (!string.IsNullOrEmpty(chap.Filename))
+                            {
+                                _hashCache.DeleteChapterHash(series.StoragePath, chap.Filename);
+                            }
+
                             //SharpCompress do not care if we call a rar a zip, so no issues to rename it first.
                             File.Move(oldFullPath, newFullPath);
                             chap.Filename = newFileName;
@@ -177,6 +189,9 @@ namespace KaizokuBackend.Services.Helpers
             string path = Path.Combine(settings.StorageFolder, series.StoragePath);
             _logger.LogInformation("Writing Cover.jpg in {archivePath}", path);
             await WriteComicThumbnailAsync(series, token).ConfigureAwait(false);
+
+            // Sync kaizoku.json after archive rename or ComicInfo.xml update
+            await _stateService.SyncToKaizokuJsonAsync(series.Id, token).ConfigureAwait(false);
         }
 
         /// <summary>

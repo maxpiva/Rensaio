@@ -24,7 +24,18 @@ public class ComicVineScrobblerProvider : IScrobblerProvider
 
     public ScrobblerProvider ProviderType => ScrobblerProvider.ComicVine;
     public string DisplayName => "ComicVine";
+    public string? Icon => ProviderIcons.ComicVine;
+    public string? Link => "https://comicvine.gamespot.com/api/";
+    public string? LinkDescription => "Get API Key";
+    public string? SeriesUrlTemplate => "https://comicvine.gamespot.com/issue/{0}/";
+    public string? ImageTemplateUrl => null;
     public bool RequiresOAuth => false;
+    public bool SupportsDirectAuth => false;
+
+    public Task<ScrobblerTokenResult> AuthenticateDirectAsync(DirectAuthRequest request)
+        => throw new NotSupportedException("ComicVine does not support direct authentication.");
+
+    public void SetAccessToken(string accessToken) { /* No-op: ComicVine uses API key, not bearer tokens */ }
 
     public ComicVineScrobblerProvider(
         IHttpClientFactory httpClientFactory,
@@ -56,6 +67,9 @@ public class ComicVineScrobblerProvider : IScrobblerProvider
 
     public Task<bool> ValidateApiKeyAsync(string apiKey)
         => Task.FromResult(!string.IsNullOrWhiteSpace(apiKey));
+
+    public Task EnsureAuthenticatedAsync(Guid userId, CancellationToken token = default)
+        => Task.CompletedTask;
 
     public async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
     {

@@ -68,24 +68,26 @@ public class OpdsFeedService
         string changedThumb = await PickRandomThumbnailAsync(user.OpdsPath, seriesWithThumb, token);
 
         var sb = new StringBuilder();
-        sb.Append($@"<?xml version=""1.0"" encoding=""UTF-8""?>
-<feed xmlns=""http://www.w3.org/2005/Atom"" xmlns:opds=""http://opds-spec.org/2010/catalog"">
+        sb.Append($@"<feed xmlns=""http://www.w3.org/2005/Atom"" xmlns:opds=""http://opds-spec.org/2010/catalog"">
   <id>kaizoku:{EscapeXml(user.OpdsPath)}</id>
   <title>Kaizoku - {EscapeXml(user.Username)}'s Library</title>
   <updated>{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}</updated>
   <entry>
+<id>Reading</id>
     <title>Reading</title>
     <link rel=""subsection"" href=""/{EscapeXml(user.OpdsPath)}/reading""/>
     {readingThumb}
     <updated>{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}</updated>
   </entry>
   <entry>
+<id>Last_Changed</id>
     <title>Last Changed</title>
     <link rel=""subsection"" href=""/{EscapeXml(user.OpdsPath)}/last-changed""/>
     {changedThumb}
     <updated>{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}</updated>
   </entry>
   <entry>
+<id>All_Series</id>
     <title>All Series</title>
     <link rel=""subsection"" href=""/{EscapeXml(user.OpdsPath)}/all-series""/>
     {allThumb}
@@ -96,6 +98,7 @@ public class OpdsFeedService
         {
             sb.Append($@"
   <entry>
+<id>Categories</id>
     <title>Categories</title>
     <link rel=""subsection"" href=""/{EscapeXml(user.OpdsPath)}/categories""/>
     {catThumb}

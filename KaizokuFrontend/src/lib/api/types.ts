@@ -618,13 +618,13 @@ export interface User {
   lastLoginAt?: string;
   isActive: boolean;
   hasPassword: boolean;
-  isFirstAdmin?: boolean;
 }
 
 export enum UserLevel {
   User = 0,
   Manager = 1,
   Admin = 2,
+  Owner = 3,
 }
 
 export interface CreateUserRequest {

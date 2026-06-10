@@ -14,12 +14,14 @@ public class UserCommandService
     private readonly AppDbContext _db;
     private readonly PasswordService _passwordService;
     private readonly OpdsPathGenerator _opdsPathGenerator;
+    private readonly UserQueryService _userQueryService;
 
-    public UserCommandService(AppDbContext db, PasswordService passwordService, OpdsPathGenerator opdsPathGenerator)
+    public UserCommandService(AppDbContext db, PasswordService passwordService, OpdsPathGenerator opdsPathGenerator, UserQueryService userQueryService)
     {
         _db = db;
         _passwordService = passwordService;
         _opdsPathGenerator = opdsPathGenerator;
+        _userQueryService = userQueryService;
     }
 
     /// <summary>
@@ -27,6 +29,10 @@ public class UserCommandService
     /// </summary>
     public async Task<UserEntity> CreateUserAsync(string username, UserLevel level, CancellationToken token = default)
     {
+        // If trying to create an Owner, ensure one doesn't already exist
+        if (level == UserLevel.Owner && await _userQueryService.OwnerExistsAsync(token))
+            throw new InvalidOperationException("An owner already exists. Only one owner is allowed.");
+
         string opdsPath = await _opdsPathGenerator.GenerateUniquePathAsync();
 
         var user = new UserEntity
@@ -79,6 +85,10 @@ public class UserCommandService
         byte[]? avatarBlob = null, string? avatarContentType = null, bool? removeAvatar = null,
         CancellationToken token = default)
     {
+        // If promoting a user to Owner, ensure one doesn't already exist
+        if (level == UserLevel.Owner && await _userQueryService.OwnerExistsAsync(token))
+            throw new InvalidOperationException("An owner already exists. Only one owner is allowed.");
+
         if (level.HasValue)
             user.Level = level.Value;
 
@@ -109,11 +119,14 @@ public class UserCommandService
     }
 
     /// <summary>
-    /// Promotes a user to admin. Used during initial setup when claiming auto-created users.
+    /// Promotes a user to owner. Used during initial setup when claiming auto-created users.
     /// </summary>
-    public async Task PromoteToAdminAsync(UserEntity user, CancellationToken token = default)
+    public async Task PromoteToOwnerAsync(UserEntity user, CancellationToken token = default)
     {
-        user.Level = UserLevel.Admin;
+        if (await _userQueryService.OwnerExistsAsync(token))
+            throw new InvalidOperationException("An owner already exists. Only one owner is allowed.");
+
+        user.Level = UserLevel.Owner;
         await _db.SaveChangesAsync(token);
     }
 
@@ -144,5 +157,16 @@ public class UserCommandService
         user.RefreshTokenHash = null;
         user.RefreshTokenExpiresAt = null;
         await _db.SaveChangesAsync(token);
+    }
+
+    /// <summary>
+    /// Regenerates a user's OPDS path to a new unique value.
+    /// </summary>
+    public async Task<string> RegenerateOpdsPathAsync(UserEntity user, CancellationToken token = default)
+    {
+        string newPath = await _opdsPathGenerator.GenerateUniquePathAsync();
+        user.OpdsPath = newPath;
+        await _db.SaveChangesAsync(token);
+        return newPath;
     }
 }

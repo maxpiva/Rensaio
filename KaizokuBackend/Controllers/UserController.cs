@@ -4,6 +4,7 @@ using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Auth;
 using KaizokuBackend.Services.Users;
 using KaizokuBackend.Services.Settings;
+using KaizokuBackend.Services.Series;
 using Microsoft.AspNetCore.Mvc;
 
 namespace KaizokuBackend.Controllers;
@@ -16,35 +17,28 @@ public class UserController : ControllerBase
     private readonly UserCommandService _userCommandService;
     private readonly UserInviteService _userInviteService;
     private readonly SettingsService _settingsService;
+    private readonly SeriesCommandService _seriesCommandService;
 
     public UserController(
         UserQueryService userQueryService,
         UserCommandService userCommandService,
         UserInviteService userInviteService,
-        SettingsService settingsService)
+        SettingsService settingsService,
+        SeriesCommandService seriesCommandService)
     {
         _userQueryService = userQueryService;
         _userCommandService = userCommandService;
         _userInviteService = userInviteService;
         _settingsService = settingsService;
+        _seriesCommandService = seriesCommandService;
     }
 
     /// <summary>
-    /// Gets the first admin's ID for authorization checks.
+    /// Determines if a user is the owner.
     /// </summary>
-    private async Task<Guid?> GetFirstAdminIdAsync(CancellationToken token)
+    private static bool IsOwner(UserEntity user)
     {
-        var firstAdmin = await _userQueryService.GetFirstAdminAsync(token);
-        return firstAdmin?.Id;
-    }
-
-    /// <summary>
-    /// Determines if a user is the first admin (earliest-created admin).
-    /// </summary>
-    private async Task<bool> IsFirstAdminAsync(Guid userId, CancellationToken token)
-    {
-        var firstAdminId = await GetFirstAdminIdAsync(token);
-        return firstAdminId.HasValue && firstAdminId.Value == userId;
+        return user.Level == UserLevel.Owner;
     }
 
     /// <summary>
@@ -55,8 +49,7 @@ public class UserController : ControllerBase
     public async Task<ActionResult<List<UserDto>>> ListUsers(CancellationToken token)
     {
         var users = await _userQueryService.ListUsersAsync(token);
-        var firstAdminId = await GetFirstAdminIdAsync(token);
-        var result = users.Select(u => UserDto.FromEntity(u, isFirstAdmin: u.Id == firstAdminId)).ToList();
+        var result = users.Select(UserDto.FromEntity).ToList();
         return Ok(result);
     }
 
@@ -71,8 +64,7 @@ public class UserController : ControllerBase
         if (user == null)
             return NotFound();
 
-        bool isFirstAdmin = await IsFirstAdminAsync(id, token);
-        return Ok(UserDto.FromEntity(user, isFirstAdmin));
+        return Ok(UserDto.FromEntity(user));
     }
 
     /// <summary>
@@ -95,6 +87,15 @@ public class UserController : ControllerBase
         if (dto.Username.Length < 3 || dto.Username.Length > 32)
             return BadRequest(new { error = "Username must be between 3 and 32 characters" });
 
+        // Only owner can create admin-level users; non-owner admins are restricted to user/manager
+        UserEntity? currentUser = HttpContext.Items["User"] as UserEntity;
+        if (dto.Level >= UserLevel.Admin && (currentUser == null || !IsOwner(currentUser)))
+            return StatusCode(403, new { error = "Only the owner can create admin or owner users" });
+
+        // Prevent creating additional owners
+        if (dto.Level == UserLevel.Owner)
+            return BadRequest(new { error = "Cannot create another owner. Only one owner is allowed." });
+
         UserEntity user = await _userCommandService.CreateUserAsync(dto.Username, dto.Level, token);
         return CreatedAtAction(nameof(GetUser), new { id = user.Id }, UserDto.FromEntity(user));
     }
@@ -102,8 +103,8 @@ public class UserController : ControllerBase
     /// <summary>
     /// PUT /api/users/{id} - Update user. Admin only.
     /// Enforces admin hierarchy rules:
-    /// - First admin cannot change own level/isActive
-    /// - Only first admin can change other admin's level/isActive
+    /// - Owner cannot change own level/isActive
+    /// - Only owner can change another admin's level/isActive
     /// </summary>
     [HttpPut("{id:guid}")]
     [RequireUserLevel(UserLevel.Admin)]
@@ -115,8 +116,8 @@ public class UserController : ControllerBase
 
         // Get current user from context
         UserEntity? currentUser = HttpContext.Items["User"] as UserEntity;
-        bool isTargetFirstAdmin = await IsFirstAdminAsync(id, token);
-        bool isCurrentUserFirstAdmin = currentUser != null && await IsFirstAdminAsync(currentUser.Id, token);
+        bool isTargetOwner = IsOwner(user);
+        bool isCurrentUserOwner = currentUser != null && IsOwner(currentUser);
         bool isSelf = currentUser?.Id == user.Id;
 
         // Authorization checks for level/isActive changes
@@ -124,17 +125,17 @@ public class UserController : ControllerBase
 
         if (changingLevelOrActive)
         {
-            // First admin cannot change own level/isActive
-            if (isSelf && isCurrentUserFirstAdmin)
-                return BadRequest(new { error = "The first admin cannot change their own level or active status" });
+            // Owner cannot change own level/isActive
+            if (isSelf && isCurrentUserOwner)
+                return BadRequest(new { error = "The owner cannot change their own level or active status" });
 
-            // Cannot change level/isActive of the first admin
-            if (isTargetFirstAdmin && !isSelf)
-                return BadRequest(new { error = "Cannot change the first admin's level or active status" });
+            // Cannot change level/isActive of the owner
+            if (isTargetOwner && !isSelf)
+                return BadRequest(new { error = "Cannot change the owner's level or active status" });
 
-            // Only first admin can change other admin's level/isActive
-            if (user.Level == UserLevel.Admin && !isCurrentUserFirstAdmin)
-                return StatusCode(403, new { error = "Only the first admin can change another admin's level or active status" });
+            // Only owner can change another admin's level/isActive
+            if (user.Level == UserLevel.Admin && !isCurrentUserOwner)
+                return StatusCode(403, new { error = "Only the owner can change another admin's level or active status" });
         }
 
         byte[]? avatarBlob = null;
@@ -160,16 +161,15 @@ public class UserController : ControllerBase
             removeAvatar: dto.RemoveAvatar,
             token: token);
 
-        bool isFirstAdmin = await IsFirstAdminAsync(id, token);
-        return Ok(UserDto.FromEntity(user, isFirstAdmin));
+        return Ok(UserDto.FromEntity(user));
     }
 
     /// <summary>
     /// DELETE /api/users/{id} - Delete user. Admin only.
     /// Enforces admin hierarchy rules:
     /// - Cannot delete yourself
-    /// - Cannot delete the first admin
-    /// - Only first admin can delete other admins
+    /// - Cannot delete the owner
+    /// - Only owner can delete other admins
     /// </summary>
     [HttpDelete("{id:guid}")]
     [RequireUserLevel(UserLevel.Admin)]
@@ -186,23 +186,23 @@ public class UserController : ControllerBase
         if (currentUser?.Id == user.Id)
             return BadRequest(new { error = "Cannot delete yourself" });
 
-        bool isTargetFirstAdmin = await IsFirstAdminAsync(id, token);
-        bool isCurrentUserFirstAdmin = currentUser != null && await IsFirstAdminAsync(currentUser.Id, token);
+        bool isTargetOwner = IsOwner(user);
+        bool isCurrentUserOwner = currentUser != null && IsOwner(currentUser);
 
-        // Cannot delete the first admin
-        if (isTargetFirstAdmin)
-            return BadRequest(new { error = "Cannot delete the first admin" });
+        // Cannot delete the owner
+        if (isTargetOwner)
+            return BadRequest(new { error = "Cannot delete the owner" });
 
-        // Only first admin can delete other admins
-        if (user.Level == UserLevel.Admin && !isCurrentUserFirstAdmin)
-            return StatusCode(403, new { error = "Only the first admin can delete other admins" });
+        // Only owner can delete other admins
+        if (user.Level == UserLevel.Admin && !isCurrentUserOwner)
+            return StatusCode(403, new { error = "Only the owner can delete other admins" });
 
         await _userCommandService.DeleteUserAsync(user, token);
         return NoContent();
     }
 
     /// <summary>
-    /// POST /api/users/first - Create the first admin user.
+    /// POST /api/users/first - Create the first owner user.
     /// Public endpoint, only works when no users exist.
     /// </summary>
     [HttpPost("/api/users/first")]
@@ -217,28 +217,35 @@ public class UserController : ControllerBase
         if (dto.Username.Length < 3 || dto.Username.Length > 32)
             return BadRequest(new { error = "Username must be between 3 and 32 characters" });
 
-        // Force admin level for first user
-        UserEntity user = await _userCommandService.CreateUserAsync(dto.Username, UserLevel.Admin, token);
-        return Ok(UserDto.FromEntity(user, isFirstAdmin: true));
+        // Force owner level for first user
+        UserEntity user = await _userCommandService.CreateUserAsync(dto.Username, UserLevel.Owner, token);
+
+        // Update any SeriesMappings with Guid.Empty to the real owner ID
+        await _seriesCommandService.UpdateSeriesMappingsOwnerAsync(user.Id, token).ConfigureAwait(false);
+
+        return Ok(UserDto.FromEntity(user));
     }
 
     /// <summary>
-    /// PUT /api/users/{id}/claim - Claim an auto-created user as admin.
-    /// Public endpoint, only works when no admin exists yet.
+    /// PUT /api/users/{id}/claim - Claim an auto-created user as owner.
+    /// Public endpoint, only works when no owner exists yet.
     /// </summary>
     [HttpPut("/api/users/{id:guid}/claim")]
     public async Task<ActionResult<UserDto>> ClaimUser(Guid id, CancellationToken token)
     {
-        // Check if any admin already exists
-        var admin = await _userQueryService.GetFirstAdminAsync(token);
-        if (admin != null)
-            return BadRequest(new { error = "An admin already exists" });
+        // Check if any owner already exists
+        if (await _userQueryService.OwnerExistsAsync(token))
+            return BadRequest(new { error = "An owner already exists" });
 
         UserEntity? user = await _userQueryService.GetByIdAsync(id, token);
         if (user == null)
             return NotFound();
 
-        await _userCommandService.PromoteToAdminAsync(user, token);
+        await _userCommandService.PromoteToOwnerAsync(user, token);
+
+        // Update any SeriesMappings with Guid.Empty to the real owner ID
+        await _seriesCommandService.UpdateSeriesMappingsOwnerAsync(user.Id, token).ConfigureAwait(false);
+
         return Ok(UserDto.FromEntity(user));
     }
 
@@ -271,6 +278,21 @@ public class UserController : ControllerBase
             Token = user.PasswordSetToken ?? string.Empty,
             OpdsPath = user.OpdsPath
         });
+    }
+
+    /// <summary>
+    /// POST /api/users/{id}/regenerate-opds - Regenerate OPDS path. Admin only.
+    /// </summary>
+    [HttpPost("{id:guid}/regenerate-opds")]
+    [RequireUserLevel(UserLevel.Admin)]
+    public async Task<ActionResult<RegenerateOpdsResponseDto>> RegenerateOpdsPath(Guid id, CancellationToken token)
+    {
+        UserEntity? user = await _userQueryService.GetByIdAsync(id, token);
+        if (user == null)
+            return NotFound();
+
+        string newPath = await _userCommandService.RegenerateOpdsPathAsync(user, token);
+        return Ok(new RegenerateOpdsResponseDto { OpdsPath = newPath });
     }
 
     private async Task _dbSaveChangesAsync(UserEntity user, CancellationToken token)

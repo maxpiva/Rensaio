@@ -204,7 +204,7 @@ const VirtualizedImportList = React.memo(function VirtualizedImportList({
 
   if (items.length === 0) {
     return (
-      <div className="h-[59vh] w-full flex items-center justify-center">
+      <div className="max-h-[calc(95vh-6rem)] min-h-[20vh] w-full flex items-center justify-center">
         <div className="text-center py-8 text-muted-foreground">
           {getEmptyStateMessage()}
         </div>
@@ -213,7 +213,7 @@ const VirtualizedImportList = React.memo(function VirtualizedImportList({
   }
 
   return (
-    <div ref={containerRef} className={`h-[59vh] w-full}`}>
+    <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
       <AutoSizer>
         {({ height, width }) => (
           <List
@@ -337,7 +337,7 @@ function ScrollableTabContent({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={containerRef}
-      className={`h-[59vh] w-full overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+      className={`max-h-[calc(95vh-18rem)] w-full overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
     >
       {children}
     </div>
@@ -639,7 +639,7 @@ const ImportCard = React.memo(function ImportCard({ import: importItem, isUpdati
                     </div>
                     <div className="space-y-2">
                       {/* Grid layout for provider cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">                      {importItem.series.map((series: SmallSeries, index: number) => (
+                      <div className="flex flex-wrap gap-3">                      {importItem.series.map((series: SmallSeries, index: number) => (
                         <SeriesCard
                           key={`series-${series.id}-${series.provider}-${series.scanlator ?? ""}`}
                           series={series}
@@ -797,7 +797,7 @@ const SeriesCard = React.memo((props: SeriesCardProps) => {
       </div>
 
       {/* Switch controls */}
-      <div className="flex items-center justify-between pt-1 border-t border-border/20 gap-1">
+      <div className="flex items-center gap-2 pt-1 border-t border-border/20">
         <div
           className="flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
@@ -1098,15 +1098,15 @@ export function ConfirmImportsStep({ setError, setIsLoading, setCanProgress }: C
 
   return (
     <ImportsContext.Provider value={{ updateImportField }}>
-      <div className="space-y-4">
+      <div className="flex flex-col flex-1 min-h-0 space-y-4">
         <div className="space-y-2">
           <div className="text-sm text-muted-foreground">
-            Review the imported series below. Only items marked as <b>Not Matched or Mismatched</b> will not be imported or updated.<br/>
+            Review the imported series below. Only items marked as <b>Not Matched / Mismatched</b> will not be imported or updated.<br/>
             You can revise items by marking them as mismatched in the <b>Add/Finished</b> tab, and search for correct matches in the <b>Mismatched</b> tab.
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
           <div className="flex items-center justify-between mb-2">
             <TabsList className="grid w-auto grid-cols-4">
               <TabsTrigger value="import" className="flex items-center gap-2">
@@ -1123,13 +1123,13 @@ export function ConfirmImportsStep({ setError, setIsLoading, setCanProgress }: C
               </TabsTrigger>
               <TabsTrigger value="skip" className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
-                Not Matched or Mismatched ({skippedImports.length})
+                Not Matched / Mismatched ({skippedImports.length})
               </TabsTrigger>
             </TabsList>
           </div>
 
           {activeTab === "import" && (
-            <TabsContent value="import" className="space-y-4" forceMount={true}>
+            <TabsContent value="import" className="flex flex-col flex-1 min-h-0" forceMount={true}>
               <VirtualizedImportList
                 items={importsToProcess}
                 onStatusChange={handleStatusChange}
@@ -1144,7 +1144,7 @@ export function ConfirmImportsStep({ setError, setIsLoading, setCanProgress }: C
             </TabsContent>
           )}
           {activeTab === "unchanged" && (
-            <TabsContent value="unchanged" className="space-y-4" forceMount={true}>
+            <TabsContent value="unchanged" className="flex flex-col flex-1 min-h-0" forceMount={true}>
               <VirtualizedImportList
                 items={unchangedImports}
                 onStatusChange={handleStatusChange}
@@ -1158,7 +1158,7 @@ export function ConfirmImportsStep({ setError, setIsLoading, setCanProgress }: C
             </TabsContent>
           )}
           {activeTab === "completed" && (
-            <TabsContent value="completed" className="space-y-4" forceMount={true}>
+            <TabsContent value="completed" className="flex flex-col flex-1 min-h-0" forceMount={true}>
               <VirtualizedImportList
                 items={completedImports}
                 onStatusChange={handleStatusChange}
@@ -1173,7 +1173,7 @@ export function ConfirmImportsStep({ setError, setIsLoading, setCanProgress }: C
             </TabsContent>
           )}
           {activeTab === "skip" && (
-            <TabsContent value="skip" className="space-y-4" forceMount={true}>
+            <TabsContent value="skip" className="flex flex-col flex-1 min-h-0" forceMount={true}>
               <VirtualizedImportList
                 items={skippedImports}
                 onStatusChange={handleStatusChange}

@@ -15,6 +15,7 @@ using KaizokuBackend.Services.Jobs;
 using KaizokuBackend.Services.Jobs.Settings;
 using KaizokuBackend.Services.Providers;
 using KaizokuBackend.Services.Scrobbling;
+using KaizokuBackend.Services.Scrobbling.Abstractions;
 using KaizokuBackend.Services.Search;
 using KaizokuBackend.Services.Series;
 using KaizokuBackend.Models.Enums;
@@ -44,6 +45,9 @@ namespace KaizokuBackend.Services
             services.TryAddScoped<SeriesProviderService>();
             services.TryAddScoped<SeriesArchiveService>();
             services.TryAddScoped<CadenceCalculationService>();
+            
+            // Series state sync service - central authority for kaizoku.json sync
+            services.TryAddScoped<SeriesStateService>();
             
             return services;
         }
@@ -81,28 +85,32 @@ namespace KaizokuBackend.Services
         public static IServiceCollection AddScrobblingServices(this IServiceCollection services, IConfiguration configuration)
         {
             services.TryAddScoped<ScrobblerTokenProtector>();
+            services.TryAddScoped<ITokenStorageService, TokenStorageService>();
             services.TryAddScoped<ScrobblerProviderFactory>();
             services.TryAddScoped<TitleMatcher>();
             services.TryAddScoped<ScrobblerSyncService>();
             services.TryAddScoped<SeriesMatchingService>();
 
-            // Proxy mode: all OAuth calls go through the central OAuth proxy.
-            // Instance credentials (key + secret) are stored in the DB settings table.
-            // Only the ProxyUrl comes from appsettings.json.
-            services.TryAddScoped<Scrobbling.Abstractions.IScrobblerProvider>(sp =>
-                ActivatorUtilities.CreateInstance<Scrobbling.Providers.ProxyScrobblerProvider>(sp, ScrobblerProvider.AniList));
-            services.TryAddScoped<Scrobbling.Abstractions.IScrobblerProvider>(sp =>
-                ActivatorUtilities.CreateInstance<Scrobbling.Providers.ProxyScrobblerProvider>(sp, ScrobblerProvider.MyAnimeList));
-            services.TryAddScoped<Scrobbling.Abstractions.IScrobblerProvider>(sp =>
-                ActivatorUtilities.CreateInstance<Scrobbling.Providers.ProxyScrobblerProvider>(sp, ScrobblerProvider.Kitsu));
-            services.TryAddScoped<Scrobbling.Abstractions.IScrobblerProvider>(sp =>
-                ActivatorUtilities.CreateInstance<Scrobbling.Providers.ProxyScrobblerProvider>(sp, ScrobblerProvider.MangaDex));
+            // Register all IScrobblerProvider implementations.
+            // NOTE: Must use AddScoped (not TryAddScoped) so each provider is registered.
+            // ScrobblerProviderFactory resolves IEnumerable<IScrobblerProvider>.
+            // Direct auth: Kitsu and MangaDex use password-based auth directly
+            services.AddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.KitsuScrobblerProvider>();
+            services.AddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.MangaDexScrobblerProvider>();
+
+            // AniList and MyAnimeList use OAuth2 via the central OAuth proxy for authorization,
+            // but call their respective APIs directly for search/tracking operations.
+            services.AddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.AniListScrobblerProvider>();
+            services.AddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.MyAnimeListScrobblerProvider>();
 
             // ComicVine still uses direct API key (no OAuth)
-            services.TryAddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.ComicVineScrobblerProvider>();
+            services.AddScoped<Scrobbling.Abstractions.IScrobblerProvider, Scrobbling.Providers.ComicVineScrobblerProvider>();
 
             // Register HTTP clients
-            services.AddHttpClient("Scrobbler_Proxy");
+            services.AddHttpClient("Scrobbler_AniList");
+            services.AddHttpClient("Scrobbler_MAL");
+            services.AddHttpClient("Scrobbler_Kitsu");
+            services.AddHttpClient("Scrobbler_MangaDex");
 
             return services;
         }
@@ -168,8 +176,9 @@ namespace KaizokuBackend.Services
 
         public static IServiceCollection AddOpdsServices(this IServiceCollection services)
         {
+            services.TryAddSingleton<OpdsExtractionCoordinator>();
+            services.TryAddScoped<OpdsImageService>();
             services.TryAddScoped<OpdsFeedService>();
-            services.TryAddSingleton<OpdsImageService>();
             return services;
         }
 

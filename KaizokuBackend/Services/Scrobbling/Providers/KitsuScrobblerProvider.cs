@@ -1,68 +1,94 @@
-using System.Net.Http.Json;
+using com.sun.security.ntlm;
+using KaizokuBackend.Data;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Scrobbling.Abstractions;
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace KaizokuBackend.Services.Scrobbling.Providers;
 
 /// <summary>
-/// Kitsu scrobbler provider using OAuth2 and JSON:API v1.
+/// Kitsu scrobbler provider using OAuth2 password grant and JSON:API v1.
+/// Kitsu is a fully public OAuth client — no client_id/client_secret needed for
+/// either the password grant or the refresh_token grant.
 /// https://kitsu.io/api/edge
 /// </summary>
 public class KitsuScrobblerProvider : IScrobblerProvider
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<KitsuScrobblerProvider> _logger;
-    private readonly ScrobblerConfiguration _config;
+    private readonly ITokenStorageService _tokenStorage;
+    private readonly ScrobblerTokenProtector _tokenProtector;
+    private string? _accessToken;
 
     private const string AuthBase = "https://kitsu.io/api/oauth";
     private const string ApiBase = "https://kitsu.io/api/edge";
 
     public ScrobblerProvider ProviderType => ScrobblerProvider.Kitsu;
     public string DisplayName => "Kitsu";
+    public string? Icon => ProviderIcons.Kitsu;
+    public string? Link => null;
+    public string? LinkDescription => null;
+    public string? SeriesUrlTemplate => "https://kitsu.io/manga/{0}";
+    public string? ImageTemplateUrl => null;
     public bool RequiresOAuth => true;
+    public bool SupportsDirectAuth => true;
 
-    public KitsuScrobblerProvider(IHttpClientFactory httpClientFactory, ILogger<KitsuScrobblerProvider> logger, IConfiguration configuration)
+    public KitsuScrobblerProvider(
+        IHttpClientFactory httpClientFactory,
+        ILogger<KitsuScrobblerProvider> logger,
+        ITokenStorageService tokenStorage,
+        ScrobblerTokenProtector tokenProtector)
     {
         _httpClient = httpClientFactory.CreateClient("Scrobbler_Kitsu");
         _logger = logger;
-        _config = configuration.GetSection("Scrobbling:Kitsu").Get<ScrobblerConfiguration>() ?? new ScrobblerConfiguration();
+        _tokenStorage = tokenStorage;
+        _tokenProtector = tokenProtector;
     }
 
-    public Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
+    public void SetAccessToken(string accessToken)
     {
-        var authUrl = $"{AuthBase}/authorize?response_type=code" +
-                      $"&client_id={_config.ClientId}" +
-                      $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-                      $"&state={state}";
-
-        return Task.FromResult(new ScrobblerAuthUrlResult
-        {
-            AuthUrl = authUrl,
-            State = state
-        });
+        _accessToken = accessToken;
     }
 
-    public async Task<ScrobblerTokenResult> ExchangeCodeAsync(string code, string redirectUri)
+    /// <summary>
+    /// Not supported for direct auth providers. Use <see cref="AuthenticateDirectAsync"/> instead.
+    /// </summary>
+    public Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
+        => throw new NotSupportedException("Kitsu uses direct password auth, not OAuth proxy.");
+
+    /// <summary>
+    /// Not supported for direct auth providers. Use <see cref="AuthenticateDirectAsync"/> instead.
+    /// </summary>
+    public Task<ScrobblerTokenResult> ExchangeCodeAsync(string code, string redirectUri)
+        => throw new NotSupportedException("Kitsu uses direct password auth, not OAuth proxy.");
+
+    /// <summary>
+    /// Authenticates via password grant. Kitsu is a fully public OAuth client —
+    /// no client_id or client_secret required.
+    /// </summary>
+    public async Task<ScrobblerTokenResult> AuthenticateDirectAsync(DirectAuthRequest request)
     {
         try
         {
             var formData = new Dictionary<string, string>
             {
-                ["grant_type"] = "authorization_code",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
-                ["redirect_uri"] = redirectUri,
-                ["code"] = code
+                ["grant_type"] = "password",
+                ["username"] = request.Username ?? string.Empty,
+                ["password"] = request.Password ?? string.Empty
             };
 
             var response = await _httpClient.PostAsync($"{AuthBase}/token",
                 new FormUrlEncodedContent(formData));
-
+            //string xxx = await response.Content.ReadAsStringAsync();
             var json = await response.Content.ReadFromJsonAsync<KitsuTokenResponse>();
             if (json == null || string.IsNullOrEmpty(json.AccessToken))
                 return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to parse token response" };
+
+            _accessToken = json.AccessToken;
 
             return new ScrobblerTokenResult
             {
@@ -74,11 +100,15 @@ public class KitsuScrobblerProvider : IScrobblerProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Kitsu token exchange failed");
+            _logger.LogError(ex, "Kitsu password auth failed");
             return new ScrobblerTokenResult { Success = false, ErrorMessage = ex.Message };
         }
     }
 
+    /// <summary>
+    /// Refreshes an expired access token. Kitsu is fully public —
+    /// only grant_type and refresh_token are needed, no client credentials.
+    /// </summary>
     public async Task<ScrobblerTokenResult> RefreshTokenAsync(string refreshToken)
     {
         try
@@ -86,8 +116,6 @@ public class KitsuScrobblerProvider : IScrobblerProvider
             var formData = new Dictionary<string, string>
             {
                 ["grant_type"] = "refresh_token",
-                ["client_id"] = _config.ClientId!,
-                ["client_secret"] = _config.ClientSecret!,
                 ["refresh_token"] = refreshToken
             };
 
@@ -97,6 +125,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
             var json = await response.Content.ReadFromJsonAsync<KitsuTokenResponse>();
             if (json == null || string.IsNullOrEmpty(json.AccessToken))
                 return new ScrobblerTokenResult { Success = false, ErrorMessage = "Failed to refresh token" };
+
+            _accessToken = json.AccessToken;
 
             return new ScrobblerTokenResult
             {
@@ -113,14 +143,51 @@ public class KitsuScrobblerProvider : IScrobblerProvider
         }
     }
 
+    public async Task EnsureAuthenticatedAsync(Guid userId, CancellationToken token = default)
+    {
+        var (accessToken, refreshToken, expiresAt) = await _tokenStorage.LoadTokensAsync(userId, ProviderType, token);
+        if (accessToken == null) return;
+
+        SetAccessToken(accessToken);
+
+        if (expiresAt.HasValue && expiresAt.Value < DateTime.UtcNow.AddMinutes(5))
+        {
+            if (string.IsNullOrEmpty(refreshToken)) return;
+
+            var refreshResult = await RefreshTokenAsync(refreshToken);
+            if (refreshResult.Success && refreshResult.AccessToken != null)
+            {
+                // Build JSON payload with refresh token (Kitsu stores refresh in payload)
+                var payload = new ScrobblerRefreshPayload
+                {
+                    RefreshToken = refreshResult.RefreshToken ?? refreshToken
+                };
+                var payloadJson = JsonSerializer.Serialize(payload);
+                var encryptedAccess = _tokenProtector.Encrypt(refreshResult.AccessToken);
+                var encryptedRefresh = _tokenProtector.Encrypt(payloadJson);
+
+                await _tokenStorage.PersistRefreshedTokensAsync(userId, ProviderType,
+                    encryptedAccess, encryptedRefresh, refreshResult.ExpiresAt, token);
+                SetAccessToken(refreshResult.AccessToken);
+            }
+        }
+    }
+
     public Task<bool> ValidateApiKeyAsync(string apiKey) => Task.FromResult(false);
+
+    private void AddVND()
+    {
+        _httpClient.DefaultRequestHeaders.Accept.Clear();
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.api+json"));
+    }
 
     public async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
     {
+        _httpClient.ApplyBearerToken(_accessToken);
+        AddVND();
         var response = await _httpClient.GetAsync(
-            $"{ApiBase}/manga?filter[text]={Uri.EscapeDataString(query)}&page[limit]=25&include=categories",
+            $"{ApiBase}/manga?filter[text]={Uri.EscapeDataString(query)}&page[limit]=20&include=categories",
             token);
-
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<KitsuSearchResponse>(cancellationToken: token);
         var results = new List<ScrobblerSearchResult>();
@@ -131,7 +198,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
         {
             var attr = item.Attributes;
             if (attr == null) continue;
-
+            if (attr.MangaType!=null && attr.MangaType.Contains("novel", StringComparison.InvariantCultureIgnoreCase))
+                continue;
             var altTitles = new List<string>();
             if (attr.Titles != null)
             {
@@ -175,6 +243,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+            AddVND();
             // First need to get the user's Kitsu ID
             var userResponse = await _httpClient.GetAsync($"{ApiBase}/users?filter[self]=true", token);
             userResponse.EnsureSuccessStatusCode();
@@ -201,6 +271,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+            AddVND();
             // Need to get the library entry ID first
             var userResponse = await _httpClient.GetAsync($"{ApiBase}/users?filter[self]=true", token);
             userResponse.EnsureSuccessStatusCode();
@@ -272,6 +344,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
     {
         try
         {
+            _httpClient.ApplyBearerToken(_accessToken);
+            AddVND();
             var response = await _httpClient.GetAsync($"{ApiBase}/users?filter[self]=true", token);
             return response.IsSuccessStatusCode;
         }
@@ -280,6 +354,8 @@ public class KitsuScrobblerProvider : IScrobblerProvider
             return false;
         }
     }
+
+    // ── Private ──
 
     // ── JSON Models ──
 

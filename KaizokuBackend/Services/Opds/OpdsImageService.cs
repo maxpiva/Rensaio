@@ -12,74 +12,44 @@ using System.Text;
 namespace KaizokuBackend.Services.Opds;
 
 /// <summary>
-/// Singleton service for extracting and serving page images from archived chapters for OPDS.
+/// Scoped service for extracting and serving page images from archived chapters for OPDS.
 /// Supports .zip, .rar, and .7zip archives with a temp cache.
-/// Maintains per-user cancellation state so only one decompression runs per user globally.
-/// Uses per-page TaskCompletionSource signaling so callers wait only for the specific
+/// Uses <see cref="OpdsExtractionCoordinator"/> for shared per-user cancellation state
+/// and per-page TaskCompletionSource signaling so callers wait only for the specific
 /// page they need, not the entire archive.
 /// Supports on-the-fly image format conversion based on client capabilities.
 /// </summary>
 public class OpdsImageService
 {
+    private readonly OpdsExtractionCoordinator _coordinator;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OpdsImageService> _logger;
     private readonly IImageFactory _imageFactory;
     private readonly HashCacheService _hashCacheService;
-
-    // Per-chapter extraction locks (prevent concurrent extraction of the same chapter)
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _chapterLocks = new();
-    private static readonly object _lockDictLock = new();
-
-    /// <summary>
-    /// Per-user active extraction state – only one decompression per user at a time.
-    /// Key is "{username}" so switching series cancels the previous preload.
-    /// </summary>
-    private static readonly ConcurrentDictionary<string, SeriesExtractionState> _activeUserExtractions = new();
+    private readonly AppDbContext _db;
+    private readonly ReadStateService _readStateService;
 
     private const int DefaultMaxCachedChapters = 50;
 
-    private class SeriesExtractionState
-    {
-        public CancellationTokenSource Cts { get; set; } = new();
-        /// <summary>Cache key of the chapter being extracted (seriesId:language:chapterFilename).</summary>
-        public string ChapterCacheKey { get; set; } = "";
-        /// <summary>Cache directory of the chapter being extracted.</summary>
-        public string CacheDir { get; set; } = "";
-        /// <summary>The extraction task, so callers can await completion.</summary>
-        public Task? ExtractionTask { get; set; }
-
-        /// <summary>
-        /// Ordered list of image entry keys from the archive (matching Chapter.Pages).
-        /// Populated before extraction starts via DB lookup.
-        /// </summary>
-        public List<string> Pages { get; set; } = [];
-
-        /// <summary>
-        /// Per-entry-key signals. Set when that specific page finishes writing to cache.
-        /// Key is the archive entry key (e.g., "page01.jpg").
-        /// </summary>
-        public ConcurrentDictionary<string, TaskCompletionSource> PageSignals { get; set; } = new();
-
-        /// <summary>
-        /// Image formats supported by the client that triggered this extraction.
-        /// Used for on-the-fly conversion during extraction.
-        /// </summary>
-        public List<string> SupportedImageFormats { get; set; } = [];
-    }
-
     public OpdsImageService(
+        OpdsExtractionCoordinator coordinator,
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
         ILogger<OpdsImageService> logger,
         IImageFactory imageFactory,
-        HashCacheService hashCacheService)
+        HashCacheService hashCacheService,
+        AppDbContext db,
+        ReadStateService readStateService)
     {
+        _coordinator = coordinator;
         _scopeFactory = scopeFactory;
         _configuration = configuration;
         _logger = logger;
         _imageFactory = imageFactory;
         _hashCacheService = hashCacheService;
+        _db = db;
+        _readStateService = readStateService;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -100,10 +70,7 @@ public class OpdsImageService
         List<string> supportedImageFormats,
         CancellationToken token = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var series = await db.Series
+        var series = await _db.Series
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == seriesId, token);
 
@@ -122,13 +89,13 @@ public class OpdsImageService
         if (archivePath == null)
             return (null, null, null);
 
-        string userKey = GetUserKey(user.Username);
+        string userKey = OpdsExtractionCoordinator.GetUserKey(user.Username);
         string cacheKey = $"{seriesId}:{language}:{chapterFilename}";
         string cacheDir = GetCacheDirectory(seriesId, language, chapterFilename);
 
         // ── Fast path: chapter already fully extracted in cache ──
         // Use state.Pages (naturally ordered) to avoid a wasteful Directory.GetFiles + sort
-        if (_activeUserExtractions.TryGetValue(userKey, out var state) &&
+        if (_coordinator.TryGetExtraction(userKey, out var state) &&
             state.ChapterCacheKey == cacheKey &&
             state.Pages.Count > 0)
         {
@@ -152,14 +119,14 @@ public class OpdsImageService
         // ── Ensure extraction is running for this chapter ──
         // If there's no active extraction for this exact chapter, cancel any other
         // extraction for this user and start one for the requested chapter.
-        if (!_activeUserExtractions.TryGetValue(userKey, out state) ||
+        if (!_coordinator.TryGetExtraction(userKey, out state) ||
             state.ChapterCacheKey != cacheKey ||
             state.ExtractionTask is { IsCompleted: true })
         {
-            CancelActiveExtraction(userKey);
+            _coordinator.CancelActiveExtraction(userKey);
 
             // Setup extraction (DB lookup, pages, signals) and fire the task without awaiting it.
-            // The state is stored in _activeUserExtractions so we can wait for the page signal.
+            // The state is stored in the coordinator so we can wait for the page signal.
             state = await SetupAndFireExtractionAsync(
                 userKey, seriesId, cacheKey, cacheDir, archivePath, chapterFilename, seriesStoragePath, supportedImageFormats);
 
@@ -220,11 +187,12 @@ public class OpdsImageService
     /// Called after the OPDS series feed has been sent to the client.
     /// If a different chapter is already being extracted (for this user), it is canceled first.
     /// Does nothing if the target chapter is already cached.
+    /// Fire-and-forget — creates its own scope for background work.
     /// </summary>
     public void PreloadFirstUnreadChapterAsync(UserEntity user, Guid seriesId, string? language, string seriesStoragePath,
         List<string> supportedImageFormats)
     {
-        string userKey = GetUserKey(user.Username);
+        string userKey = OpdsExtractionCoordinator.GetUserKey(user.Username);
         _ = PreloadFirstUnreadChapterInternalAsync(user, seriesId, language, seriesStoragePath, userKey, supportedImageFormats);
     }
 
@@ -235,12 +203,13 @@ public class OpdsImageService
     ///
     /// Waits for any current extraction for this user to finish first, then
     /// extracts the next chapter if it exists and is not already cached.
+    /// Fire-and-forget — creates its own scope for background work.
     /// </summary>
     public void PreloadNextChapterAsync(UserEntity user, Guid seriesId, string language,
         decimal currentChapterNumber, string seriesStoragePath,
         List<string> supportedImageFormats)
     {
-        string userKey = GetUserKey(user.Username);
+        string userKey = OpdsExtractionCoordinator.GetUserKey(user.Username);
         _ = PreloadNextChapterInternalAsync(user, seriesId, language, currentChapterNumber,
             seriesStoragePath, userKey, supportedImageFormats);
     }
@@ -256,7 +225,7 @@ public class OpdsImageService
         UserEntity user, Guid seriesId, string language, string chapterFilename, string seriesStoragePath,
         List<string> supportedImageFormats)
     {
-        string userKey = GetUserKey(user.Username);
+        string userKey = OpdsExtractionCoordinator.GetUserKey(user.Username);
         string cacheKey = $"{seriesId}:{language}:{chapterFilename}";
         string cacheDir = GetCacheDirectory(seriesId, language, chapterFilename);
 
@@ -274,7 +243,7 @@ public class OpdsImageService
         }
 
         // Cancel any existing preload for this user
-        CancelActiveExtraction(userKey);
+        _coordinator.CancelActiveExtraction(userKey);
 
         // Start extraction with the full archive path
         return StartExtractionAsync(userKey, seriesId, cacheKey, cacheDir, archivePath, chapterFilename, seriesStoragePath, supportedImageFormats);
@@ -292,7 +261,7 @@ public class OpdsImageService
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var readStateService = scope.ServiceProvider.GetRequiredService<ReadState.ReadStateService>();
+            var readStateService = scope.ServiceProvider.GetRequiredService<ReadStateService>();
 
             var providers = await db.SeriesProviders
                 .Where(sp => sp.SeriesId == seriesId)
@@ -365,7 +334,7 @@ public class OpdsImageService
             }
 
             // Cancel any previous extraction for this user
-            CancelActiveExtraction(userKey);
+            _coordinator.CancelActiveExtraction(userKey);
 
             await StartExtractionAsync(userKey, seriesId, cacheKey, cacheDir, archivePath, chapterFilename, seriesStoragePath, supportedImageFormats);
         }
@@ -443,7 +412,7 @@ public class OpdsImageService
                 return;
 
             // Wait for any current extraction for this user to finish
-            if (_activeUserExtractions.TryGetValue(userKey, out var activeState) &&
+            if (_coordinator.TryGetExtraction(userKey, out var activeState) &&
                 activeState.ExtractionTask is { IsCompleted: false })
             {
                 _logger.LogDebug("Waiting for current extraction to finish before preloading next chapter for {User}", user.Username);
@@ -461,7 +430,7 @@ public class OpdsImageService
             }
 
             // Start extraction of the next chapter
-            CancelActiveExtraction(userKey);
+            _coordinator.CancelActiveExtraction(userKey);
             await StartExtractionAsync(userKey, seriesId, cacheKey, cacheDir, archivePath, chapterFilename, seriesStoragePath, supportedImageFormats);
         }
         catch (OperationCanceledException)
@@ -480,56 +449,51 @@ public class OpdsImageService
     /// specific page signals or the full extraction task.
     /// Returns null if the chapter cannot be found in the DB.
     /// </summary>
-    private async Task<SeriesExtractionState?> SetupAndFireExtractionAsync(
+    private async Task<OpdsExtractionCoordinator.SeriesExtractionState?> SetupAndFireExtractionAsync(
         string userKey, Guid seriesId, string cacheKey, string cacheDir,
         string archivePath, string chapterFilename, string seriesStoragePath,
         List<string> supportedImageFormats)
     {
         // ── Step 1: Query DB for the chapter and its Pages map ──
-        List<string> pages;
-        using (var scope = _scopeFactory.CreateScope())
+        List<string> pages = [];
+
+        // Find the SeriesProvider whose chapters contain a match by filename
+        var providers = await _db.SeriesProviders
+            .Where(sp => sp.SeriesId == seriesId)
+            .ToListAsync();
+
+        Models.Chapter? chapter = null;
+        SeriesProviderEntity? provider = null;
+
+        foreach (var sp in providers)
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            // Find the SeriesProvider whose chapters contain a match by filename
-            var providers = await db.SeriesProviders
-                .Include(sp => sp.Chapters)
-                .Where(sp => sp.SeriesId == seriesId)
-                .ToListAsync();
-
-            Models.Chapter? chapter = null;
-            SeriesProviderEntity? provider = null;
-
-            foreach (var sp in providers)
+            var match = sp.Chapters?.FirstOrDefault(c => c.Filename == chapterFilename);
+            if (match != null)
             {
-                var match = sp.Chapters?.FirstOrDefault(c => c.Filename == chapterFilename);
-                if (match != null)
-                {
-                    chapter = match;
-                    provider = sp;
-                    break;
-                }
+                chapter = match;
+                provider = sp;
+                break;
             }
-
-            if (chapter == null)
-            {
-                _logger.LogWarning("Chapter {Filename} not found in DB for series {SeriesId}", chapterFilename, seriesId);
-                return null;
-            }
-
-            // A.1 / A.2: Populate Pages if empty
-            if (chapter.Pages.Count == 0)
-            {
-                _logger.LogDebug("Pages list empty for chapter {Filename}, populating from archive", chapterFilename);
-                var images = ArchiveHelperService.GetImageFiles(archivePath);
-                chapter.Pages = images;
-                chapter.PageCount = images.Count;
-                db.Touch(provider!, c => c.Chapters);
-                await db.SaveChangesAsync();
-            }
-
-            pages = chapter.Pages;
         }
+
+        if (chapter == null)
+        {
+            _logger.LogWarning("Chapter {Filename} not found in DB for series {SeriesId}", chapterFilename, seriesId);
+            return null;
+        }
+
+        // Populate Pages if empty
+        if (chapter.Pages.Count == 0)
+        {
+            _logger.LogDebug("Pages list empty for chapter {Filename}, populating from archive", chapterFilename);
+            var images = ArchiveHelperService.GetImageFiles(archivePath);
+            chapter.Pages = images;
+            chapter.PageCount = images.Count;
+            _db.Touch(provider!, c => c.Chapters);
+            await _db.SaveChangesAsync();
+        }
+
+        pages = chapter.Pages;
 
         // ── Step 2: Create state with per-page signals ──
         var cts = new CancellationTokenSource();
@@ -540,7 +504,7 @@ public class OpdsImageService
             pageSignals[entryKey] = new TaskCompletionSource();
         }
 
-        var state = new SeriesExtractionState
+        var state = new OpdsExtractionCoordinator.SeriesExtractionState
         {
             Cts = cts,
             ChapterCacheKey = cacheKey,
@@ -550,7 +514,7 @@ public class OpdsImageService
             SupportedImageFormats = supportedImageFormats,
         };
 
-        _activeUserExtractions[userKey] = state;
+        _coordinator.RegisterExtraction(userKey, state);
 
         state.ExtractionTask = ExtractWithPerPageSignalingAsync(archivePath, cacheDir, cts, state, userKey);
 
@@ -591,10 +555,12 @@ public class OpdsImageService
     /// as each matching entry finishes writing to cache.
     /// After writing each entry, runs image format conversion if the client
     /// does not support the original format.
+    /// Uses IServiceScopeFactory for scoped services (IImageFactory) since this runs
+    /// as a background task that may outlive the request scope.
     /// </summary>
     private async Task ExtractWithPerPageSignalingAsync(
         string archivePath, string cacheDir, CancellationTokenSource cts,
-        SeriesExtractionState state, string userKey)
+        OpdsExtractionCoordinator.SeriesExtractionState state, string userKey)
     {
         Directory.CreateDirectory(cacheDir);
 
@@ -628,8 +594,11 @@ public class OpdsImageService
                 {
                     try
                     {
+                        // Create a scope for IImageFactory since extraction runs in background
+                        using var scope = _scopeFactory.CreateScope();
+                        var imageFactory = scope.ServiceProvider.GetRequiredService<IImageFactory>();
                         string convertedPath = await ImageExtensions.CreateImageFileFormatIfNeeded(
-                            _imageFactory, fullPath, state.SupportedImageFormats,
+                            imageFactory, fullPath, state.SupportedImageFormats,
                             ImageExtensions.EncodeFormat.JPEG, cts.Token);
                     }
                     catch (Exception ex)
@@ -667,7 +636,7 @@ public class OpdsImageService
                 kvp.Value.TrySetCanceled(cts.Token);
             }
             // Clean up partial cache on cancellation
-            DeleteCacheDirectory(cacheDir);
+            OpdsExtractionCoordinator.DeleteCacheDirectory(cacheDir);
             throw;
         }
         catch (Exception ex)
@@ -677,59 +646,18 @@ public class OpdsImageService
             {
                 kvp.Value.TrySetException(ex);
             }
-            DeleteCacheDirectory(cacheDir);
+            OpdsExtractionCoordinator.DeleteCacheDirectory(cacheDir);
             throw;
         }
         finally
         {
             // Only remove our own state if it hasn't been replaced
-            if (_activeUserExtractions.TryGetValue(userKey, out var current) &&
+            if (_coordinator.TryGetExtraction(userKey, out var current) &&
                 ReferenceEquals(current, state))
             {
-                _activeUserExtractions.TryRemove(userKey, out _);
+                _coordinator.TryRemoveExtraction(userKey, out _);
             }
         }
-    }
-
-    /// <summary>
-    /// Cancels the active extraction (if any) for the given user and deletes
-    /// the partial cache directory so a fresh extraction can start cleanly.
-    /// </summary>
-    private void CancelActiveExtraction(string userKey)
-    {
-        if (_activeUserExtractions.TryRemove(userKey, out var state))
-        {
-            if (!state.Cts.IsCancellationRequested)
-            {
-                state.Cts.Cancel();
-            }
-
-            // Delete partial cache directory (if it was being extracted)
-            if (!string.IsNullOrEmpty(state.CacheDir) && Directory.Exists(state.CacheDir))
-            {
-                DeleteCacheDirectory(state.CacheDir);
-            }
-
-            // Wait briefly for the task to finish cleanup, but don't block long
-            if (state.ExtractionTask != null)
-            {
-                try { state.ExtractionTask.GetAwaiter().GetResult(); }
-                catch (OperationCanceledException) { }
-                catch { /* swallow */ }
-            }
-
-            state.Cts.Dispose();
-        }
-    }
-
-    private static void DeleteCacheDirectory(string cacheDir)
-    {
-        try
-        {
-            if (Directory.Exists(cacheDir))
-                Directory.Delete(cacheDir, true);
-        }
-        catch { /* best effort */ }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -899,51 +827,6 @@ public class OpdsImageService
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Archive extraction (fallback for inline extraction)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private static async Task ExtractArchiveAsync(string archivePath, string cacheDir, CancellationToken token)
-    {
-        Directory.CreateDirectory(cacheDir);
-        try
-        {
-            var archive = await SharpCompress.Archives.ArchiveFactory.OpenAsyncArchive(archivePath);
-            var allEntries = archive.EntriesAsync;
-            await foreach (var entry in allEntries)
-            {
-                if (entry.IsDirectory)
-                    continue;
-
-                token.ThrowIfCancellationRequested();
-
-                string entryPath = entry.Key?.Replace('/', System.IO.Path.DirectorySeparatorChar) ?? "";
-                string fullPath = System.IO.Path.Combine(cacheDir, entryPath);
-
-                // Create subdirectories if needed
-                string? dir = System.IO.Path.GetDirectoryName(fullPath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
-                await entry.WriteToFileAsync(fullPath, null, token);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Cleanup is the caller's responsibility
-            throw;
-        }
-        catch (Exception)
-        {
-            // Extraction failed – clean up cache dir
-            if (Directory.Exists(cacheDir))
-            {
-                try { Directory.Delete(cacheDir, true); } catch { }
-            }
-            throw;
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
     // Cache management
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -994,24 +877,6 @@ public class OpdsImageService
     // ──────────────────────────────────────────────────────────────────────────
     // Utility methods
     // ──────────────────────────────────────────────────────────────────────────
-
-    private static string GetUserKey(string username)
-    {
-        return username;
-    }
-
-    private static SemaphoreSlim GetChapterLock(string cacheKey)
-    {
-        lock (_lockDictLock)
-        {
-            if (!_chapterLocks.TryGetValue(cacheKey, out var semaphore))
-            {
-                semaphore = new SemaphoreSlim(1, 1);
-                _chapterLocks[cacheKey] = semaphore;
-            }
-            return semaphore;
-        }
-    }
 
     private string GetCacheDirectory(Guid seriesId, string language, string chapterFilename)
     {

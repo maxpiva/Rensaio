@@ -61,3 +61,14 @@ export function useGenerateInvite() {
     mutationFn: (id: string) => userService.generateInvite(id),
   });
 }
+
+export function useRegenerateOpdsPath() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => userService.regenerateOpdsPath(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: USERS_KEY });
+    },
+  });
+}

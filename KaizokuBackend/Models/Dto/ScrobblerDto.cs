@@ -1,3 +1,4 @@
+using KaizokuBackend.Models.Abstractions;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Enums;
 using System.Text.Json.Serialization;
@@ -11,6 +12,15 @@ public class ScrobblerConfigDto
 
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = string.Empty;
+
+    [JsonPropertyName("link")]
+    public string? Link { get; set; }
+
+    [JsonPropertyName("linkDescription")]
+    public string? LinkDescription { get; set; }
 
     [JsonPropertyName("isEnabled")]
     public bool IsEnabled { get; set; }
@@ -29,6 +39,15 @@ public class ScrobblerConfigDto
 
     [JsonPropertyName("lastDownloadAt")]
     public DateTime? LastDownloadAt { get; set; }
+
+    [JsonPropertyName("supportsDirectAuth")]
+    public bool SupportsDirectAuth { get; set; }
+
+    [JsonPropertyName("seriesUrlTemplate")]
+    public string? SeriesUrlTemplate { get; set; }
+
+    [JsonPropertyName("imageTemplateUrl")]
+    public string? ImageTemplateUrl { get; set; }
 }
 
 public class ScrobblerConfigUpdateDto
@@ -72,6 +91,12 @@ public class SeriesMatchStatusDto
     [JsonPropertyName("seriesTitle")]
     public string SeriesTitle { get; set; } = string.Empty;
 
+    [JsonPropertyName("seriesCoverUrl")]
+    public string? SeriesCoverUrl { get; set; }
+
+    [JsonPropertyName("alternativeTitles")]
+    public string AlternativeTitles { get; set; } = string.Empty;
+
     [JsonPropertyName("provider")]
     public ScrobblerProvider Provider { get; set; }
 
@@ -86,6 +111,9 @@ public class SeriesMatchStatusDto
 
     [JsonPropertyName("externalCoverUrl")]
     public string? ExternalCoverUrl { get; set; }
+
+    [JsonPropertyName("externalSeriesUrl")]
+    public string? ExternalSeriesUrl { get; set; }
 
     [JsonPropertyName("matchScore")]
     public double? MatchScore { get; set; }
@@ -209,4 +237,28 @@ public class ScrobblerSearchResult
 
     [JsonPropertyName("year")]
     public string? Year { get; set; }
+}
+
+public class KitsuDirectAuthDto
+{
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = string.Empty;
+}
+
+public class MangaDexDirectAuthDto
+{
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = string.Empty;
+
+    [JsonPropertyName("clientId")]
+    public string ClientId { get; set; } = string.Empty;
+
+    [JsonPropertyName("clientSecret")]
+    public string ClientSecret { get; set; } = string.Empty;
 }

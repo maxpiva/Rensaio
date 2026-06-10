@@ -39,20 +39,62 @@ p{font-size:0.875rem;opacity:0.7;margin-bottom:1.5rem}
 </body></html>`;
 }
 
+/**
+ * Renders the OAuth callback error HTML page.
+ *
+ * Shown when the token exchange with the provider fails (e.g. provider API down,
+ * invalid credentials, network error). Displays the underlying error so the user
+ * understands why authentication failed.
+ */
+export function renderErrorHtml(providerName: string, errorMessage: string): string {
+  const safeProvider = escapeHtml(providerName);
+  const safeError = escapeHtml(errorMessage);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Kaizoku &mdash; Authentication Failed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:hsl(20,14.3%,4.1%);color:hsl(0,0%,95%)}
+@media(prefers-color-scheme:light){body{background:hsl(0,0%,100%);color:hsl(240,10%,3.9%)}.card{background:hsl(180,8.2%,90.2%)}}
+.card{background:hsl(24,9.8%,10%);border-radius:12px;padding:2.5rem 3rem;text-align:center;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,0.3)}
+.logo{font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;color:hsl(346.8,77.2%,49.8%);margin-bottom:1.25rem}
+.logo span{color:hsl(0,0%,95%)}
+@media(prefers-color-scheme:light){.logo span{color:hsl(240,10%,3.9%)}}
+.cross{width:48px;height:48px;border-radius:50%;border:3px solid hsl(0,84.2%,60.2%);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem;color:hsl(0,84.2%,60.2%);font-size:1.75rem;font-weight:700;line-height:1}
+h1{font-size:1.125rem;font-weight:600;margin-bottom:0.5rem}
+p{font-size:0.875rem;opacity:0.7;margin-bottom:0.75rem}
+.error-detail{font-size:0.8rem;background:hsl(0,0%,15%);padding:0.75rem 1rem;border-radius:8px;text-align:left;word-break:break-word;font-family:monospace;color:hsl(0,84.2%,70.2%);margin-bottom:1.5rem}
+@media(prefers-color-scheme:light){.error-detail{background:hsl(0,0%,93%);color:hsl(0,70%,40%)}}
+.pill{display:inline-block;background:hsl(0,84.2%,60.2%);color:hsl(355.7,100%,97.3%);font-size:0.75rem;font-weight:600;padding:0.25rem 0.75rem;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em}
+.hint{font-size:0.75rem;opacity:0.4;margin-top:1.5rem}
+</style></head><body>
+<div class="card">
+<div class="logo">kaizoku<span>.net</span></div>
+<div class="cross">&#10005;</div>
+<h1>Authentication Failed</h1>
+<p>Could not connect your ${safeProvider} account to Kaizoku.</p>
+<div class="error-detail">${safeError}</div>
+<div class="pill">Failed</div>
+<p class="hint">Please try again. If the problem persists, contact support.</p></div>
+<script>(function(){try{if(window.opener){window.opener.postMessage({type:'oauth-error',provider:'${escapeJsString(providerName)}'},'*')}}catch(e){}})()</script>
+</body></html>`;
+}
+
 function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#x27;');
+    .replace(/[&]/g, '&')
+    .replace(/[<]/g, '<')
+    .replace(/[>]/g, '>')
+    .replace(/["]/g, '"')
+    .replace(/[']/g, '&#x27;');
 }
 
 function escapeJsString(str: string): string {
   return str
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
+    .replace(/[\\]/g, '\\\\')
+    .replace(/[']/g, "\\'")
+    .replace(/["]/g, '\\"')
+    .replace(/[\n]/g, '\\n')
+    .replace(/[\r]/g, '\\r');
 }

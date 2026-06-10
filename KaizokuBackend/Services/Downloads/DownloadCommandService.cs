@@ -37,6 +37,8 @@ namespace KaizokuBackend.Services.Downloads
         private readonly CadenceCalculationService _cadenceService;
         private readonly string _tempFolder;
         private readonly ILogger<DownloadCommandService> _logger;
+        private readonly Series.SeriesStateService _stateService;
+        private readonly ReadState.HashCacheService _hashCache;
         private static readonly KeyedAsyncLock _lock = new KeyedAsyncLock();
 
         public DownloadCommandService(
@@ -47,7 +49,9 @@ namespace KaizokuBackend.Services.Downloads
             JobHubReportService reportingService,
             CadenceCalculationService cadenceService,
             IConfiguration config,
-            ILogger<DownloadCommandService> logger)
+            ILogger<DownloadCommandService> logger,
+            Series.SeriesStateService stateService,
+            ReadState.HashCacheService hashCache)
         {
             _mihon = mihon;
             _db = db;
@@ -284,6 +288,12 @@ namespace KaizokuBackend.Services.Downloads
                             //Delete temporary sources chapters if needed, since we have the storage one
                             foreach (Models.Chapter c in chapters)
                             {
+                                // Clean up hash cache before removing the filename
+                                if (!string.IsNullOrEmpty(c.Filename))
+                                {
+                                    _hashCache.DeleteChapterHash(s.StoragePath, c.Filename);
+                                }
+
                                 string rfname = Path.Combine(appSettings.StorageFolder, s.StoragePath, c.Filename!);
                                 if (File.Exists(rfname))
                                 {
@@ -303,8 +313,7 @@ namespace KaizokuBackend.Services.Downloads
                         await _db.SaveChangesAsync(token).ConfigureAwait(false);
                     }
 
-                    string fullPath = Path.Combine(appSettings.StorageFolder, s.StoragePath);
-                    await s.SaveImportSeriesSnapshotToDirectoryAsync(fullPath, _logger, token).ConfigureAwait(false);
+                    await _stateService.SyncToKaizokuJsonAsync(s.Id, token).ConfigureAwait(false);
                 }
 
                 // Recalculate release cadence after successful download

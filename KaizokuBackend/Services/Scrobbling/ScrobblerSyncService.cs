@@ -1,3 +1,4 @@
+using System.Text.Json;
 using KaizokuBackend.Data;
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
@@ -5,6 +6,7 @@ using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Models.ReadState;
 using KaizokuBackend.Services.ReadState;
 using KaizokuBackend.Services.Scrobbling.Abstractions;
+using KaizokuBackend.Services.Scrobbling.Providers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +15,11 @@ namespace KaizokuBackend.Services.Scrobbling;
 /// <summary>
 /// Orchestrates synchronization of read states between local kaizoku.json and external scrobbling services.
 /// Handles upload (local -> remote), download (remote -> local), and conflict resolution.
+/// Token lifecycle is delegated to each provider's EnsureAuthenticatedAsync.
 /// </summary>
 public class ScrobblerSyncService
 {
     private readonly ScrobblerProviderFactory _providerFactory;
-    private readonly ScrobblerTokenProtector _tokenProtector;
     private readonly AppDbContext _db;
     private readonly ReadStateService _readStateService;
     private readonly SeriesMatchingService _matchingService;
@@ -25,14 +27,12 @@ public class ScrobblerSyncService
 
     public ScrobblerSyncService(
         ScrobblerProviderFactory providerFactory,
-        ScrobblerTokenProtector tokenProtector,
         AppDbContext db,
         ReadStateService readStateService,
         SeriesMatchingService matchingService,
         ILogger<ScrobblerSyncService> logger)
     {
         _providerFactory = providerFactory;
-        _tokenProtector = tokenProtector;
         _db = db;
         _readStateService = readStateService;
         _matchingService = matchingService;
@@ -87,7 +87,7 @@ public class ScrobblerSyncService
 
             try
             {
-                await RestoreTokenAsync(config, provider, token);
+                await provider.EnsureAuthenticatedAsync(userId, token);
 
                 var mapping = await _db.UserSeriesMappings
                     .FirstOrDefaultAsync(m => m.UserId == userId && m.SeriesId == seriesId
@@ -126,7 +126,7 @@ public class ScrobblerSyncService
         var scrobbler = _providerFactory.GetProvider(provider);
         if (scrobbler == null) return result;
 
-        await RestoreTokenAsync(config, scrobbler, token);
+        await scrobbler.EnsureAuthenticatedAsync(userId, token);
 
         var mappings = await _db.UserSeriesMappings
             .Where(m => m.UserId == userId && m.Provider == provider
@@ -185,7 +185,7 @@ public class ScrobblerSyncService
 
         try
         {
-            await RestoreTokenAsync(config, provider, token);
+            await provider.EnsureAuthenticatedAsync(userId, token);
 
             // Download remote changes and merge
             var seriesList = await _db.Series.ToListAsync(token);
@@ -220,7 +220,7 @@ public class ScrobblerSyncService
         if (mapping == null || string.IsNullOrEmpty(mapping.ExternalSeriesId))
             return;
 
-        await RestoreTokenAsync(config, provider, token);
+        await provider.EnsureAuthenticatedAsync(userId, token);
 
         var series = await _db.Series.FindAsync([seriesId], token);
         if (series == null) return;
@@ -243,39 +243,5 @@ public class ScrobblerSyncService
         }
 
         config.LastDownloadAt = DateTime.UtcNow;
-    }
-
-    private async Task RestoreTokenAsync(UserScrobblerConfigEntity config, IScrobblerProvider provider, CancellationToken token)
-    {
-        if (!provider.RequiresOAuth) return;
-
-        if (string.IsNullOrEmpty(config.AccessToken))
-        {
-            _logger.LogWarning("No access token for {Provider} config {ConfigId}", config.Provider, config.Id);
-            return;
-        }
-
-        var decryptedToken = _tokenProtector.Decrypt(config.AccessToken);
-
-        // Set the Authorization header on the provider's HTTP client
-        // Since we can't directly access the HttpClient after creation, we check validity
-        if (config.TokenExpiresAt.HasValue && config.TokenExpiresAt.Value < DateTime.UtcNow.AddMinutes(5))
-        {
-            // Token is expired or about to expire, try refreshing
-            if (!string.IsNullOrEmpty(config.RefreshToken))
-            {
-                var decryptedRefresh = _tokenProtector.Decrypt(config.RefreshToken);
-                var refreshResult = await provider.RefreshTokenAsync(decryptedRefresh);
-
-                if (refreshResult.Success && refreshResult.AccessToken != null)
-                {
-                    config.AccessToken = _tokenProtector.Encrypt(refreshResult.AccessToken);
-                    if (refreshResult.RefreshToken != null)
-                        config.RefreshToken = _tokenProtector.Encrypt(refreshResult.RefreshToken);
-                    config.TokenExpiresAt = refreshResult.ExpiresAt;
-                    await _db.SaveChangesAsync(token);
-                }
-            }
-        }
     }
 }

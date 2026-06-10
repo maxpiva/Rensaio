@@ -36,10 +36,7 @@ public class UserDto
     [JsonPropertyName("hasPassword")]
     public bool HasPassword { get; set; }
 
-    [JsonPropertyName("isFirstAdmin")]
-    public bool IsFirstAdmin { get; set; }
-
-    public static UserDto FromEntity(UserEntity entity, bool isFirstAdmin = false)
+    public static UserDto FromEntity(UserEntity entity)
     {
         return new UserDto
         {
@@ -52,8 +49,7 @@ public class UserDto
             CreatedAt = entity.CreatedAt,
             LastLoginAt = entity.LastLoginAt,
             IsActive = entity.IsActive,
-            HasPassword = !string.IsNullOrWhiteSpace(entity.PasswordHash),
-            IsFirstAdmin = isFirstAdmin
+            HasPassword = !string.IsNullOrWhiteSpace(entity.PasswordHash)
         };
     }
 }
@@ -85,19 +81,16 @@ public class UpdateUserDto
     public bool? IsActive { get; set; }
 }
 
-public class ChangePasswordDto
+public class AuthStatusDto
 {
-    [JsonPropertyName("currentPassword")]
-    public string CurrentPassword { get; set; } = string.Empty;
+    [JsonPropertyName("authenticationEnabled")]
+    public bool AuthenticationEnabled { get; set; }
 
-    [JsonPropertyName("newPassword")]
-    public string NewPassword { get; set; } = string.Empty;
-}
+    [JsonPropertyName("hasUsers")]
+    public bool HasUsers { get; set; }
 
-public class SetPasswordDto
-{
-    [JsonPropertyName("password")]
-    public string Password { get; set; } = string.Empty;
+    [JsonPropertyName("users")]
+    public List<UserDto>? Users { get; set; }
 }
 
 public class LoginRequestDto
@@ -127,18 +120,6 @@ public class SelectUserRequestDto
     public string Username { get; set; } = string.Empty;
 }
 
-public class AuthStatusDto
-{
-    [JsonPropertyName("authenticationEnabled")]
-    public bool AuthenticationEnabled { get; set; }
-
-    [JsonPropertyName("hasUsers")]
-    public bool HasUsers { get; set; }
-
-    [JsonPropertyName("users")]
-    public List<UserDto>? Users { get; set; }
-}
-
 public class SetPasswordRequestDto
 {
     [JsonPropertyName("username")]
@@ -149,6 +130,15 @@ public class SetPasswordRequestDto
 
     [JsonPropertyName("password")]
     public string Password { get; set; } = string.Empty;
+}
+
+public class ChangePasswordDto
+{
+    [JsonPropertyName("currentPassword")]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [JsonPropertyName("newPassword")]
+    public string NewPassword { get; set; } = string.Empty;
 }
 
 public class InviteMessageDto
@@ -163,23 +153,8 @@ public class InviteMessageDto
     public string OpdsPath { get; set; } = string.Empty;
 }
 
-public class NeedsPasswordResponseDto
+public class RegenerateOpdsResponseDto
 {
-    [JsonPropertyName("needsPassword")]
-    public bool NeedsPassword { get; set; }
-}
-
-public class UserListEntryDto
-{
-    [JsonPropertyName("id")]
-    public Guid Id { get; set; }
-
-    [JsonPropertyName("username")]
-    public string Username { get; set; } = string.Empty;
-
-    [JsonPropertyName("avatarBase64")]
-    public string? AvatarBase64 { get; set; }
-
-    [JsonPropertyName("avatarContentType")]
-    public string? AvatarContentType { get; set; }
+    [JsonPropertyName("opdsPath")]
+    public string OpdsPath { get; set; } = string.Empty;
 }

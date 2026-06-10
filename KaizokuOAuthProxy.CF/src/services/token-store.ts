@@ -22,14 +22,16 @@ export async function store(
   db: D1Database,
   state: string,
   instanceKey: string,
-  provider: string
+  provider: string,
+  codeVerifier?: string
 ): Promise<void> {
+  console.log(`[TokenStore] store - state=${state.substring(0, 8)}..., provider=${provider}, codeVerifier=${codeVerifier ? 'present' : 'null'}`);
   await db
     .prepare(
-      `INSERT INTO oauth_sessions (state, instance_key, provider, created_at)
-       VALUES (?, ?, ?, datetime('now'))`
+      `INSERT INTO oauth_sessions (state, instance_key, provider, code_verifier, created_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`
     )
-    .bind(state, instanceKey, provider)
+    .bind(state, instanceKey, provider, codeVerifier ?? null)
     .run();
 }
 
@@ -44,6 +46,20 @@ export async function retrieve(
   db: D1Database,
   state: string
 ): Promise<OAuthSession | null> {
+  console.log(`[TokenStore] retrieve - looking for state=${state.substring(0, 8)}...`);
+
+  // First check if row exists at all (ignoring TTL)
+  const anyRow = await db
+    .prepare(`SELECT state, provider, created_at FROM oauth_sessions WHERE state = ?`)
+    .bind(state)
+    .first<{ state: string; provider: string; created_at: string }>();
+
+  if (anyRow) {
+    console.log(`[TokenStore] retrieve - found row: provider=${anyRow.provider}, created_at=${anyRow.created_at}`);
+  } else {
+    console.log(`[TokenStore] retrieve - NO ROW FOUND for state=${state}`);
+  }
+
   const row = await db
     .prepare(
       `SELECT * FROM oauth_sessions
@@ -52,6 +68,12 @@ export async function retrieve(
     )
     .bind(state, `-${SESSION_TTL_MINUTES}`)
     .first<OAuthSession>();
+
+  if (row) {
+    console.log(`[TokenStore] retrieve - SUCCESS (within TTL)`);
+  } else if (anyRow) {
+    console.log(`[TokenStore] retrieve - row exists but EXPIRED (TTL check failed)`);
+  }
 
   return row ?? null;
 }
@@ -99,12 +121,20 @@ export async function remove(
     return null;
   }
 
+  // Only delete if tokens have been set (callback completed)
+  // Otherwise frontend is polling before callback finished
+  if (!row.access_token) {
+    console.log(`[TokenStore] remove - session exists but no tokens yet, NOT deleting`);
+    return null;
+  }
+
   // Then delete (atomic — if the row is gone, we still return what we got)
   await db
     .prepare('DELETE FROM oauth_sessions WHERE state = ?')
     .bind(state)
     .run();
 
+  console.log(`[TokenStore] remove - deleted session with tokens`);
   return row;
 }
 

@@ -11,5 +11,6 @@ export interface OAuthSession {
   access_token: string | null;
   refresh_token: string | null;
   expires_at: string | null;   // ISO 8601 datetime
+  code_verifier: string | null; // PKCE code_verifier (MyAnimeList)
   created_at: string;          // ISO 8601 datetime
 }

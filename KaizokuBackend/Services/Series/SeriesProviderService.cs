@@ -22,9 +22,11 @@ namespace KaizokuBackend.Services.Series
         private readonly JobBusinessService _jobBusinessService;
         private readonly JobManagementService _jobManagementService;
         private readonly ILogger<SeriesProviderService> _logger;
+        private readonly SeriesStateService _stateService;
 
         public SeriesProviderService(AppDbContext db, SettingsService settings, JobBusinessService jobBusinessService,
-            JobManagementService jobManagementService, ILogger<SeriesProviderService> logger)
+            JobManagementService jobManagementService, ILogger<SeriesProviderService> logger,
+            SeriesStateService stateService)
         {
             _db = db;
             _settings = settings;
@@ -231,8 +233,7 @@ namespace KaizokuBackend.Services.Series
             if (update)
             {
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
-                await series.SaveImportSeriesSnapshotToDirectoryAsync(Path.Combine(settings.StorageFolder, series.StoragePath),
-                    _logger, token);
+                await _stateService.SyncToKaizokuJsonAsync(series.Id, token).ConfigureAwait(false);
             }
 
             return true;

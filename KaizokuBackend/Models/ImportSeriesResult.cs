@@ -24,9 +24,22 @@ public class ImportSeriesResult
     public int KaizokuVersion { get; set; } = 1;
     public List<UserReadStateSnapshot>? UserReadStates { get; set; }
 
+    /// <summary>
+    /// Cached external mappings from SeriesMappings table.
+    /// Maps ScrobblerProvider enum name (e.g., "MyAnimeList") to ExternalSeriesId.
+    /// Serialized into kaizoku.json for offline/cached automatch fallback.
+    /// </summary>
+    public List<ExternalMapping>? ExternalMappings { get; set; }
+
     public List<ImportProviderSnapshot> Providers
     {
         get => _providers;
         set => _providers = value ?? [];
     }
+}
+public class ExternalMapping
+{
+    public string Provider { get; set; }
+    public string ExternalId { get; set; }
+    public string ExternalTitle { get; set; }
 }

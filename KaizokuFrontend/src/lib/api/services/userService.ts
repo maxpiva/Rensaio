@@ -82,4 +82,8 @@ export const userService = {
   async generateInvite(id: string): Promise<InviteMessage> {
     return apiClient.post<InviteMessage>(`/api/users/${id}/generate-invite`);
   },
+
+  async regenerateOpdsPath(id: string): Promise<{ opdsPath: string }> {
+    return apiClient.post<{ opdsPath: string }>(`/api/users/${id}/regenerate-opds`);
+  },
 };

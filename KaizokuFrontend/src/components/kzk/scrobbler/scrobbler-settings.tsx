@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useScrobblerConfigs, useUpdateScrobblerConfig, useScrobblerAuthorize, useScrobblerCallback, useScrobblerDisconnect, useTriggerSync, useSyncStatus, useSaveComicVineApiKey } from '@/lib/api/hooks/useScrobbler';
+import { useScrobblerConfigs, useUpdateScrobblerConfig, useScrobblerAuthorize, useScrobblerCallback, useScrobblerDisconnect, useTriggerSync, useSyncStatus, useSaveComicVineApiKey, useKitsuDirectAuth, useMangaDexDirectAuth } from '@/lib/api/hooks/useScrobbler';
 import { useScrobblerUnmatched, useAutoMatchAll, useConfirmMatch, useDisableLink } from '@/lib/api/hooks/useScrobbler';
 import { ScrobblerProvider, type ScrobblerConfig, type OAuthCallbackRequest, type ScrobblerConfigUpdate } from '@/lib/api/types';
 import { SeriesMatchDialog } from '@/components/kzk/scrobbler/series-match-dialog';
 import { RefreshCw, Link, Link2Off, ExternalLink, Key } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 
 const providerIcons: Record<ScrobblerProvider, string> = {
   [ScrobblerProvider.MyAnimeList]: 'MAL',
@@ -31,8 +32,17 @@ export function ScrobblerSettings() {
   const triggerSync = useTriggerSync();
   const autoMatchAll = useAutoMatchAll();
 
+  const kitsuAuth = useKitsuDirectAuth();
+  const mangaDexAuth = useMangaDexDirectAuth();
+
   const [selectedSeries, setSelectedSeries] = useState<{ seriesId: string; provider: ScrobblerProvider } | null>(null);
   const [comicVineApiKey, setComicVineApiKey] = useState('');
+  const [kitsuEmail, setKitsuEmail] = useState('');
+  const [kitsuPassword, setKitsuPassword] = useState('');
+  const [mdUsername, setMdUsername] = useState('');
+  const [mdPassword, setMdPassword] = useState('');
+  const [mdClientId, setMdClientId] = useState('');
+  const [mdClientSecret, setMdClientSecret] = useState('');
   const saveComicVineKey = useSaveComicVineApiKey();
 
   const handleToggleEnabled = useCallback((config: ScrobblerConfig) => {
@@ -46,53 +56,54 @@ export function ScrobblerSettings() {
   }, [updateConfig]);
 
   const handleConnect = useCallback(async (config: ScrobblerConfig) => {
+    console.log('[Scrobbler] handleConnect called for provider:', config.provider);
     try {
       const providerName = ScrobblerProvider[config.provider];
+      console.log('[Scrobbler] providerName resolved:', providerName);
       const result = await authorize.mutateAsync(providerName);
+      console.log('[Scrobbler] authorize result:', result);
 
       // Open OAuth popup — opens on the proxy domain (HTTPS)
       const popup = window.open(result.authUrl, 'oauth-popup', 'width=600,height=700');
+      console.log('[Scrobbler] popup opened:', !!popup);
 
-      // Listen for postMessage from proxy's success page (no HTTPS→HTTP redirect)
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.data?.type === 'oauth-success' && event.data?.provider === providerName) {
-          window.removeEventListener('message', handleMessage);
-          popup?.close();
+      // We already have the state from the authorize response.
+      // Start polling the backend callback immediately — the proxy will store
+      // the tokens after the user completes the OAuth flow in the popup,
+      // and the backend will retrieve them from the proxy.
+      // GET /api/scrobbler/callback/{provider}?state={state}
+      const callbackUrl = `/api/scrobbler/callback/${providerName}?state=${result.state}`;
+      console.log('[Scrobbler] starting poll for:', callbackUrl);
 
-          // Tell Kaizoku backend to retrieve the tokens from the proxy (server-to-server)
-          // GET /api/scrobbler/callback/{provider}?state={state}
-          const callbackUrl = `/api/scrobbler/callback/${providerName}?state=${event.data.state}`;
-          
-          // Poll until the tokens are retrieved
-          let connected = false;
-          let attempts = 0;
-          while (!connected && attempts < 30) {
-            try {
-              const response = await fetch(callbackUrl, { credentials: 'include' });
-              if (response.ok) {
-                connected = true;
-              }
-            } catch {
-              // Backend may not have polled proxy yet
-            }
-            if (!connected) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              attempts++;
-            }
-          }
-
-          if (connected) {
-            // Invalidate all scrobbler queries to refresh UI
-            window.location.reload();
-          }
+      let connected = false;
+      let attempts = 0;
+      while (!connected && attempts < 60) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+        console.log(`[Scrobbler] poll attempt ${attempts}`);
+        try {
+          const response = await apiClient.get<{ connected: boolean }>(callbackUrl);
+          console.log('[Scrobbler] poll success:', response);
+          connected = true;
+        } catch (err) {
+          console.log(`[Scrobbler] poll attempt ${attempts} failed:`, err);
         }
-      };
+      }
 
-      window.addEventListener('message', handleMessage);
+      popup?.close();
+
+      if (connected) {
+        // Auto-match and sync after connect — same pattern as user-tracker-requester
+        // These mutations handle React Query cache invalidation in their onSuccess handlers
+        await autoMatchAll.mutateAsync(config.provider);
+        await triggerSync.mutateAsync();
+      } else {
+        console.log('[Scrobbler] failed to connect after 60 attempts');
+      }
     } catch (err) {
-      console.error('OAuth authorization failed:', err);
+      console.error('[Scrobbler] OAuth authorization failed:', err);
     }
-  }, [authorize]);
+  }, [authorize, autoMatchAll, triggerSync]);
 
   const handleDisconnect = useCallback((config: ScrobblerConfig) => {
     const providerName = ScrobblerProvider[config.provider];
@@ -104,6 +115,9 @@ export function ScrobblerSettings() {
     await saveComicVineKey.mutateAsync(comicVineApiKey);
     setComicVineApiKey('');
   }, [comicVineApiKey, saveComicVineKey]);
+
+  // DIAGNOSTIC: verify component renders
+  console.log('[ScrobblerSettings] rendering, configs:', configsLoading ? 'loading' : configs?.length + ' items');
 
   if (configsLoading) {
     return <div className="p-4 text-muted-foreground">Loading scrobbler settings...</div>;
@@ -200,6 +214,93 @@ export function ScrobblerSettings() {
                         Disconnect
                       </Button>
                     </>
+                  ) : config.supportsDirectAuth ? (
+                    config.provider === ScrobblerProvider.Kitsu ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="email"
+                          placeholder="Email"
+                          value={kitsuEmail}
+                          onChange={(e) => setKitsuEmail(e.target.value)}
+                          className="h-8 w-40 text-xs"
+                        />
+                        <Input
+                          type="password"
+                          placeholder="Password"
+                          value={kitsuPassword}
+                          onChange={(e) => setKitsuPassword(e.target.value)}
+                          className="h-8 w-40 text-xs"
+                        />
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            kitsuAuth.mutate({ email: kitsuEmail, password: kitsuPassword });
+                          }}
+                          disabled={kitsuAuth.isPending || !kitsuEmail.trim() || !kitsuPassword.trim()}
+                        >
+                          <Link className="h-4 w-4 mr-1" />
+                          {kitsuAuth.isPending ? 'Connecting...' : 'Connect'}
+                        </Button>
+                      </div>
+                    ) : config.provider === ScrobblerProvider.MangaDex ? (
+                      <div className="flex flex-col gap-2 items-end">
+                        <a
+                          href="https://mangadex.org/settings"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline"
+                        >
+                          Create personal API client on MangaDex
+                        </a>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            placeholder="Username"
+                            value={mdUsername}
+                            onChange={(e) => setMdUsername(e.target.value)}
+                            className="h-8 w-28 text-xs"
+                          />
+                          <Input
+                            type="password"
+                            placeholder="Password"
+                            value={mdPassword}
+                            onChange={(e) => setMdPassword(e.target.value)}
+                            className="h-8 w-28 text-xs"
+                          />
+                          <Input
+                            type="text"
+                            placeholder="Client ID"
+                            value={mdClientId}
+                            onChange={(e) => setMdClientId(e.target.value)}
+                            className="h-8 w-28 text-xs"
+                          />
+                          <Input
+                            type="password"
+                            placeholder="Client Secret"
+                            value={mdClientSecret}
+                            onChange={(e) => setMdClientSecret(e.target.value)}
+                            className="h-8 w-28 text-xs"
+                          />
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                              mangaDexAuth.mutate({
+                                username: mdUsername,
+                                password: mdPassword,
+                                clientId: mdClientId,
+                                clientSecret: mdClientSecret,
+                              });
+                            }}
+                            disabled={mangaDexAuth.isPending || !mdUsername.trim() || !mdPassword.trim() || !mdClientId.trim() || !mdClientSecret.trim()}
+                          >
+                            <Link className="h-4 w-4 mr-1" />
+                            {mangaDexAuth.isPending ? 'Connecting...' : 'Connect'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null
                   ) : config.provider === ScrobblerProvider.ComicVine ? (
                     <div className="flex items-center gap-2">
                       <Input

@@ -11,6 +11,8 @@ import {
   type DisableLinkRequest,
   type SyncStatus,
   type ScrobblerProvider,
+  type KitsuDirectAuthRequest,
+  type MangaDexDirectAuthRequest,
 } from '@/lib/api/types';
 
 export const scrobblerService = {
@@ -43,6 +45,16 @@ export const scrobblerService = {
 
   async disconnect(provider: string): Promise<void> {
     return apiClient.delete<void>(`/api/scrobbler/config/${provider}`);
+  },
+
+  // ── Direct Auth (Kitsu, MangaDex) ──
+
+  async kitsuDirectAuth(request: KitsuDirectAuthRequest): Promise<{ connected: boolean }> {
+    return apiClient.post<{ connected: boolean }>('/api/scrobbler/config/kitsu/direct', request);
+  },
+
+  async mangaDexDirectAuth(request: MangaDexDirectAuthRequest): Promise<{ connected: boolean }> {
+    return apiClient.post<{ connected: boolean }>('/api/scrobbler/config/mangadex/direct', request);
   },
 
   // ── Matching ──

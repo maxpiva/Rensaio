@@ -53,13 +53,20 @@ public class UserQueryService
     }
 
     /// <summary>
-    /// Gets the first admin user. Used for password reset flow.
+    /// Gets the owner user. Used for authorization checks.
     /// </summary>
-    public async Task<UserEntity?> GetFirstAdminAsync(CancellationToken token = default)
+    public async Task<UserEntity?> GetOwnerAsync(CancellationToken token = default)
     {
         return await _db.Users
-            .Where(u => u.Level == UserLevel.Admin)
-            .OrderBy(u => u.CreatedAt)
+            .Where(u => u.Level == UserLevel.Owner)
             .FirstOrDefaultAsync(token);
+    }
+
+    /// <summary>
+    /// Checks if an owner user already exists.
+    /// </summary>
+    public async Task<bool> OwnerExistsAsync(CancellationToken token = default)
+    {
+        return await _db.Users.AnyAsync(u => u.Level == UserLevel.Owner, token);
     }
 }

@@ -1,3 +1,4 @@
+using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Images;
@@ -226,6 +227,16 @@ namespace KaizokuBackend.Controllers
                 }
 
                 var seriesId = await _commandService.AddSeriesAsync(series, token).ConfigureAwait(false);
+
+                // Import Series Wizard: sync ExternalMappings from kaizoku.json into SeriesMappings
+                // with the logged-in user's level for role-based overwrite protection
+                if (HttpContext.Items["User"] is UserEntity user &&
+                    series.LocalInfo?.Series.ExternalMappings?.Count > 0)
+                {
+                    await _commandService.SyncExternalMappingsFromSnapshotAsync(
+                        seriesId, series.LocalInfo, user.Id, user.Level, token).ConfigureAwait(false);
+                }
+
                 return Ok(new { id = seriesId });
             }
             catch (Exception ex)

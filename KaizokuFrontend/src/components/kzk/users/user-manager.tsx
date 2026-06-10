@@ -40,12 +40,14 @@ const levelLabels: Record<UserLevel, string> = {
   [UserLevel.User]: 'User',
   [UserLevel.Manager]: 'Manager',
   [UserLevel.Admin]: 'Admin',
+  [UserLevel.Owner]: 'Owner',
 };
 
 const levelColors: Record<UserLevel, string> = {
   [UserLevel.User]: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   [UserLevel.Manager]: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   [UserLevel.Admin]: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  [UserLevel.Owner]: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
 export function UserManager() {
@@ -237,8 +239,8 @@ export function UserManager() {
                             <Mail className="w-4 h-4 mr-2" />
                             Invite
                           </DropdownMenuItem>
-                          {/* Delete: only show if not first admin, and if target is not admin or current user is first admin */}
-                          {!user.isFirstAdmin && (user.level !== UserLevel.Admin || currentUser?.isFirstAdmin) && (
+                          {/* Delete: only show if not owner, and if target is not admin or current user is owner */}
+                          {user.level !== UserLevel.Owner && (user.level !== UserLevel.Admin || currentUser?.level === UserLevel.Owner) && (
                             <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => setDeleteConfirmId(user.id)}

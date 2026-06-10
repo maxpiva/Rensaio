@@ -95,6 +95,7 @@ namespace KaizokuBackend.Data
         public DbSet<UserEntity> Users { get; set; }
         public DbSet<UserScrobblerConfigEntity> UserScrobblerConfigs { get; set; }
         public DbSet<UserSeriesMappingEntity> UserSeriesMappings { get; set; }
+        public DbSet<SeriesMappingEntity> SeriesMappings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -395,6 +396,19 @@ namespace KaizokuBackend.Data
                 entity.Property(m => m.MappingStatus).IsRequired().HasConversion<int>();
                 entity.HasIndex(m => new { m.UserId, m.SeriesId, m.Provider }).IsUnique()
                     .HasDatabaseName("IX_UserSeriesMapping_UserId_SeriesId_Provider");
+            });
+
+            modelBuilder.Entity<SeriesMappingEntity>(entity =>
+            {
+                entity.HasKey(m => m.Id);
+                entity.Property(m => m.SeriesId).IsRequired();
+                entity.Property(m => m.Provider).IsRequired().HasConversion<int>();
+                entity.Property(m => m.ExternalSeriesId).UseCollation("BINARY").IsRequired();
+                entity.Property(m => m.ExternalSeriesTitle).UseCollation("BINARY").IsRequired(false);
+                entity.Property(m => m.UserRole).IsRequired().HasConversion<int>();
+                entity.Property(m => m.UpdateDate).IsRequired();
+                entity.HasIndex(m => new { m.SeriesId, m.Provider }).IsUnique()
+                    .HasDatabaseName("IX_SeriesMapping_SeriesId_Provider");
             });
         }
     }

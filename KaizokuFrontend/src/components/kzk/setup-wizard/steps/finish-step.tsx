@@ -1,4 +1,5 @@
 "use client";
+import { apiClient } from '@/lib/api/client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,8 +118,7 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
     if (isDone && onUsersDetected && !hasCheckedUsersRef.current) {
       hasCheckedUsersRef.current = true;
       // Fetch auto-created users from the backend
-      fetch('/api/setup/import/users')
-        .then(res => res.json() as Promise<{ autoCreatedUsers?: string[] }>)
+      apiClient.get<{ autoCreatedUsers?: string[] }>('/api/setup/import/users')
         .then(data => {
           if (data.autoCreatedUsers) {
             onUsersDetected(data.autoCreatedUsers);

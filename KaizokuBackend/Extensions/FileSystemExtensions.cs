@@ -47,41 +47,6 @@ namespace KaizokuBackend.Extensions
         }
 
         /// <summary>
-        /// Saves ImportSeriesSnapshot to a directory's kaizoku.json file
-        /// </summary>
-        /// <param name="info">ImportSeriesSnapshot object to save</param>
-        /// <param name="seriesFolder">Path to the series folder</param>
-        /// <param name="logger">Optional logger for error reporting</param>
-        /// <param name="token">Cancellation token</param>
-        public static async Task SaveImportSeriesSnapshotToDirectoryAsync(this ImportSeriesSnapshot info, string seriesFolder, ILogger? logger = null, CancellationToken token = default)
-        {
-            try
-            {
-                if (!Directory.Exists(seriesFolder))
-                    Directory.CreateDirectory(seriesFolder);
-                var kaizokuJsonPath = Path.Combine(seriesFolder, "kaizoku.json");
-                var jsonContent = JsonSerializer.Serialize(info, JsonOptions);
-                await File.WriteAllTextAsync(kaizokuJsonPath, jsonContent, token).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError("Error saving kaizoku.json to {seriesFolder}: {message}", seriesFolder, ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Saves ImportSeriesSnapshot to a series directory
-        /// </summary>
-        /// <param name="series">The Series entity</param>
-        /// <param name="seriesFolder">Path to the series folder</param>
-        /// <param name="logger">Optional logger</param>
-        /// <param name="token">Cancellation token</param>
-        /// <returns>Task</returns>
-        public static Task SaveImportSeriesSnapshotToDirectoryAsync(this SeriesEntity series, string seriesFolder, ILogger? logger = null, CancellationToken token = default)
-        {
-            return series.ToImportSeriesSnapshot().SaveImportSeriesSnapshotToDirectoryAsync(seriesFolder, logger, token);
-        }
-        /// <summary>
         /// Gets an embedded resource stream
         /// </summary>
         /// <param name="resourceName">Name of the embedded resource</param>
@@ -205,7 +170,7 @@ namespace KaizokuBackend.Extensions
             var ret = path;
             foreach (var kvp in ReversePathCharacterMap)
                 ret = ret.Replace(kvp.Key, kvp.Value);
-            ret = ret.Replace("\u2026", "..."); // … ? ...
+            ret = ret.Replace("\u2026", "..."); // ï¿½ ? ...
             return ret.Trim();
         }
 

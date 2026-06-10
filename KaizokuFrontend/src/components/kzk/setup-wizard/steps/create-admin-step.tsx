@@ -51,13 +51,13 @@ export function CreateAdminStep({ setError, setIsLoading, setCanProgress }: Crea
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserIcon className="h-5 w-5 text-primary" />
-            Admin User Created
+            Owner User Created
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="bg-secondary border border-green-200 rounded-lg p-4">
             <p className="text-sm">
-              Admin user <strong>{username}</strong> has been created successfully!
+              Owner user <strong>{username}</strong> has been created successfully!
             </p>
             <p className="text-sm text-muted-foreground mt-2">
               No password was set - authentication is disabled by default.
@@ -72,7 +72,7 @@ export function CreateAdminStep({ setError, setIsLoading, setCanProgress }: Crea
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
-        No existing users were found during import. Create your admin account to get started.
+        No existing users were found during import. Create your owner account to get started.
         You can set a password later when you enable authentication.
       </div>
 
@@ -83,22 +83,24 @@ export function CreateAdminStep({ setError, setIsLoading, setCanProgress }: Crea
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="admin-username">Admin Username</Label>
+        <div className="ml-1 space-y-2">
+          <Label htmlFor="admin-username">Owner Username</Label>
           <Input
             id="admin-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your admin username"
+            placeholder="Enter your username"
             required
             minLength={3}
             maxLength={32}
             autoFocus
+            className="focus-visible:ring-1 focus-visible:ring-offset-2"
           />
         </div>
 
-        <Button type="submit" disabled={createFirstUser.isPending}>
-          {createFirstUser.isPending ? 'Creating...' : 'Create Admin User'}
+        <Button type="submit" disabled={createFirstUser.isPending} className="flex ml-1 items-center gap-2">
+          <UserIcon className="h-4 w-4" />
+          {createFirstUser.isPending ? 'Creating...' : 'Create Owner User'}
         </Button>
       </form>
     </div>

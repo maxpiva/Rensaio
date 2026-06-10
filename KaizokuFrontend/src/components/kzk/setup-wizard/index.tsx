@@ -4,7 +4,7 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Step, Stepper, type StepItem } from "@/components/ui/stepper";
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, Settings, File, CheckSquare, Flag, Sliders, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, Settings, File, CheckSquare, Flag, Sliders, Clock, User } from "lucide-react";
 import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
 
 // Import step components
@@ -46,10 +46,10 @@ const steps = {
   userSetup: {
     label: "User Setup",
     description: "Create or identify admin",
-    icon: Flag,
+    icon: User,
   },
   finish: {
-    label: "Finish",
+    label: "Finish Import",
     description: "Complete Import",
     icon: Flag,
   },
@@ -60,6 +60,11 @@ export function SetupWizard() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [canProgress, setCanProgress] = React.useState(false);
+
+  // Reset canProgress when entering a new step to prevent stale state
+  React.useEffect(() => {
+    setCanProgress(false);
+  }, [currentStep]);
   const [disableDownloads, setDisableDownloads] = React.useState(false);
   const [autoCreatedUsers, setAutoCreatedUsers] = React.useState<string[]>([]);
   const [usersAutoCreated, setUsersAutoCreated] = React.useState(false);
@@ -70,7 +75,7 @@ export function SetupWizard() {
 
   return (<Dialog open={true} onOpenChange={() => { /* Prevent closing */ }} modal>
     <DialogContent
-      className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90%] flex flex-col overflow-hidden"
+      className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] sm:min-h-[85vh] flex flex-col overflow-hidden"
       onInteractOutside={(e) => e.preventDefault()}
       onEscapeKeyDown={(e) => e.preventDefault()}
     >        <DialogHeader>
@@ -78,7 +83,7 @@ export function SetupWizard() {
         <DialogDescription>
           Configure your Kaizoku.NET installation by following these steps to set up preferences, add sources, and import existing series.
         </DialogDescription>
-      </DialogHeader><div className="flex w-full flex-col gap-4 min-w-0 overflow-hidden">          <Stepper
+      </DialogHeader><div className="flex w-full flex-col gap-4 min-w-0 flex-1 min-h-0 overflow-hidden">          <Stepper
         initialStep={0}
         activeStep={currentStep}
         steps={Object.values(steps)}

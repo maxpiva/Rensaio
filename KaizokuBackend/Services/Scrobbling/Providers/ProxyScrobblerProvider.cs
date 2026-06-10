@@ -9,30 +9,52 @@ using Microsoft.Extensions.Logging;
 namespace KaizokuBackend.Services.Scrobbling.Providers;
 
 /// <summary>
-/// Proxy-based scrobbler provider that delegates all OAuth and API calls
-/// to a central OAuth proxy. Instance credentials (key + secret) are
-/// stored in the database settings table; only the ProxyUrl comes from config.
+/// Abstract base class for scrobbler providers that use the central OAuth proxy
+/// for authorization (token exchange/refresh) but call provider APIs directly
+/// for search, read-state, and tracking operations.
 /// </summary>
-public class ProxyScrobblerProvider : IScrobblerProvider
+public abstract class ProxyScrobblerProvider : IScrobblerProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<ProxyScrobblerProvider> _logger;
-    private readonly string _instanceKey;
-    private readonly string _proxyBaseUrl;
-    private readonly string _providerName;
+    protected readonly HttpClient _proxyHttpClient;
+    protected HttpClient _apiHttpClient = null!; // Set by subclass constructors
+    protected readonly ILogger _logger;
+    protected readonly string _instanceKey;
+    protected readonly string _proxyBaseUrl;
+    protected readonly string _providerName;
+    protected string? _accessToken;
+    protected readonly ITokenStorageService _tokenStorage;
+    protected readonly ScrobblerTokenProtector _tokenProtector;
 
     public ScrobblerProvider ProviderType { get; }
     public string DisplayName { get; }
+    public string? Icon { get; }
+    public string? Link => null;
+    public string? LinkDescription => null;
+    public virtual string? SeriesUrlTemplate => null;
+    public virtual string? ImageTemplateUrl => null;
     public bool RequiresOAuth => true;
+    public bool SupportsDirectAuth => false;
 
-    public ProxyScrobblerProvider(
-        IHttpClientFactory httpClientFactory,
-        ILogger<ProxyScrobblerProvider> logger,
-        IConfiguration configuration,
-        ScrobblerProvider providerType)
+    public Task<ScrobblerTokenResult> AuthenticateDirectAsync(DirectAuthRequest request)
+        => throw new NotSupportedException("Proxy providers do not support direct authentication.");
+
+    public void SetAccessToken(string accessToken)
     {
-        _httpClient = httpClientFactory.CreateClient("Scrobbler_Proxy");
+        _accessToken = accessToken;
+    }
+
+    protected ProxyScrobblerProvider(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ScrobblerProvider providerType,
+        ILogger logger,
+        ITokenStorageService tokenStorage,
+        ScrobblerTokenProtector tokenProtector)
+    {
+        _proxyHttpClient = httpClientFactory.CreateClient("Scrobbler_Proxy");
         _logger = logger;
+        _tokenStorage = tokenStorage;
+        _tokenProtector = tokenProtector;
 
         _proxyBaseUrl = configuration.GetValue<string>("Scrobbling:ProxyUrl")?.TrimEnd('/')
                         ?? "https://oauth.kaizoku.net";
@@ -49,6 +71,14 @@ public class ProxyScrobblerProvider : IScrobblerProvider
             ScrobblerProvider.MangaDex => "MangaDex",
             _ => providerType.ToString()
         };
+        Icon = providerType switch
+        {
+            ScrobblerProvider.MyAnimeList => ProviderIcons.MyAnimeList,
+            ScrobblerProvider.AniList => ProviderIcons.AniList,
+            ScrobblerProvider.Kitsu => ProviderIcons.Kitsu,
+            ScrobblerProvider.MangaDex => ProviderIcons.MangaDex,
+            _ => ProviderIcons.Placeholder
+        };
         _providerName = providerType switch
         {
             ScrobblerProvider.AniList => "anilist",
@@ -59,13 +89,16 @@ public class ProxyScrobblerProvider : IScrobblerProvider
         };
     }
 
+
+    // ── OAuth Proxy Methods (concrete) ──
+
     public async Task<ScrobblerAuthUrlResult> GetAuthorizationUrlAsync(string redirectUri, string state)
     {
-        _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
+        _proxyHttpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
+        _proxyHttpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
 
         // Proxy generates its own state and redirectUri — no body needed
-        var response = await _httpClient.PostAsync(
+        var response = await _proxyHttpClient.PostAsync(
             $"{_proxyBaseUrl}/api/oauth/{_providerName}/url", null);
 
         response.EnsureSuccessStatusCode();
@@ -86,7 +119,7 @@ public class ProxyScrobblerProvider : IScrobblerProvider
 
         var request = new { state, instanceKey = _instanceKey };
 
-        var response = await _httpClient.PostAsJsonAsync(
+        var response = await _proxyHttpClient.PostAsJsonAsync(
             $"{_proxyBaseUrl}/api/oauth/{_providerName}/token", request);
 
         if (!response.IsSuccessStatusCode)
@@ -113,10 +146,10 @@ public class ProxyScrobblerProvider : IScrobblerProvider
     {
         var request = new { refreshToken };
 
-        _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
+        _proxyHttpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
+        _proxyHttpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
 
-        var response = await _httpClient.PostAsJsonAsync(
+        var response = await _proxyHttpClient.PostAsJsonAsync(
             $"{_proxyBaseUrl}/api/oauth/{_providerName}/refresh", request);
 
         if (!response.IsSuccessStatusCode)
@@ -141,92 +174,14 @@ public class ProxyScrobblerProvider : IScrobblerProvider
 
     public Task<bool> ValidateApiKeyAsync(string apiKey) => Task.FromResult(false);
 
-    public async Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default)
-    {
-        _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
-
-        try
-        {
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{_proxyBaseUrl}/api/proxy/{_providerName}/search",
-                new { query }, token);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<List<ScrobblerSearchResult>>(cancellationToken: token);
-                return result ?? [];
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Proxy search failed for {Provider}, falling back", _providerName);
-        }
-
-        return [];
-    }
-
-    public async Task<Dictionary<decimal, int>> GetReadChaptersAsync(string externalSeriesId, CancellationToken token = default)
-    {
-        _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
-
-        try
-        {
-            var response = await _httpClient.GetAsync(
-                $"{_proxyBaseUrl}/api/proxy/{_providerName}/read-chapters/{externalSeriesId}", token);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<Dictionary<decimal, int>>(cancellationToken: token);
-                return result ?? [];
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Proxy read-chapters failed for {Provider}", _providerName);
-        }
-
-        return [];
-    }
-
-    public async Task<int> GetTotalChaptersReadAsync(string externalSeriesId, CancellationToken token = default)
-    {
-        var chapters = await GetReadChaptersAsync(externalSeriesId, token);
-        return chapters.Count;
-    }
-
-    public async Task<bool> UploadChapterReadAsync(string externalSeriesId, decimal chapterNumber, int page, CancellationToken token = default)
-    {
-        _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-        _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
-
-        try
-        {
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{_proxyBaseUrl}/api/proxy/{_providerName}/upload-chapter",
-                new { externalSeriesId, chapterNumber, page }, token);
-
-            return response.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Proxy upload-chapter failed for {Provider}", _providerName);
-            return false;
-        }
-    }
-
-    public Task<bool> UpdateTotalChaptersReadAsync(string externalSeriesId, int totalChapters, CancellationToken token = default)
-        => Task.FromResult(false);
-
     public async Task<bool> ValidateTokenAsync(CancellationToken token = default)
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
-            _httpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
+            _proxyHttpClient.DefaultRequestHeaders.Remove("X-Instance-Key");
+            _proxyHttpClient.DefaultRequestHeaders.Add("X-Instance-Key", _instanceKey);
 
-            var response = await _httpClient.GetAsync(
+            var response = await _proxyHttpClient.GetAsync(
                 $"{_proxyBaseUrl}/api/oauth/{_providerName}/validate", token);
             return response.IsSuccessStatusCode;
         }
@@ -235,6 +190,42 @@ public class ProxyScrobblerProvider : IScrobblerProvider
             return false;
         }
     }
+
+    // ── Token Lifecycle ──
+
+    public async Task EnsureAuthenticatedAsync(Guid userId, CancellationToken token = default)
+    {
+        var (accessToken, refreshToken, expiresAt) = await _tokenStorage.LoadTokensAsync(userId, ProviderType, token);
+        if (accessToken == null) return;
+
+        SetAccessToken(accessToken);
+
+        if (expiresAt.HasValue && expiresAt.Value < DateTime.UtcNow.AddMinutes(5))
+        {
+            if (string.IsNullOrEmpty(refreshToken)) return;
+
+            var refreshResult = await RefreshTokenAsync(refreshToken);
+            if (refreshResult.Success && refreshResult.AccessToken != null)
+            {
+                var encryptedAccess = _tokenProtector.Encrypt(refreshResult.AccessToken);
+                var encryptedRefresh = refreshResult.RefreshToken != null
+                    ? _tokenProtector.Encrypt(refreshResult.RefreshToken)
+                    : null;
+
+                await _tokenStorage.PersistRefreshedTokensAsync(userId, ProviderType,
+                    encryptedAccess, encryptedRefresh, refreshResult.ExpiresAt, token);
+                SetAccessToken(refreshResult.AccessToken);
+            }
+        }
+    }
+
+    // ── Abstract API Methods (implemented by subclasses) ──
+
+    public abstract Task<List<ScrobblerSearchResult>> SearchSeriesAsync(string query, CancellationToken token = default);
+    public abstract Task<Dictionary<decimal, int>> GetReadChaptersAsync(string externalSeriesId, CancellationToken token = default);
+    public abstract Task<int> GetTotalChaptersReadAsync(string externalSeriesId, CancellationToken token = default);
+    public abstract Task<bool> UploadChapterReadAsync(string externalSeriesId, decimal chapterNumber, int page, CancellationToken token = default);
+    public abstract Task<bool> UpdateTotalChaptersReadAsync(string externalSeriesId, int totalChapters, CancellationToken token = default);
 
     // ── JSON Models ──
 
@@ -257,6 +248,7 @@ public class ProxyScrobblerProvider : IScrobblerProvider
     }
 }
 
+
 /// <summary>
 /// Helper to pass the OAuth state from the callback request to the provider.
 /// </summary>
@@ -264,4 +256,14 @@ public static class HttpContextHelper
 {
     [ThreadStatic]
     public static string? CurrentState;
+}
+
+/// <summary>
+/// Shared configuration model for scrobbler providers that use ClientId/ClientSecret/ApiKey.
+/// </summary>
+internal class ScrobblerConfiguration
+{
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+    public string? ApiKey { get; set; }
 }

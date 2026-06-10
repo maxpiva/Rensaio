@@ -38,12 +38,14 @@ namespace KaizokuBackend.Services.Series
         private readonly ThumbCacheService _cache;
         private readonly JobManagementService _jobManagement;
         private readonly CadenceCalculationService _cadenceService;
+        private readonly SeriesStateService _stateService;
 
         public SeriesCommandService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
             SeriesProviderService providerService, ILogger<SeriesCommandService> logger,
             DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache,
             JobManagementService jobManagement,
-            CadenceCalculationService cadenceService)
+            CadenceCalculationService cadenceService,
+            SeriesStateService stateService)
         {
             _db = db;
             _settings = settings;
@@ -55,7 +57,8 @@ namespace KaizokuBackend.Services.Series
             _cache = cache;
             _jobManagement = jobManagement;
             _cadenceService = cadenceService;
-        }
+            _stateService = stateService;
+          }
 
         /// <summary>
         /// Adds a new series to the database
@@ -114,8 +117,7 @@ namespace KaizokuBackend.Services.Series
                 await _providerService.RescheduleIfNeededAsync(existingProviders, true, dbSeries.PauseDownloads, token)
                     .ConfigureAwait(false);
                 
-                await dbSeries.SaveImportSeriesSnapshotToDirectoryAsync(
-                    Path.Combine(settings.StorageFolder, dbSeries.StoragePath), _logger, token);
+                await _stateService.SyncToKaizokuJsonAsync(dbSeries.Id, token).ConfigureAwait(false);
                 
                 if (existingThumb != dbSeries.ThumbnailUrl)
                 {
@@ -184,8 +186,7 @@ namespace KaizokuBackend.Services.Series
             await _providerService.RescheduleIfNeededAsync(dbSeries.Sources, true, series.PausedDownloads, token)
                 .ConfigureAwait(false);
             
-            await dbSeries.SaveImportSeriesSnapshotToDirectoryAsync(
-                Path.Combine(settings.StorageFolder, dbSeries.StoragePath), _logger, token);
+            await _stateService.SyncToKaizokuJsonAsync(dbSeries.Id, token).ConfigureAwait(false);
             
             if (existingThumb != dbSeries.ThumbnailUrl)
             {
@@ -554,6 +555,9 @@ namespace KaizokuBackend.Services.Series
             // Recalculate release cadence after fetching new chapters
             await _cadenceService.RecalculateCadenceAsync(series.Id, token).ConfigureAwait(false);
 
+            // Sync kaizoku.json after metadata refresh (series.Title, Artist, etc. may have changed)
+            await _stateService.SyncToKaizokuJsonAsync(series.Id, token).ConfigureAwait(false);
+
             List<ChapterDownload> chaps = series.GenerateDownloadsFromChapterData(serie, chapterData);
             return await _downloadCommand.QueueChapterDownloadsAsync(serie, chaps, token).ConfigureAwait(false);
         }
@@ -696,6 +700,77 @@ namespace KaizokuBackend.Services.Series
             return provider;
         }
 
+        /// <summary>
+        /// Syncs ExternalMappings from an ImportSeriesSnapshot (e.g., from kaizoku.json)
+        /// into the SeriesMappings table. Used by both:
+        /// - Setup Wizard (with UserLevel.Owner)
+        /// - Import Series Wizard (with the logged-in user's level)
+        /// </summary>
+        /// <param name="seriesId">The ID of the series to upsert mappings for.</param>
+        /// <param name="localInfo">The snapshot containing ExternalMappings.</param>
+        /// <param name="userId">The user ID to associate with the mappings (Guid.Empty for setup wizard).</param>
+        /// <param name="userLevel">The user level for role-based overwrite protection.</param>
+        /// <param name="token">Cancellation token.</param>
+        public async Task SyncExternalMappingsFromSnapshotAsync(
+            Guid seriesId,
+            ImportSeriesSnapshot localInfo,
+            Guid userId,
+            UserLevel userLevel,
+            CancellationToken token = default)
+        {
+            var mappings = localInfo?.Series.ExternalMappings;
+            if (mappings == null || mappings.Count == 0)
+                return;
+
+            foreach (var mapping in mappings)
+            {
+                if (string.IsNullOrEmpty(mapping.Provider) || string.IsNullOrEmpty(mapping.ExternalId))
+                    continue;
+
+                if (!Enum.TryParse<ScrobblerProvider>(mapping.Provider, out var provider))
+                {
+                    _logger.LogWarning("Unknown scrobbler provider '{Provider}' in ExternalMappings for series {SeriesId}",
+                        mapping.Provider, seriesId);
+                    continue;
+                }
+
+                var existing = await _db.SeriesMappings
+                    .FirstOrDefaultAsync(m => m.SeriesId == seriesId && m.Provider == provider, token)
+                    .ConfigureAwait(false);
+
+                if (existing != null)
+                {
+                    // Only overwrite if the new user's level >= existing user's level
+                    if (userLevel >= existing.UserRole)
+                    {
+                        existing.ExternalSeriesId = mapping.ExternalId;
+                        existing.ExternalSeriesTitle = mapping.ExternalTitle;
+                        existing.UserUid = userId;
+                        existing.UserRole = userLevel;
+                        existing.UpdateDate = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    _db.SeriesMappings.Add(new SeriesMappingEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        SeriesId = seriesId,
+                        Provider = provider,
+                        ExternalSeriesId = mapping.ExternalId,
+                        ExternalSeriesTitle = mapping.ExternalTitle,
+                        UserUid = userId,
+                        UserRole = userLevel,
+                        UpdateDate = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await _db.SaveChangesAsync(token).ConfigureAwait(false);
+            _logger.LogDebug("Synced {Count} ExternalMappings to SeriesMappings for series {SeriesId}",
+                mappings.Count, seriesId);
+        }
+
         private async Task<Models.Database.SeriesEntity> ConsolidateDBSeriesFromProvidersAsync(Models.Database.SeriesEntity? dbSeries,
             List<SeriesProviderEntity> providers, string path, bool startDisabled, decimal? startFromChapter, CancellationToken token = default)
         {
@@ -715,6 +790,33 @@ namespace KaizokuBackend.Services.Series
 
             return dbSeries;
         }
+
+        /// <summary>
+        /// Updates all SeriesMappings that were created with UserUid == Guid.Empty (setup wizard)
+        /// to the actual owner user ID. Called after the owner is chosen/created in the setup wizard.
+        /// </summary>
+        /// <param name="ownerId">The actual owner user ID.</param>
+        /// <param name="token">Cancellation token.</param>
+        public async Task UpdateSeriesMappingsOwnerAsync(Guid ownerId, CancellationToken token = default)
+        {
+            var orphanMappings = await _db.SeriesMappings
+                .Where(m => m.UserUid == Guid.Empty)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            if (orphanMappings.Count == 0)
+                return;
+
+            foreach (var mapping in orphanMappings)
+            {
+                mapping.UserUid = ownerId;
+            }
+
+            await _db.SaveChangesAsync(token).ConfigureAwait(false);
+            _logger.LogDebug("Updated {Count} SeriesMappings UserUid from Guid.Empty to owner {OwnerId}",
+                orphanMappings.Count, ownerId);
+        }
+
         private class ComboSeries
         {
             public string MihonId { get; set; }

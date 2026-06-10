@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { useUpdateUser } from '@/lib/api/hooks/useUsers';
+import { useUpdateUser, useRegenerateOpdsPath } from '@/lib/api/hooks/useUsers';
 import { type User, UserLevel } from '@/lib/api/types';
 import { fetchGravatarBase64 } from '@/lib/gravatar';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { UserIcon, Upload } from 'lucide-react';
+import { UserIcon, Upload, RefreshCw, Route, Copy, Check } from 'lucide-react';
 
 interface EditUserDialogProps {
   user: User;
@@ -35,6 +35,7 @@ interface EditUserDialogProps {
 export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps) {
   const { user: currentUser, refreshAuth } = useAuth();
   const updateUser = useUpdateUser();
+  const regenerateOpds = useRegenerateOpdsPath();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [level, setLevel] = useState<UserLevel>(user.level);
@@ -47,6 +48,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
   );
   const [error, setError] = useState('');
   const [gravatarEmail, setGravatarEmail] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -112,6 +114,17 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
       .join('');
   }
 
+  const handleCopyOpds = async () => {
+    const fullOpdsUrl = `${window.location.origin}/${user.opdsPath}`;
+    try {
+      await navigator.clipboard.writeText(fullOpdsUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
+  };
+
   const handleSave = async () => {
     setError('');
 
@@ -137,13 +150,13 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
   };
 
   const isSelf = currentUser?.id === user.id;
-  const isCurrentUserFirstAdmin = currentUser?.isFirstAdmin === true;
+  const isCurrentUserOwner = currentUser?.level === UserLevel.Owner;
 
   // Can change level/active if:
   // 1. Not editing self, AND
-  // 2. Target is not an admin, OR (target is admin AND current user is first admin)
+  // 2. Target is not an admin, OR (target is admin AND current user is owner)
   const canChangeLevelOrActive = !isSelf && (
-    user.level !== UserLevel.Admin || isCurrentUserFirstAdmin
+    user.level !== UserLevel.Admin || isCurrentUserOwner
   );
 
   return (
@@ -225,6 +238,44 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
               <Label htmlFor="remove-avatar">Remove avatar</Label>
             </div>
           )}
+
+          {/* OPDS Path */}
+          <div className="space-y-2">
+            <Label>OPDS Path</Label>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 w-full p-2 rounded-md border bg-muted/30 text-xs font-mono text-muted-foreground pr-10">
+                  <Route className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{user.opdsPath}</span>
+                </div>
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-colors"
+                  onClick={handleCopyOpds}
+                  title="Copy OPDS URL"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-green-500" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const result = await regenerateOpds.mutateAsync(user.id);
+                  // Update display by refreshing parent when dialog reopens
+                }}
+                disabled={regenerateOpds.isPending}
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${regenerateOpds.isPending ? 'animate-spin' : ''}`} />
+                {regenerateOpds.isPending ? 'Regenerating...' : 'Regenerate'}
+              </Button>
+            </div>
+          </div>
 
           {/* Level - only show if allowed by admin hierarchy */}
           {canChangeLevelOrActive && (

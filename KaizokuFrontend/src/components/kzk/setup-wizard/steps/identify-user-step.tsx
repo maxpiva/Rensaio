@@ -67,7 +67,7 @@ export function IdentifyUserStep({
               You are now identified as <strong>{selectedUsername}</strong>!
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              You have been promoted to admin. No password was set - authentication
+              You have been promoted to owner. No password was set - authentication
               is disabled by default. You can enable authentication later in Settings.
             </p>
           </div>
@@ -99,7 +99,7 @@ export function IdentifyUserStep({
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
         Users were auto-created from your imported series data. Select which user you are
-        to be promoted to admin.
+        to be promoted to owner.
       </div>
 
       {localError && (

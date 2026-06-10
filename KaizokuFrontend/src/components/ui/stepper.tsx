@@ -261,7 +261,7 @@ const Stepper = React.forwardRef<HTMLDivElement, StepperProps>((props, ref: Reac
 
   const isVertical = orientation === "vertical";
 
-  return (<StepperProvider value={{
+  return (<div className="flex flex-col flex-1 min-h-0"><StepperProvider value={{
     initialStep,
     activeStep: externalActiveStep ?? 0,
     orientation,
@@ -285,7 +285,7 @@ const Stepper = React.forwardRef<HTMLDivElement, StepperProps>((props, ref: Reac
       ref={ref}
       className={cn(
         "stepper__main-container",
-        "flex w-full flex-wrap",
+        "flex w-full flex-nowrap",
         stepCount === 1 ? "justify-end" : "justify-between",
         orientation === "vertical" ? "flex-col" : "flex-row",
         variant === "line" && orientation === "horizontal" && "gap-4",
@@ -308,7 +308,7 @@ const Stepper = React.forwardRef<HTMLDivElement, StepperProps>((props, ref: Reac
       <HorizontalContent>{items}</HorizontalContent>
     )}
     {footer}
-  </StepperProvider>
+  </StepperProvider></div>
   );
 },
 );
@@ -364,18 +364,17 @@ const HorizontalContent = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0">
       {React.Children.map(childArr[activeStep], (node) => {
         if (!React.isValidElement(node)) {
           return null;
         }
-        // TypeScript: node is ReactElement here
         return React.Children.map(
           (node as React.ReactElement<any>).props.children,
           (childNode) => childNode,
         );
       })}
-    </>
+    </div>
   );
 };
 
@@ -691,17 +690,13 @@ const HorizontalStep = React.forwardRef<HTMLDivElement, StepSharedProps>(
         className={cn(
           "stepper__horizontal-step",
           "relative flex items-center transition-all duration-200",
-          "[&:not(:last-child)]:flex-1",
-          "[&:not(:last-child)]:after:transition-all [&:not(:last-child)]:after:duration-200",
-          "[&:not(:last-child)]:after:h-[2px] [&:not(:last-child)]:after:bg-border [&:not(:last-child)]:after:content-['']",
-          "data-[completed=true]:[&:not(:last-child)]:after:bg-primary",
-          "data-[invalid=true]:[&:not(:last-child)]:after:bg-destructive",
+          "flex-1 min-w-0",
           variant === "circle-alt" &&
-          "flex-1 flex-col justify-start [&:not(:last-child)]:after:relative [&:not(:last-child)]:after:end-[50%] [&:not(:last-child)]:after:start-[50%] [&:not(:last-child)]:after:top-[calc(var(--step-icon-size)/2)] [&:not(:last-child)]:after:order-[-1] [&:not(:last-child)]:after:w-[calc((100%-var(--step-icon-size))-(var(--step-gap)))]",
+          "flex-col justify-start",
           variant === "circle" &&
           "[&:not(:last-child)]:after:me-[var(--step-gap)] [&:not(:last-child)]:after:ms-[var(--step-gap)] [&:not(:last-child)]:after:flex-1 [&:not(:last-child)]:after:basis-2/4",
           variant === "line" &&
-          "flex-1 flex-col border-t-[3px] data-[active=true]:border-primary",
+          "flex-col border-t-[3px] data-[active=true]:border-primary",
           styles?.["horizontal-step"],
         )}
         data-optional={steps[index ?? 0]?.optional}
@@ -715,7 +710,7 @@ const HorizontalStep = React.forwardRef<HTMLDivElement, StepSharedProps>(
         <div
           className={cn(
             "stepper__horizontal-step-container",
-            "flex items-center",
+            "flex items-center min-w-0",
             variant === "circle-alt" && "flex-col justify-center gap-1",
             variant === "line" && "w-full",
             styles?.["horizontal-step-container"],
@@ -946,9 +941,9 @@ interface StepLabelProps {
 const labelVariants = cva("", {
   variants: {
     size: {
-      sm: "text-sm",
-      md: "text-sm",
-      lg: "text-base",
+      sm: "text-[0.65rem]",
+      md: "text-[0.65rem]",
+      lg: "text-xs",
     },
   },
   defaultVariants: {
@@ -959,9 +954,9 @@ const labelVariants = cva("", {
 const descriptionVariants = cva("", {
   variants: {
     size: {
-      sm: "text-xs",
-      md: "text-xs",
-      lg: "text-sm",
+      sm: "text-[0.6rem]",
+      md: "text-[0.6rem]",
+      lg: "text-[0.65rem]",
     },
   },
   defaultVariants: {
@@ -983,7 +978,7 @@ const StepLabel = ({
       aria-current={isCurrentStep ? "step" : undefined}
       className={cn(
         "stepper__step-label-container text-wrap",
-        "flex flex-col",
+        "flex flex-col min-w-0",
         variant !== "line" ? "ms-2" : orientation === "horizontal" && "my-2",
         variant === "circle-alt" && "text-center",
         variant === "circle-alt" && orientation === "horizontal" && "ms-0",
@@ -997,10 +992,11 @@ const StepLabel = ({
       {!!label && (
         <span
           className={cn(
-            "stepper__step-label",
-            labelVariants({ size }),
-            styles?.["step-label"],
-          )}
+                "stepper__step-label",
+                "text-pretty min-w-15 min-h-[1.8rem] flex items-center",
+                labelVariants({ size }),
+                styles?.["step-label"],
+              )}
         >
           {label}
         </span>
@@ -1010,11 +1006,12 @@ const StepLabel = ({
           <TooltipTrigger asChild>
             <span
               className={cn(
+                "text-pretty min-w-24",
                 "stepper__step-description",
                 "whitespace-nowrap",
                 "overflow-hidden",
                 "text-ellipsis",
-                "max-w-28",
+                "max-w-full",
                 "text-muted-foreground",
                 descriptionVariants({ size }),
                 styles?.["step-description"],

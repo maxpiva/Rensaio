@@ -40,6 +40,7 @@ public class ImportCommandService
     private readonly SettingsService _settings;
     private readonly SeriesScanner _scanner;
     private readonly ThumbCacheService _thumb;
+    private readonly Series.SeriesStateService _stateService;
     public ImportCommandService(
         ILogger<ImportCommandService> logger,
         SearchQueryService searchQuery,
@@ -54,7 +55,8 @@ public class ImportCommandService
         ProviderCacheService providerCache,
         ProviderManagerService provicerManagerService,
         ThumbCacheService thumb,
-        SeriesScanner scanner)
+        SeriesScanner scanner,
+        Series.SeriesStateService stateService)
     {
         _logger = logger;
         _settings = settings;
@@ -70,6 +72,7 @@ public class ImportCommandService
         _mihon = mihon;
         _scanner = scanner;
         _thumb = thumb;
+        _stateService = stateService;
     }
 
     public async Task<JobResult> ScanAsync(string directoryPath, JobInfo jobInfo, CancellationToken token = default)
@@ -619,14 +622,9 @@ public class ImportCommandService
                     augmented.LocalInfo = import.Info;
                     augmented.Action = import.Action;
                     augmented.Status = import.Status;
+                    // AddSeriesAsync already calls _stateService.SyncToKaizokuJsonAsync() internally,
+                    // so no separate kaizoku.json sync is needed here.
                     Guid seriesid = await _seriesCommand.AddSeriesAsync(augmented, token).ConfigureAwait(false);
-                    KaizokuBackend.Models.Database.SeriesEntity? serie = await _db.Series.Include(a => a.Sources).Where(a => a.Id == seriesid).AsNoTracking().FirstOrDefaultAsync(token).ConfigureAwait(false);
-                    if (serie != null)
-                    {
-                        SettingsDto settings2 = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
-                        string finalPath = Path.Combine(settings2.StorageFolder, import.Path);
-                        await serie.SaveImportSeriesSnapshotToDirectoryAsync(finalPath, _logger, token).ConfigureAwait(false);
-                    }
                 }
                 acum += step;
                 progress.Report(ProgressStatus.InProgress, (int)acum, $"{import.Info.Title} imported.");

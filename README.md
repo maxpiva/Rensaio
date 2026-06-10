@@ -39,6 +39,56 @@ Kaizoku.NET is a **series manager** focused on simplicity, speed, and reliabilit
 
 ---
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="./docs/screenshots/library.jpg" alt="Library view with spotlight banner and cover grid"></img>
+      <br/><sub><b>Library</b> &mdash; a spotlight banner over your full cover grid</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/screenshots/library-grid.jpg" alt="Library grid with new-chapter badges"></img>
+      <br/><sub>New chapters are flagged the moment a source updates</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/screenshots/series-detail.png" alt="Series detail page with linked sources"></img>
+      <br/><sub><b>Series detail</b> &mdash; link multiple sources and mark them permanent or temporary</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/screenshots/sources.png" alt="Sources page listing installed and available extensions"></img>
+      <br/><sub><b>Sources</b> &mdash; install, enable, and health-check Mihon extensions</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/screenshots/queue.png" alt="Download queue"></img>
+      <br/><sub><b>Queue</b> &mdash; live downloads with retries and rescheduling</sub>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="./docs/screenshots/search.png" width="100%" alt="Multi-source search"></img>
+      <br/><sub><b>Search</b> &mdash; find a series across every source at once</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="./docs/screenshots/add-series.png" width="100%" alt="Add series confirmation dialog"></img>
+      <br/><sub><b>Add series</b> &mdash; confirm sources, covers, and titles before tracking</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 🛠️ Under the Hood
 
 - **Frontend**: Next.js UI originally derived from [Kaizoku Next by OAE](https://github.com/oae/kaizoku/tree/next), with significant redesign in this build.

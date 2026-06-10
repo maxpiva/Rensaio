@@ -51,9 +51,12 @@ function SettingsContent() {
     <div className="flex flex-col h-full min-h-0">
       {/* Settings tab strip — portaled into the command bar's ribbon */}
       <RibbonSlot>
+        {/* mx-auto (not w-full justify-center): centered overflow in the
+            ribbon's scroll container would push the first tabs past the
+            scroll origin, making them unreachable on narrow screens. */}
         <nav
           aria-label="Settings sections"
-          className="flex w-full items-center justify-center gap-0.5"
+          className="mx-auto flex items-center gap-0.5"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon;

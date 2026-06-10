@@ -416,7 +416,10 @@ export default function QueuePage() {
     <>
       {/* Ribbon: filter pills */}
       <RibbonSlot>
-        <div className="flex w-full justify-center">
+        {/* mx-auto (not w-full justify-center): centered overflow in the
+            ribbon's scroll container would push the leftmost pills past the
+            scroll origin, making them unreachable on narrow screens. */}
+        <div className="mx-auto flex">
           <FilterPills value={filter} onChange={setFilter} />
         </div>
       </RibbonSlot>

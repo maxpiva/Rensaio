@@ -510,10 +510,10 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             {
                 string[]? vals = System.Text.Json.JsonSerializer.Deserialize<string[]>(value);
                 if (vals == null)
-                    return new java.util.ArrayList();
+                    return new java.util.HashSet();
                 else
                 {
-                    var result = new java.util.ArrayList(vals.Length);
+                    var result = new java.util.HashSet();
                     foreach (var v in vals)
                         result.add(v);
                     return result;

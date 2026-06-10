@@ -13,7 +13,7 @@ using System.Reflection;
 using System.Runtime;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using static kotlin.reflect.jvm.@internal.ReflectProperties;
+
 
 namespace Mihon.ExtensionsBridge.Test
 {
@@ -104,32 +104,9 @@ namespace Mihon.ExtensionsBridge.Test
 
             var list = repoMgr.ListOnlineRepositories();
 
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0");
-            var json = await httpClient.GetStringAsync("https://plainraw.com/raw/7388602029b1");
-            var model = JsonSerializer.Deserialize<ScriptModel>(json);
-            var html = await httpClient.GetStringAsync("https://readcomiconline.li/Comic/Hyde-Street/Issue-10?id=243622&s=&quality=hq&readType=1");
-            string serVal = JavaScriptEncoder.Default.Encode(html.Trim());
-            string eval = $"let _encryptedString = \"{serVal}\";let _useServer2 = true;{model.imageDecryptEval}";
-
-            try
-            {
-                var k = QuickJs.create();
-                var m = k.evaluate(eval);
-              
-
-                int a = 1;
-            }
-            catch (Exception e)
-            {
-
-            }
-            byte[] data = File.ReadAllBytes("C:\\users\\mpiva\\downloads\\tachiyomi-en.readcomiconline-v1.4.39-debug.apk");
-
             RepositoryGroup grp = await _extManager.AddExtensionAsync(data);
-            //var n = list[0].Extensions.FirstOrDefault(a => a.Name.Contains("ReadComicOnline"));
-            //RepositoryGroup grp = await _extManager.AddExtensionAsync(n);
+            var n = list[0].Extensions.FirstOrDefault(a => a.Name.Contains("ReadComicOnline"));
+            RepositoryGroup grp = await _extManager.AddExtensionAsync(n);
             if (grp!=null)
             {
                 IExtensionInterop extension = await _extManager.GetInteropAsync(grp);

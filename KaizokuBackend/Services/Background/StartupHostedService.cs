@@ -118,7 +118,7 @@ namespace KaizokuBackend.Services.Background
                 await EnsureAuthTablesAsync(db, cancellationToken).ConfigureAwait(false);
                 await ResetFirstAdminPasswordIfRequestedAsync(db, scope, settings, cancellationToken).ConfigureAwait(false);
                 await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
-                await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
+                //await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken).ConfigureAwait(false);
                 await fixes.FixThumbnailsOfSeriesWithMissingThumbnailsAsync(cancellationToken).ConfigureAwait(false);
 
                 // Retag historical Browse-tab rows that were written before per-title

@@ -11,9 +11,6 @@ namespace KaizokuBackend.Models.Dto.Auth
         [JsonPropertyName("username")]
         public string Username { get; set; } = string.Empty;
 
-        [JsonPropertyName("email")]
-        public string Email { get; set; } = string.Empty;
-
         [JsonPropertyName("displayName")]
         public string DisplayName { get; set; } = string.Empty;
 
@@ -21,8 +18,27 @@ namespace KaizokuBackend.Models.Dto.Auth
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public UserRole Role { get; set; }
 
-        [JsonPropertyName("avatarPath")]
-        public string? AvatarPath { get; set; }
+        [JsonPropertyName("level")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public UserLevel Level { get; set; }
+
+        [JsonPropertyName("opdsPath")]
+        public string OpdsPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Base64-encoded avatar image, or null when no avatar is set.
+        /// </summary>
+        [JsonPropertyName("avatarBase64")]
+        public string? AvatarBase64 { get; set; }
+
+        [JsonPropertyName("avatarContentType")]
+        public string? AvatarContentType { get; set; }
+
+        /// <summary>
+        /// True when the user has a password hash set (i.e. password-based login is possible).
+        /// </summary>
+        [JsonPropertyName("hasPassword")]
+        public bool HasPassword { get; set; }
 
         [JsonPropertyName("createdAt")]
         public DateTime CreatedAt { get; set; }
@@ -50,9 +66,6 @@ namespace KaizokuBackend.Models.Dto.Auth
     {
         [JsonPropertyName("displayName")]
         public string? DisplayName { get; set; }
-
-        [JsonPropertyName("email")]
-        public string? Email { get; set; }
 
         [JsonPropertyName("role")]
         [JsonConverter(typeof(JsonStringEnumConverter))]

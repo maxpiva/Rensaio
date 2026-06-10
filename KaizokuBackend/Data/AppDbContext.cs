@@ -324,18 +324,26 @@ namespace KaizokuBackend.Data
             {
                 entity.HasKey(u => u.Id);
                 entity.Property(u => u.Username).UseCollation("BINARY").IsRequired();
-                entity.Property(u => u.Email).UseCollation("BINARY").IsRequired();
+                // Email is retained for backfill/transition; no longer required or unique on new installs.
+                entity.Property(u => u.Email).UseCollation("BINARY").IsRequired(false);
                 entity.Property(u => u.DisplayName).UseCollation("BINARY").IsRequired();
-                entity.Property(u => u.PasswordHash).UseCollation("BINARY").IsRequired();
-                entity.Property(u => u.Salt).UseCollation("BINARY").IsRequired();
+                entity.Property(u => u.PasswordHash).UseCollation("BINARY").IsRequired(false);
+                entity.Property(u => u.Salt).UseCollation("BINARY").IsRequired(false);
                 entity.Property(u => u.Role).IsRequired().HasConversion<int>();
+                entity.Property(u => u.Level).IsRequired().HasConversion<int>();
+                entity.Property(u => u.OpdsPath).UseCollation("BINARY").IsRequired();
+                // AvatarPath is retained for backfill/transition.
                 entity.Property(u => u.AvatarPath).UseCollation("BINARY").IsRequired(false);
+                entity.Property(u => u.AvatarBlob).IsRequired(false);
+                entity.Property(u => u.AvatarContentType).UseCollation("BINARY").IsRequired(false);
+                entity.Property(u => u.PasswordSetToken).UseCollation("BINARY").IsRequired(false);
+                entity.Property(u => u.PasswordSetTokenExpiresAt).IsRequired(false);
                 entity.Property(u => u.CreatedAt).IsRequired();
                 entity.Property(u => u.UpdatedAt).IsRequired();
                 entity.Property(u => u.LastLoginAt).IsRequired(false);
                 entity.Property(u => u.IsActive).IsRequired();
                 entity.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_User_Username");
-                entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_User_Email");
+                entity.HasIndex(u => u.OpdsPath).IsUnique().HasDatabaseName("IX_User_OpdsPath");
                 entity.HasOne(u => u.Permissions)
                     .WithOne(p => p.User)
                     .HasForeignKey<UserPermissionEntity>(p => p.UserId)

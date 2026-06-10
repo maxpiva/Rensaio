@@ -117,8 +117,9 @@ export function PreferencesTab() {
             <p className="text-xs text-muted-foreground">Username cannot be changed.</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pref-email">Email</Label>
-            <Input id="pref-email" value={user?.email ?? ''} readOnly className="bg-muted" />
+            <Label htmlFor="pref-opds-path">OPDS Path</Label>
+            <Input id="pref-opds-path" value={user?.opdsPath ?? ''} readOnly className="bg-muted" />
+            <p className="text-xs text-muted-foreground">Your personal OPDS catalog path. Keep it private.</p>
           </div>
         </div>
 

@@ -42,23 +42,15 @@ namespace KaizokuBackend.Services.Auth
 
             if (prefs == null)
             {
-                prefs = new UserPreferencesEntity
-                {
-                    UserId = userId,
-                    Theme = dto.Theme,
-                    DefaultLanguage = dto.DefaultLanguage,
-                    CardSize = dto.CardSize,
-                    NsfwVisibility = dto.NsfwVisibility
-                };
+                prefs = new UserPreferencesEntity { UserId = userId };
                 _db.UserPreferences.Add(prefs);
             }
-            else
-            {
-                prefs.Theme = dto.Theme;
-                prefs.DefaultLanguage = dto.DefaultLanguage;
-                prefs.CardSize = dto.CardSize;
-                prefs.NsfwVisibility = dto.NsfwVisibility;
-            }
+
+            // Partial update: omitted properties keep their stored (or default) values.
+            if (dto.Theme != null) prefs.Theme = dto.Theme;
+            if (dto.DefaultLanguage != null) prefs.DefaultLanguage = dto.DefaultLanguage;
+            if (dto.CardSize != null) prefs.CardSize = dto.CardSize;
+            if (dto.NsfwVisibility != null) prefs.NsfwVisibility = dto.NsfwVisibility.Value;
 
             await _db.SaveChangesAsync(token).ConfigureAwait(false);
             return MapToDto(prefs);

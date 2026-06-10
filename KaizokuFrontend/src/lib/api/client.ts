@@ -1,6 +1,23 @@
 import { getApiConfig } from './config';
 import { tokenStore, triggerLogout } from '@/lib/auth-token-store';
 
+/**
+ * Error thrown for non-OK API responses. Carries the HTTP status and the
+ * parsed response body so callers can branch on specific failures
+ * (e.g. 409 { needsPassword: true } when enabling authentication).
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 // Track in-flight refresh promise to avoid duplicate refreshes.
 // Shared across both the API client and SignalR hub to prevent
 // concurrent refresh requests from consuming the same refresh token.
@@ -55,11 +72,16 @@ class KaizokuApiClient {
     // Determine if we're sending FormData
     const isFormData = options.body instanceof FormData;
 
-    // Attach bearer token if available
+    // Dual-mode auth headers:
+    //  - auth enabled: Bearer token (JWT)
+    //  - auth disabled: X-Kaizoku-User profile header (no JWT exists)
     const accessToken = tokenStore.getAccessToken();
+    const selectedUser = tokenStore.getSelectedUser();
     const authHeaders: Record<string, string> = accessToken
       ? { Authorization: `Bearer ${accessToken}` }
-      : {};
+      : selectedUser
+        ? { 'X-Kaizoku-User': selectedUser }
+        : {};
 
     const response = await fetch(url, {
       headers: {
@@ -71,8 +93,10 @@ class KaizokuApiClient {
       ...options,
     });
 
-    // Handle 401 — attempt token refresh once
-    if (response.status === 401 && _retry) {
+    // Handle 401 — attempt token refresh once. Only applies to JWT mode: in
+    // profile-picker mode there is no session to refresh, and a 401 (e.g. a
+    // claimed profile's password check) must surface to the caller as ApiError.
+    if (response.status === 401 && _retry && accessToken) {
       // Deduplicate concurrent refresh attempts
       if (!refreshPromise) {
         refreshPromise = doRefresh(this.baseUrl).finally(() => {
@@ -94,16 +118,18 @@ class KaizokuApiClient {
     if (!response.ok) {
       // Try to parse error message from body
       let errorMsg = `API Error: ${response.status} ${response.statusText}`;
+      let errorBody: unknown = null;
       try {
         const errText = await response.text();
         if (errText) {
-          const errJson = JSON.parse(errText) as { message?: string; title?: string };
-          errorMsg = errJson.message ?? errJson.title ?? errorMsg;
+          const errJson = JSON.parse(errText) as { message?: string; title?: string; error?: string };
+          errorBody = errJson;
+          errorMsg = errJson.message ?? errJson.error ?? errJson.title ?? errorMsg;
         }
       } catch {
         // ignore parse errors
       }
-      throw new Error(errorMsg);
+      throw new ApiError(errorMsg, response.status, errorBody);
     }
 
     // Handle empty responses properly

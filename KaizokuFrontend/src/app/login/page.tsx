@@ -12,10 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
-  const { login, isAuthenticated, isLoading, needsSetup } = useAuth();
+  const { login, isAuthenticated, isLoading, needsSetup, isAuthEnabled } = useAuth();
   const router = useRouter();
 
-  const [usernameOrEmail, setUsernameOrEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -29,19 +29,24 @@ export default function LoginPage() {
       router.replace('/setup');
       return;
     }
+    // Auth disabled — profiles are selected, not logged into
+    if (!isAuthEnabled) {
+      router.replace('/user-select');
+      return;
+    }
     if (isAuthenticated) {
       router.replace('/library');
     }
-  }, [isAuthenticated, isLoading, needsSetup, router]);
+  }, [isAuthenticated, isLoading, needsSetup, isAuthEnabled, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!usernameOrEmail.trim() || !password) return;
+    if (!username.trim() || !password) return;
 
     setError(null);
     setIsSubmitting(true);
     try {
-      await login(usernameOrEmail.trim(), password, rememberMe);
+      await login(username.trim(), password, rememberMe);
       router.push('/library');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
@@ -133,14 +138,14 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="usernameOrEmail">Username or Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="usernameOrEmail"
+                id="username"
                 type="text"
                 autoComplete="username"
-                placeholder="Enter your username or email"
-                value={usernameOrEmail}
-                onChange={(e) => setUsernameOrEmail(e.target.value)}
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 disabled={isSubmitting}
                 required
               />
@@ -196,7 +201,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting || !usernameOrEmail.trim() || !password}
+              disabled={isSubmitting || !username.trim() || !password}
             >
               {isSubmitting ? (
                 <>

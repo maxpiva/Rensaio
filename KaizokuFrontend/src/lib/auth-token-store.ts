@@ -6,6 +6,7 @@
 const TOKEN_KEY = 'kzk_access_token';
 const REFRESH_KEY = 'kzk_refresh_token';
 const REMEMBER_KEY = 'kzk_remember_me';
+const SELECTED_USER_KEY = 'kzk_selected_user';
 
 export const tokenStore = {
   getAccessToken(): string | null {
@@ -36,6 +37,26 @@ export const tokenStore = {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(REMEMBER_KEY) === 'true';
   },
+
+  // ─── Disabled-mode (profile picker) selection ────────────────────────
+  // When auth is disabled the backend identifies the user via the
+  // X-Kaizoku-User header instead of a JWT. The selected username
+  // persists until logout (or until the profile picker is reopened).
+
+  getSelectedUser(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(SELECTED_USER_KEY);
+  },
+
+  setSelectedUser(username: string): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(SELECTED_USER_KEY, username);
+  },
+
+  clearSelectedUser(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(SELECTED_USER_KEY);
+  },
 };
 
 // Callbacks so the client can trigger auth context actions
@@ -48,5 +69,6 @@ export function registerLogoutCallback(cb: LogoutCallback) {
 
 export function triggerLogout() {
   tokenStore.clearTokens();
+  tokenStore.clearSelectedUser();
   logoutCallback?.();
 }

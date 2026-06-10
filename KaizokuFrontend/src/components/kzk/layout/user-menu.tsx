@@ -1,9 +1,7 @@
 "use client";
 
 import { BookOpen, Download, LogOut, Settings } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import {
   DropdownMenu,
@@ -13,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
-import { userService } from "@/lib/api/services/userService";
 import { useImportWizard } from "@/components/providers/import-wizard-provider";
 
 /**
@@ -22,12 +19,11 @@ import { useImportWizard } from "@/components/providers/import-wizard-provider";
  */
 export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
   const { user, logout } = useAuth();
-  const router = useRouter();
   const { startWizard } = useImportWizard();
 
   const handleLogout = async () => {
+    // logout() routes to /login (auth enabled) or /user-select (profile mode).
     await logout();
-    router.push("/login");
   };
 
   const sz = size === "sm" ? "h-7 w-7" : "h-8 w-8";
@@ -51,7 +47,9 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
         .slice(0, 2)
     : user.username.slice(0, 2).toUpperCase();
 
-  const avatarSrc = user.avatarPath ? userService.getAvatarUrl(user.id) : null;
+  const avatarSrc = user.avatarBase64
+    ? `data:${user.avatarContentType ?? 'image/png'};base64,${user.avatarBase64}`
+    : null;
   const textSz = size === "sm" ? "text-[10px]" : "text-xs";
 
   return (
@@ -62,7 +60,8 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
           aria-label="User menu"
         >
           {avatarSrc ? (
-            <Image
+            // eslint-disable-next-line @next/next/no-img-element -- data: URI not supported by next/image
+            <img
               src={avatarSrc}
               alt={user.displayName}
               width={size === "sm" ? 28 : 32}

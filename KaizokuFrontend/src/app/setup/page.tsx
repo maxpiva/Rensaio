@@ -24,11 +24,10 @@ function PasswordCheck({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export default function SetupPage() {
-  const { setup, isAuthenticated, isLoading, needsSetup } = useAuth();
+  const { setup, createFirstUser, isAuthenticated, isLoading, needsSetup, isAuthEnabled } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -42,10 +41,15 @@ export default function SetupPage() {
       if (isAuthenticated) {
         router.replace('/library');
       } else if (!needsSetup) {
-        router.replace('/login');
+        router.replace(isAuthEnabled ? '/login' : '/user-select');
       }
     }
-  }, [isAuthenticated, isLoading, needsSetup, router]);
+  }, [isAuthenticated, isLoading, needsSetup, isAuthEnabled, router]);
+
+  // A password is only mandatory when auth is already enforced (legacy path).
+  // The default (auth disabled) flow creates a passwordless admin per the
+  // upstream plan; a password can still be set now or later via settings.
+  const passwordRequired = isAuthEnabled;
 
   const passwordChecks = {
     length: password.length >= 8,
@@ -53,15 +57,10 @@ export default function SetupPage() {
     number: /[0-9]/.test(password),
   };
   const isPasswordValid = Object.values(passwordChecks).every(Boolean);
-  const passwordsMatch = password.length > 0 && password === confirmPassword;
+  const passwordsMatch = password === confirmPassword;
+  const passwordOk = password.length === 0 ? !passwordRequired : isPasswordValid && passwordsMatch;
 
-  const canSubmit =
-    username.trim() &&
-    email.trim() &&
-    displayName.trim() &&
-    isPasswordValid &&
-    passwordsMatch &&
-    !isSubmitting;
+  const canSubmit = username.trim() && displayName.trim() && passwordOk && !isSubmitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +69,11 @@ export default function SetupPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await setup(username.trim(), email.trim(), password, displayName.trim());
+      if (passwordRequired) {
+        await setup(username.trim(), password, displayName.trim());
+      } else {
+        await createFirstUser(username.trim(), displayName.trim(), password || undefined);
+      }
       router.push('/library');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
@@ -164,20 +167,6 @@ export default function SetupPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="displayName">Display Name</Label>
               <Input
                 id="displayName"
@@ -192,17 +181,21 @@ export default function SetupPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">
+                Password{!passwordRequired && (
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span>
+                )}
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
-                  placeholder="Choose a strong password"
+                  placeholder={passwordRequired ? 'Choose a strong password' : 'Leave blank — set one later'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
-                  required
+                  required={passwordRequired}
                   className="pr-10"
                 />
                 <button
@@ -215,6 +208,12 @@ export default function SetupPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {!passwordRequired && !password && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Logins are disabled by default — everyone picks a profile. A password is only
+                  needed if you later require sign-in under Settings.
+                </p>
+              )}
               {password && (
                 <div className="flex gap-3 flex-wrap mt-1.5">
                   <PasswordCheck ok={passwordChecks.length} label="8+ chars" />
@@ -224,39 +223,41 @@ export default function SetupPage() {
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirm ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  placeholder="Re-enter your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  tabIndex={-1}
-                  aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
-                >
-                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {confirmPassword && (
-                <div className="mt-1.5">
-                  <PasswordCheck
-                    ok={passwordsMatch}
-                    label={passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+            {password.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isSubmitting}
+                    required
+                    className="pr-10"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                    aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-              )}
-            </div>
+                {confirmPassword && (
+                  <div className="mt-1.5">
+                    <PasswordCheck
+                      ok={passwordsMatch}
+                      label={passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={!canSubmit}>
               {isSubmitting ? (

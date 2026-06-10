@@ -17,14 +17,17 @@ namespace KaizokuBackend.Services.Auth
         private readonly ILogger<AuthService> _logger;
         private readonly InviteLinkService _inviteLinkService;
         private readonly PermissionService _permissionService;
+        private readonly OpdsPathGenerator _opdsPathGenerator;
 
         public AuthService(AppDbContext db, ILogger<AuthService> logger,
-            InviteLinkService inviteLinkService, PermissionService permissionService)
+            InviteLinkService inviteLinkService, PermissionService permissionService,
+            OpdsPathGenerator opdsPathGenerator)
         {
             _db = db;
             _logger = logger;
             _inviteLinkService = inviteLinkService;
             _permissionService = permissionService;
+            _opdsPathGenerator = opdsPathGenerator;
         }
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto, string? ipAddress, string? userAgent, CancellationToken token = default)
@@ -34,23 +37,22 @@ namespace KaizokuBackend.Services.Auth
             if (invite == null)
                 throw new InvalidOperationException("Invalid or expired invite code.");
 
-            // Check for duplicate username/email
+            // Check for duplicate username
             var existingUser = await _db.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Username == dto.Username || u.Email == dto.Email, token)
+                .FirstOrDefaultAsync(u => u.Username == dto.Username, token)
                 .ConfigureAwait(false);
 
             if (existingUser != null)
-            {
-                if (existingUser.Username == dto.Username)
-                    throw new InvalidOperationException("Username is already taken.");
-                throw new InvalidOperationException("Email is already in use.");
-            }
+                throw new InvalidOperationException("Username is already taken.");
 
             // Validate password against policy
             var passwordError = PasswordPolicy.Validate(dto.Password);
             if (passwordError != null)
                 throw new InvalidOperationException(passwordError);
+
+            // Generate OPDS path
+            var opdsPath = await _opdsPathGenerator.GenerateUniqueAsync(token).ConfigureAwait(false);
 
             // Create user
             var salt = GenerateSalt();
@@ -58,11 +60,12 @@ namespace KaizokuBackend.Services.Auth
             {
                 Id = Guid.NewGuid(),
                 Username = dto.Username.Trim(),
-                Email = dto.Email.Trim().ToLowerInvariant(),
                 DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? dto.Username : dto.DisplayName.Trim(),
                 PasswordHash = HashPassword(dto.Password, salt),
                 Salt = salt,
                 Role = UserRole.User,
+                Level = UserLevel.User,
+                OpdsPath = opdsPath,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 IsActive = true
@@ -139,20 +142,25 @@ namespace KaizokuBackend.Services.Auth
 
         public async Task<AuthResponseDto> LoginAsync(LoginDto dto, string? ipAddress, string? userAgent, CancellationToken token = default)
         {
-            var usernameOrEmail = dto.UsernameOrEmail.Trim();
+            var username = dto.UsernameOrEmail.Trim();
             var user = await _db.Users
                 .Include(u => u.Permissions)
-                .FirstOrDefaultAsync(u => u.Username == usernameOrEmail || u.Email == usernameOrEmail.ToLowerInvariant(), token)
+                .FirstOrDefaultAsync(u => u.Username == username, token)
                 .ConfigureAwait(false);
 
             if (user == null)
-                throw new InvalidOperationException("Invalid username/email or password.");
+                throw new InvalidOperationException("Invalid username or password.");
 
             if (!user.IsActive)
                 throw new InvalidOperationException("Account is disabled.");
 
-            if (!VerifyPassword(dto.Password, user.PasswordHash, user.Salt))
-                throw new InvalidOperationException("Invalid username/email or password.");
+            // Same message as the unknown-user case: a distinct "no password set" error
+            // would let an attacker enumerate which usernames exist as passwordless profiles.
+            if (user.PasswordHash == null || user.Salt == null)
+                throw new InvalidOperationException("Invalid username or password.");
+
+            if (!VerifyPassword(dto.Password, user.PasswordHash!, user.Salt!))
+                throw new InvalidOperationException("Invalid username or password.");
 
             // Check if the user's password meets the current policy (detects legacy weak passwords)
             bool requiresPasswordChange = !PasswordPolicy.MeetsPolicy(dto.Password);
@@ -214,18 +222,14 @@ namespace KaizokuBackend.Services.Auth
             return await CreateAuthResponseAsync(user, permissions, rememberMe, ipAddress, userAgent, token).ConfigureAwait(false);
         }
 
-        private async Task<AuthResponseDto> CreateAuthResponseAsync(UserEntity user, UserPermissionEntity permissions,
-            bool rememberMe, string? ipAddress, string? userAgent, CancellationToken token)
+        public static List<Claim> BuildUserClaims(UserEntity user, UserPermissionEntity permissions)
         {
-            var jwtSecret = await GetOrCreateJwtSecretAsync(token).ConfigureAwait(false);
-            var accessTokenExpiry = DateTime.UtcNow.AddMinutes(15);
-
-            var claims = new List<Claim>
+            return new List<Claim>
             {
                 new Claim("UserId", user.Id.ToString()),
                 new Claim("Username", user.Username),
-                new Claim("Email", user.Email),
                 new Claim("Role", user.Role.ToString()),
+                new Claim("Level", user.Level.ToString()),
                 new Claim("CanViewLibrary", permissions.CanViewLibrary.ToString()),
                 new Claim("CanRequestSeries", permissions.CanRequestSeries.ToString()),
                 new Claim("CanAddSeries", permissions.CanAddSeries.ToString()),
@@ -239,6 +243,15 @@ namespace KaizokuBackend.Services.Auth
                 new Claim("CanManageJobs", permissions.CanManageJobs.ToString()),
                 new Claim("CanViewStatistics", permissions.CanViewStatistics.ToString()),
             };
+        }
+
+        private async Task<AuthResponseDto> CreateAuthResponseAsync(UserEntity user, UserPermissionEntity permissions,
+            bool rememberMe, string? ipAddress, string? userAgent, CancellationToken token)
+        {
+            var jwtSecret = await GetOrCreateJwtSecretAsync(token).ConfigureAwait(false);
+            var accessTokenExpiry = DateTime.UtcNow.AddMinutes(15);
+
+            var claims = BuildUserClaims(user, permissions);
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -346,10 +359,15 @@ namespace KaizokuBackend.Services.Auth
             {
                 Id = user.Id,
                 Username = user.Username,
-                Email = user.Email,
                 DisplayName = user.DisplayName,
                 Role = user.Role,
-                AvatarPath = user.AvatarPath,
+                Level = UserService.ResolveLevel(user),
+                OpdsPath = user.OpdsPath,
+                AvatarBase64 = user.AvatarBlob != null && user.AvatarBlob.Length > 0
+                    ? Convert.ToBase64String(user.AvatarBlob)
+                    : null,
+                AvatarContentType = user.AvatarContentType,
+                HasPassword = user.PasswordHash != null,
                 CreatedAt = user.CreatedAt,
                 LastLoginAt = user.LastLoginAt,
                 IsActive = user.IsActive
@@ -362,10 +380,15 @@ namespace KaizokuBackend.Services.Auth
             {
                 Id = user.Id,
                 Username = user.Username,
-                Email = user.Email,
                 DisplayName = user.DisplayName,
                 Role = user.Role,
-                AvatarPath = user.AvatarPath,
+                Level = UserService.ResolveLevel(user),
+                OpdsPath = user.OpdsPath,
+                AvatarBase64 = user.AvatarBlob != null && user.AvatarBlob.Length > 0
+                    ? Convert.ToBase64String(user.AvatarBlob)
+                    : null,
+                AvatarContentType = user.AvatarContentType,
+                HasPassword = user.PasswordHash != null,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt,
                 LastLoginAt = user.LastLoginAt,

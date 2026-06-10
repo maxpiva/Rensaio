@@ -40,6 +40,11 @@ import { useUsers, useUser, useCreateUser, useUpdateUser, useDeleteUser, useDisa
 import { useInvites, useCreateInvite, useRevokeInvite } from '@/lib/api/hooks/useInvites';
 import { usePermissionPresets } from '@/lib/api/hooks/usePermissionPresets';
 import { useToast } from '@/hooks/use-toast';
+import { userService } from '@/lib/api/services/userService';
+import { authService } from '@/lib/api/services/authService';
+import { useSettings, useUpdateSettings } from '@/lib/api/hooks/useSettings';
+import { useAuth as useAuthContext } from '@/contexts/auth-context';
+import { ApiError } from '@/lib/api/client';
 import type { User, UserPermissions } from '@/lib/api/auth-types';
 
 const PERMISSION_LABELS: { key: keyof UserPermissions; label: string; description: string }[] = [
@@ -74,6 +79,9 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [savingPerms, setSavingPerms] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Initialize permissions from loaded user
   React.useEffect(() => {
@@ -145,19 +153,49 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
     setPermissions({ ...preset.permissions });
   };
 
+  const handleGenerateInvite = async () => {
+    setGeneratingInvite(true);
+    try {
+      const invite = await userService.generateInvite(userId);
+      // The backend builds the URL from the ExternalDomain setting; fall back
+      // to this browser's origin when the setting is empty (relative URL).
+      const message = invite.url.startsWith('/')
+        ? invite.message.replace(invite.url, `${window.location.origin}${invite.url}`)
+        : invite.message;
+      setInviteMessage(message);
+      setInviteCopied(false);
+      toast({ title: 'Set-password link generated', description: 'Share it with the user — it expires in 7 days.', variant: 'success' });
+    } catch (err) {
+      toast({ title: 'Failed to generate invite', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyInviteMessage = () => {
+    if (!inviteMessage) return;
+    void navigator.clipboard.writeText(inviteMessage);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-base font-semibold text-foreground">{userDetail.displayName}</h3>
-          <p className="text-sm text-muted-foreground">@{userDetail.username} · {userDetail.email}</p>
+          <p className="text-sm text-muted-foreground">@{userDetail.username}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">OPDS path: <span className="font-mono">{userDetail.opdsPath}</span></p>
           <div className="flex items-center gap-2 mt-1.5">
             <Badge variant={userDetail.role === 'Admin' ? 'default' : 'secondary'}>
               {userDetail.role}
             </Badge>
             <Badge variant={userDetail.isActive ? 'outline' : 'destructive'}>
               {userDetail.isActive ? 'Active' : 'Disabled'}
+            </Badge>
+            <Badge variant={userDetail.hasPassword ? 'outline' : 'secondary'}>
+              {userDetail.hasPassword ? 'Has password' : 'No password'}
             </Badge>
           </div>
         </div>
@@ -227,6 +265,39 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
       {/* Actions */}
       <div className="space-y-3 pt-2 border-t">
         <h4 className="text-sm font-semibold text-foreground">Actions</h4>
+
+        {/* Set-password invite link (upstream plan flow) */}
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateInvite}
+            disabled={generatingInvite}
+            className="gap-2"
+          >
+            {generatingInvite ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Link2 className="h-3.5 w-3.5" />
+            )}
+            {userDetail.hasPassword ? 'Reset via Invite Link' : 'Generate Set-Password Link'}
+          </Button>
+
+          {inviteMessage && (
+            <div className="space-y-2">
+              <textarea
+                readOnly
+                value={inviteMessage}
+                rows={3}
+                className="w-full rounded-md border bg-muted px-3 py-2 text-xs font-mono text-foreground resize-none"
+              />
+              <Button size="sm" variant="ghost" onClick={handleCopyInviteMessage} className="gap-2 h-7 text-xs">
+                {inviteCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                {inviteCopied ? 'Copied' : 'Copy message'}
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Reset Password */}
         <div className="space-y-2">
@@ -317,7 +388,6 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   const [form, setForm] = useState({
     username: '',
-    email: '',
     displayName: '',
     password: '',
     permissionPresetId: '',
@@ -328,7 +398,6 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     try {
       await createUser.mutateAsync({
         username: form.username.trim(),
-        email: form.email.trim(),
         displayName: form.displayName.trim(),
         password: form.password,
         role: 'User',
@@ -336,7 +405,7 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       });
       toast({ title: 'User created', variant: 'success' });
       onOpenChange(false);
-      setForm({ username: '', email: '', displayName: '', password: '', permissionPresetId: '' });
+      setForm({ username: '', displayName: '', password: '', permissionPresetId: '' });
     } catch (err) {
       toast({ title: 'Failed to create user', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
     }
@@ -363,13 +432,13 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cu-email">Email</Label>
-            <Input id="cu-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="cu-password">Password</Label>
-            <Input id="cu-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Min. 8 characters" required />
+            <Label htmlFor="cu-password">
+              Password <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Input id="cu-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Leave blank — send a set-password link later" />
+            <p className="text-[10px] text-muted-foreground">
+              Passwordless profiles work in profile-picker mode. Generate a set-password link from the user&apos;s detail panel when needed.
+            </p>
           </div>
 
           {presets.length > 0 && (
@@ -511,6 +580,180 @@ function CreateInviteDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   );
 }
 
+// ─── Authentication Section ───────────────────────────────────────────────────
+
+function AuthenticationSection() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const { isAuthEnabled, needsAdminPassword, refreshStatus, logout } = useAuthContext();
+  const { toast } = useToast();
+
+  const [externalDomain, setExternalDomain] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
+
+  const domainValue = externalDomain ?? settings?.externalDomain ?? '';
+
+  const saveAuthSettings = async (enabled: boolean, opts?: { saveDomain?: boolean }) => {
+    if (!settings) return;
+    setSaving(true);
+    try {
+      try {
+        await updateSettings.mutateAsync({
+          ...settings,
+          authenticationEnabled: enabled,
+          // The domain field saves via its own button — toggling auth must not
+          // silently persist an unsaved edit.
+          ...(opts?.saveDomain ? { externalDomain: domainValue.trim() } : {}),
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && (err.body as { needsPassword?: boolean } | null)?.needsPassword) {
+          // Lockout guard: no admin has a password yet — collect one first (plan D.6).
+          setShowPasswordDialog(true);
+        } else {
+          toast({ title: 'Failed to save authentication settings', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+        }
+        return;
+      }
+      // Save succeeded — a status-refresh failure past this point must not be
+      // reported as a save failure, and the sign-out redirect must still run.
+      try {
+        await refreshStatus();
+      } catch {
+        // best-effort; the settings query invalidation will catch up
+      }
+      if (enabled && !isAuthEnabled) {
+        toast({ title: 'Authentication enabled', description: 'Please sign in with your password.', variant: 'success' });
+        await logout();
+      } else {
+        toast({ title: 'Authentication settings saved', variant: 'success' });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSetAdminPassword = async () => {
+    if (adminPassword.length < 8 || adminPassword !== adminPasswordConfirm) return;
+    setSettingPassword(true);
+    try {
+      await authService.setAdminPassword(adminPassword);
+      setShowPasswordDialog(false);
+      setAdminPassword('');
+      setAdminPasswordConfirm('');
+      toast({ title: 'Admin password set', variant: 'success' });
+      // Retry enabling authentication now that the lockout guard is satisfied.
+      await saveAuthSettings(true);
+    } catch (err) {
+      toast({ title: 'Failed to set admin password', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    } finally {
+      setSettingPassword(false);
+    }
+  };
+
+  if (!settings) return null;
+
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Authentication</h3>
+          <p className="text-xs text-muted-foreground">
+            When disabled (default), everyone picks a profile without a password.
+            When enabled, all users must sign in with username and password.
+          </p>
+        </div>
+        <Switch
+          checked={settings.authenticationEnabled}
+          disabled={saving}
+          onCheckedChange={(v) => void saveAuthSettings(v)}
+        />
+      </div>
+
+      {needsAdminPassword && !settings.authenticationEnabled && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          No admin account has a password yet — you&apos;ll be asked to set one when enabling authentication.
+        </p>
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="auth-external-domain">External Domain</Label>
+        <div className="flex gap-2">
+          <Input
+            id="auth-external-domain"
+            placeholder="https://kaizoku.example.com"
+            value={domainValue}
+            onChange={(e) => setExternalDomain(e.target.value)}
+            className="max-w-md"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={saving || domainValue.trim() === (settings.externalDomain ?? '')}
+            onClick={() => void saveAuthSettings(settings.authenticationEnabled, { saveDomain: true })}
+          >
+            Save
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          Used to build invite links and OPDS URLs. Leave blank to use relative links.
+        </p>
+      </div>
+
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set your admin password</DialogTitle>
+            <DialogDescription>
+              Authentication can&apos;t be enabled until at least one admin has a password —
+              otherwise everyone would be locked out.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-pw">New Password</Label>
+              <Input
+                id="admin-pw"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Min. 8 characters, letter + number"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-pw-confirm">Confirm Password</Label>
+              <Input
+                id="admin-pw-confirm"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Re-enter the password"
+                value={adminPasswordConfirm}
+                onChange={(e) => setAdminPasswordConfirm(e.target.value)}
+              />
+              {adminPasswordConfirm && adminPassword !== adminPasswordConfirm && (
+                <p className="text-xs text-destructive">Passwords do not match.</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+              <Button
+                onClick={() => void handleSetAdminPassword()}
+                disabled={settingPassword || adminPassword.length < 8 || adminPassword !== adminPasswordConfirm}
+              >
+                {settingPassword ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Set password & enable'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Users Tab ───────────────────────────────────────────────────────────
 
 export function UsersTab() {
@@ -529,8 +772,7 @@ export function UsersTab() {
     const term = searchTerm.toLowerCase();
     return (
       u.username.toLowerCase().includes(term) ||
-      u.displayName.toLowerCase().includes(term) ||
-      u.email.toLowerCase().includes(term)
+      u.displayName.toLowerCase().includes(term)
     );
   });
 
@@ -551,6 +793,8 @@ export function UsersTab() {
 
   return (
     <div className="space-y-6">
+      <AuthenticationSection />
+
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Users</h2>
@@ -684,8 +928,17 @@ function UserRow({ user, isSelected, onClick }: { user: User; isSelected: boolea
           : 'bg-card border border-transparent hover:border-border'
       }`}
     >
-      <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-        <span className="text-xs font-semibold text-primary">{initials}</span>
+      <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 overflow-hidden">
+        {user.avatarBase64 ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data: URI not supported by next/image
+          <img
+            src={`data:${user.avatarContentType ?? 'image/png'};base64,${user.avatarBase64}`}
+            alt={user.displayName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-xs font-semibold text-primary">{initials}</span>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -698,8 +951,13 @@ function UserRow({ user, isSelected, onClick }: { user: User; isSelected: boolea
               Disabled
             </Badge>
           )}
+          {!user.hasPassword && (
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+              No password
+            </Badge>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground truncate">@{user.username} · {user.email}</p>
+        <p className="text-xs text-muted-foreground truncate">@{user.username} · {user.opdsPath}</p>
       </div>
       <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isSelected ? 'rotate-90' : ''}`} />
     </button>

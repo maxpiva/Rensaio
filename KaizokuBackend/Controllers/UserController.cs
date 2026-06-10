@@ -1,4 +1,5 @@
 using KaizokuBackend.Models.Dto.Auth;
+using KaizokuBackend.Models.Enums;
 using KaizokuBackend.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,19 +13,23 @@ namespace KaizokuBackend.Controllers
     public class UserController : ControllerBase
     {
         private readonly UserService _userService;
+        private readonly UserInviteService _userInviteService;
         private readonly PermissionService _permissionService;
         private readonly UserPreferencesService _preferencesService;
         private readonly ILogger<UserController> _logger;
-        private readonly IConfiguration _config;
+        private readonly IAuthSettingsCache _authSettingsCache;
 
-        public UserController(UserService userService, PermissionService permissionService,
-            UserPreferencesService preferencesService, ILogger<UserController> logger, IConfiguration config)
+        public UserController(UserService userService, UserInviteService userInviteService,
+            PermissionService permissionService,
+            UserPreferencesService preferencesService, ILogger<UserController> logger,
+            IAuthSettingsCache authSettingsCache)
         {
             _userService = userService;
+            _userInviteService = userInviteService;
             _permissionService = permissionService;
             _preferencesService = preferencesService;
             _logger = logger;
-            _config = config;
+            _authSettingsCache = authSettingsCache;
         }
 
         private Guid GetCurrentUserId()
@@ -256,9 +261,9 @@ namespace KaizokuBackend.Controllers
         }
 
         [HttpPatch("me")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<UserDto>> UpdateProfileAsync([FromBody] UpdateUserDto dto, CancellationToken token = default)
+        public async Task<ActionResult<UserDetailDto>> UpdateProfileAsync([FromBody] UpdateUserDto dto, CancellationToken token = default)
         {
             try
             {
@@ -347,9 +352,8 @@ namespace KaizokuBackend.Controllers
                     return BadRequest(new { error = "File size must be less than 5MB" });
 
                 var userId = GetCurrentUserId();
-                var storagePath = _config["StorageFolder"] ?? _config["runtimeDirectory"] ?? ".";
-                var avatarUrl = await _userService.UploadAvatarAsync(userId, file, storagePath, token).ConfigureAwait(false);
-                return Ok(new { avatarPath = avatarUrl });
+                var avatarUrl = await _userService.UploadAvatarAsync(userId, file, token).ConfigureAwait(false);
+                return Ok(new { avatarUrl = avatarUrl });
             }
             catch (InvalidOperationException ex)
             {
@@ -370,27 +374,106 @@ namespace KaizokuBackend.Controllers
         {
             try
             {
-                var path = await _userService.GetAvatarPathAsync(id, token).ConfigureAwait(false);
-                if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+                var result = await _userService.GetAvatarBlobAsync(id, token).ConfigureAwait(false);
+                if (result == null)
                     return NotFound();
 
-                var ext = Path.GetExtension(path).ToLowerInvariant();
-                var contentType = ext switch
-                {
-                    ".png" => "image/png",
-                    ".jpg" or ".jpeg" => "image/jpeg",
-                    ".gif" => "image/gif",
-                    ".webp" => "image/webp",
-                    _ => "application/octet-stream"
-                };
-
-                var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-                return File(stream, contentType);
+                return File(result.Value.Bytes, result.Value.ContentType);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving avatar");
                 return StatusCode(500, "An error occurred while retrieving the avatar.");
+            }
+        }
+
+        // ─── Setup / invite endpoints ──────────────────────────────────
+
+        [HttpPost("first")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<UserDetailDto>> CreateFirstUserAsync([FromBody] FirstUserDto dto, CancellationToken token = default)
+        {
+            await SetupGate.Lock.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (await _userService.AnyUsersExistAsync(token).ConfigureAwait(false))
+                    return BadRequest(new { error = "Setup has already been completed." });
+
+                var createDto = new CreateUserDto
+                {
+                    Username = dto.Username,
+                    DisplayName = dto.DisplayName,
+                    Password = dto.Password ?? string.Empty,
+                    Role = UserRole.Admin
+                };
+
+                var user = await _userService.CreateAsync(createDto, token).ConfigureAwait(false);
+                return Ok(user);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating first user");
+                return StatusCode(500, new { error = "An error occurred while creating the first user" });
+            }
+            finally
+            {
+                SetupGate.Lock.Release();
+            }
+        }
+
+        [HttpPut("{id:guid}/claim")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<UserDto>> ClaimUserAsync([FromRoute] Guid id, [FromBody] ClaimUserDto dto, CancellationToken token = default)
+        {
+            try
+            {
+                if (_authSettingsCache.AuthenticationEnabled)
+                    return BadRequest(new { error = "Profile claiming is only available when authentication is disabled." });
+
+                var result = await _userService.ClaimUserAsync(id, dto.Password, token).ConfigureAwait(false);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error claiming user {UserId}", id);
+                return StatusCode(500, new { error = "An error occurred while claiming the user" });
+            }
+        }
+
+        [HttpPost("{id:guid}/generate-invite")]
+        [Authorize(Policy = "RequireAdmin")]
+        [ProducesResponseType(typeof(GenerateInviteResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<GenerateInviteResponseDto>> GenerateInviteAsync([FromRoute] Guid id, CancellationToken token = default)
+        {
+            try
+            {
+                var result = await _userInviteService.CreateInviteAsync(id, token).ConfigureAwait(false);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating invite for user {UserId}", id);
+                return StatusCode(500, new { error = "An error occurred while generating the invite" });
             }
         }
     }

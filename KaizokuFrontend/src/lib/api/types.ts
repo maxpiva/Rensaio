@@ -39,6 +39,9 @@ export interface Settings {
   socksProxyUsername: string;
   socksProxyPassword: string;
   nsfwVisibility: NsfwVisibility;
+  // Authentication (upstream multi-user plan)
+  authenticationEnabled: boolean;
+  externalDomain: string;
   // Setup Wizard properties
   isWizardSetupComplete: boolean;
   wizardSetupStepCompleted: number;

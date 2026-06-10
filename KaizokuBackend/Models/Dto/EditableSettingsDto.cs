@@ -74,6 +74,12 @@ public class EditableSettingsDto
     [JsonPropertyName("registrationEnabled")]
     public bool RegistrationEnabled { get; set; } = true;
 
+    [JsonPropertyName("authenticationEnabled")]
+    public bool AuthenticationEnabled { get; set; } = false;
+
+    [JsonPropertyName("externalDomain")]
+    public string ExternalDomain { get; set; } = "";
+
 }
 public enum NsfwVisibility
 {

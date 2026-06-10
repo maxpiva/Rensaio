@@ -2,6 +2,7 @@
 using KaizokuBackend.Models.Database;
 using KaizokuBackend.Models.Dto;
 using KaizokuBackend.Models.Enums;
+using KaizokuBackend.Services.Auth;
 using KaizokuBackend.Services.Background;
 using KaizokuBackend.Services.Bridge;
 using KaizokuBackend.Services.Jobs;
@@ -21,15 +22,16 @@ namespace KaizokuBackend.Services.Settings
         private readonly IConfiguration _config;
         private readonly AppDbContext _db;
         private readonly IServiceScopeFactory _prov;
+        private readonly IAuthSettingsCache _authSettingsCache;
 
         private static SettingsDto? _settings;
 
-        public SettingsService(IConfiguration config, IServiceScopeFactory prov, AppDbContext db)
+        public SettingsService(IConfiguration config, IServiceScopeFactory prov, AppDbContext db, IAuthSettingsCache authSettingsCache)
         {
             _config = config;
             _db = db;
             _prov = prov;
-
+            _authSettingsCache = authSettingsCache;
         }
 
 
@@ -182,6 +184,17 @@ namespace KaizokuBackend.Services.Settings
 
         public async Task SaveSettingsAsync(EditableSettingsDto set, bool force = false, CancellationToken token = default)
         {
+            if (set.AuthenticationEnabled && _settings?.AuthenticationEnabled != true)
+            {
+                var adminHasPassword = await _db.Users
+                    .AsNoTracking()
+                    .AnyAsync(u => u.IsActive && u.Role == KaizokuBackend.Models.Enums.UserRole.Admin && u.PasswordHash != null, token)
+                    .ConfigureAwait(false);
+
+                if (!adminHasPassword)
+                    throw new AuthLockoutException("Cannot enable authentication: no admin account has a password set.");
+            }
+
             if (set.NumberOfSimultaneousDownloads != _settings?.NumberOfSimultaneousDownloads ||
                 set.ChapterDownloadFailRetries != _settings?.ChapterDownloadFailRetries ||
                 set.ChapterDownloadFailRetryTime != _settings?.ChapterDownloadFailRetryTime || 
@@ -267,8 +280,9 @@ namespace KaizokuBackend.Services.Settings
             if (needSave)
                 await _db.SaveChangesAsync(token).ConfigureAwait(false);
             _settings = GetFromEditableSettings(set);
+            _authSettingsCache.Update(_settings.AuthenticationEnabled);
         }
-        
+
         public async Task SaveSettingsAsync(SettingsDto settings, bool force, CancellationToken token = default)
         {
             // Convert Settings to EditableSettings since the existing logic works with EditableSettings
@@ -302,7 +316,9 @@ namespace KaizokuBackend.Services.Settings
                 NsfwVisibility = settings.NsfwVisibility,
                 MaxPendingRequestsPerUser = settings.MaxPendingRequestsPerUser,
                 DefaultPermissionPresetId = settings.DefaultPermissionPresetId,
-                RegistrationEnabled = settings.RegistrationEnabled
+                RegistrationEnabled = settings.RegistrationEnabled,
+                AuthenticationEnabled = settings.AuthenticationEnabled,
+                ExternalDomain = settings.ExternalDomain
 
             };
 
@@ -341,7 +357,9 @@ namespace KaizokuBackend.Services.Settings
                 NsfwVisibility = ed.NsfwVisibility,
                 MaxPendingRequestsPerUser = ed.MaxPendingRequestsPerUser,
                 DefaultPermissionPresetId = ed.DefaultPermissionPresetId,
-                RegistrationEnabled = ed.RegistrationEnabled
+                RegistrationEnabled = ed.RegistrationEnabled,
+                AuthenticationEnabled = ed.AuthenticationEnabled,
+                ExternalDomain = ed.ExternalDomain
 
             };
             set.StorageFolder = _config["StorageFolder"] ?? string.Empty;
@@ -367,6 +385,7 @@ namespace KaizokuBackend.Services.Settings
             }
             if (needSave)
                 await SaveSettingsAsync(_settings, true, token).ConfigureAwait(false);
+            _authSettingsCache.Update(_settings.AuthenticationEnabled);
             return _settings;
         }
     }

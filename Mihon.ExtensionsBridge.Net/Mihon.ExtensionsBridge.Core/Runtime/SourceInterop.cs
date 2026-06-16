@@ -271,7 +271,13 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             {
                 Request request = RequestsKt.GET(pageUrl, _httpSource.getHeaders(), CacheControl.FORCE_NETWORK);
                 var response = await Task.Run(() => _httpSource.getClient().newCall(request).execute(), token).ConfigureAwait(false);
-                if (response == null || response.code() != 200)
+                if (response == null)
+                    return null;
+
+                // OkHttp requires every Response to be closed or its connection leaks out of the pool.
+                using var _ = new ResponseCloser(response);
+
+                if (response.code() != 200)
                     return null;
 
                 var body = response.body();
@@ -420,7 +426,12 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (response == null)
                     throw new HttpRequestException("Image response was null.");
                 if (response.code() != 200)
+                {
+                    // Close the response before bailing; otherwise the connection leaks out of the OkHttp pool.
+                    try { response.close(); } catch { /* ignore */ }
                     throw new HttpRequestException($"Request error! {response.code()}",null, (HttpStatusCode)response.code());
+                }
+                // ContentTypeStreamImplementation takes ownership and closes the response.
                 return new ContentTypeStreamImplementation(response);
             }).ConfigureAwait(false);
         }
@@ -449,7 +460,12 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (response == null)
                     throw new HttpRequestException("Image response was null.");
                 if (response.code() != 200)
+                {
+                    // Close the response before bailing; otherwise the connection leaks out of the OkHttp pool.
+                    try { response.close(); } catch { /* ignore */ }
                     throw new HttpRequestException($"Request error! {response.code()}", null, (HttpStatusCode)response.code());
+                }
+                // ContentTypeStreamImplementation takes ownership and closes the response.
                 return new ContentTypeStreamImplementation(response);
             }).ConfigureAwait(false);
         }
@@ -552,6 +568,22 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             var newValue = GetValueFromPreference(pref, value);
             pref.saveNewValue(newValue);
             pref.callChangeListener(newValue);
+        }
+    }
+
+    /// <summary>
+    /// Disposable guard that closes an OkHttp <see cref="Response"/> when it leaves scope.
+    /// OkHttp leaks the underlying connection out of its pool if a response (or its body) is
+    /// never closed, so any code path that reads a response without handing ownership to
+    /// <see cref="Mihon.ExtensionsBridge.Core.Utilities.ContentTypeStreamImplementation"/> must wrap it in this.
+    /// </summary>
+    internal readonly struct ResponseCloser : IDisposable
+    {
+        private readonly Response? _response;
+        public ResponseCloser(Response? response) => _response = response;
+        public void Dispose()
+        {
+            try { _response?.close(); } catch { /* ignore close errors */ }
         }
     }
 }

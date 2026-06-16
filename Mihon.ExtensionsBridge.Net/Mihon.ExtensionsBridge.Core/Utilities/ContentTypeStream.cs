@@ -33,15 +33,16 @@ namespace Mihon.ExtensionsBridge.Core.Utilities
                 {
                     ms.Write(buffer, 0, read);
                 }
-                // Close upstream resources immediately; we don't keep references
-                input.close();
-                body.close();
-                response.close();
                 return ms.ToArray();
             }
             finally
             {
                 ArrayPool<byte>.Shared.Return(buffer);
+                // Always close upstream resources, even if a read throws midway; otherwise OkHttp
+                // leaks the connection out of its pool (a slow drip that eventually exhausts memory).
+                try { input.close(); } catch { /* ignore */ }
+                try { body.close(); } catch { /* ignore */ }
+                try { response.close(); } catch { /* ignore */ }
             }
         }
     }

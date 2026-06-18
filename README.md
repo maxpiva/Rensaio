@@ -1,44 +1,23 @@
-# Kaizoku.NET 2.0
-
-> [!WARNING]
-> The current main branch no longer uses or includes Suwayomi.
-> You can test using the **2.0** pre-release Docker tag, but make sure to back up your configuration directory (including the database), as everything will be rewritten.
->
-> The migration process has been working so far, but as always, proceed with caution.
->
-> We are currently fixing remaining bugs and minor issues before the final 2.0 release. There is no formal 2.0 release available yet.
-> 
-> [2.0 Announcement](https://github.com/maxpiva/Kaizoku.NET/discussions/23)
-
-
-https://github.com/user-attachments/assets/ac0af0eb-5b4a-4377-b777-9fcafbc329ae
-
-Video has brigthness issues, blame Microsoft. 
-
-
-
 <table>
   <tr>
-    <td width="150" border="0">
-      <img width="150px" src="./KaizokuFrontend/public/kaizoku.net.png" alt="Kaizoku"></img>
+    <td align="center" border="0">
+      <img width="500px" src="./RensaioFrontend/public/rensaiow.png" alt="Rensaiō"></img>
     </td>
+    </tr>  <tr>
     <td>
-       <strong>Kaizoku.NET</strong> is a modern fork of the original <strong>Kaizoku</strong> and <strong>Kaizoku Next Gen</strong> by OAE,  built to fill the void and bring a streamlined series manager back to life.<br/>
+       <strong>Rensaiō</strong> is a modern fork of the original <strong>Kaizoku</strong> and <strong>Kaizoku Next Gen</strong> by OAE,  built to fill the void and bring a streamlined series manager back to life.<br/>
 <strong>What does it do?</strong>  <br/>
 When you subscribe to a series, it will automatically download it. Whenever the series is updated in any of your configured providers, new chapters will be downloaded automatically, in a “drop and forget” fashion.
     </td>
   </tr>
 </table>
 
- 
-
-This is a **feature-complete** application (not a preview). While it may contain bugs, it *definitely doesn’t contain spiders*, yet.
 
 ---
 
 ## 🎯 What It Does
 
-Kaizoku.NET is a **series manager** that prioritizes simplicity, speed, and reliability, just like the original Kaizoku, but with powerful new features under the hood.
+Rensaiō is a **series manager** that prioritizes simplicity, speed, and reliability.
 
 It uses the power of  **MIHON extensions** to connect with multiple sources.
 
@@ -56,10 +35,30 @@ It uses the power of  **MIHON extensions** to connect with multiple sources.
 - 🔎 **Multi-Search & Multi-Linking**  
   Search and link one series to **multiple sources/providers**.
 
-- 📥 **Automatic Downloads, Retries, and Rescheduling**
+- 📥 **Automatic Downloads**
+
+  Everyting is automatic, Retries, Reschedules. With a dedicated download Page.
 
 - 🔄 **Auto-Updates**  
   Extensions are kept up to date.
+
+- 👥 **Multi-User System**
+  Create separate accounts with different permission levels. Invite people, and control who has access to what. Optionally enable authentication to restrict access to authorized users only.
+
+- 🩺 **Status & Health Dashboard**
+  A dedicated page that shows which series and providers need attention. Color-coded alerts (green/yellow/red) help you spot issues at a glance like broken providers, stale series with no new chapters, and more.
+
+- 📡 **OPDS Server**
+  Read your library from any OPDS-compatible reader app. Browse by all series, what's new, what you're currently reading, categories, and tags. Reading progress syncs back automatically. Each user gets their own unique random OPDS path (e.g. `door-pebble`) for private access. Example: ```https://rensaio.example.com/door-pebble```
+
+- 🤖 **MCP Server (AI Integration)**
+  Expose your library to AI tools through the Model Context Protocol. Let LLMs search your series, check status, and more, all respecting user permissions. Just add /mcp to your OPDS path. Example: ```https://rensaio.example.com/door-pebble/mcp'```
+
+- 📖 **Read State Tracking**
+  Remembers where you left off reading each chapter, across all your devices, backed in your series, not the database.
+
+- 🔗 **External Scrobbler Sync**
+  Sync your reading progress with external trackers. Supported providers: **AniList**, **MyAnimeList**, **Kitsu**, **MangaDex**. Each user controls their own connections and sync settings.
 
 - 🧹 **Filename Normalization**  
   Rebuild your library easily with consistent naming, that will help you reimport it back when needed.
@@ -67,19 +66,20 @@ It uses the power of  **MIHON extensions** to connect with multiple sources.
 - 🧾 **ComicInfo.xml Injection**  
   Chapters include rich metadata from the original source.
 
-- 🖼️ **Extras**  
-  - `cover.jpg` per series  
-  - `kaizoku.json` for full metadata mapping  
+- 🖼️ **Extras**
+  - Stores `cover.jpg` per series
+  - Stores `rensaio.json` for full metadata mapping, and read-state stored with you series.
+  - External Domain Support for reverse proxy scenarios.
+  - Support for jxl, jp2, avif image formats, with real-time transcoding for clients not supporting them.
   - And much more...
-
 ---
 
 ## 🛠️ Under the Hood
 
-Kaizoku.NET is composed of:
+Rensaiō is composed of:
 
-- **Frontend**: A beautiful UI forked from [Kaizoku Next by OAE](https://github.com/oae/kaizoku/tree/next) (Next.js).
-- **Backend**: A custom .NET engine that manages schedules, downloads, and metadata, with a Mihon Bridge that enables the use of Mihon Android extensions.
+- **Frontend**: A beautiful UI forked from [Kaizoku Next by OAE](https://github.com/oae/rensaio/tree/next) (Next.js).
+- **Backend**: A custom .NET engine that manages schedules, downloads, metadata, OPDS/MCP servers, and scrobbler sync, with a Mihon Bridge that enables the use of Mihon Android extensions.
 ---
 
 ## ⚙️ Issues
@@ -112,8 +112,8 @@ Then use [IKVM](https://github.com/ikvmnet/ikvm) to run this on .NET.
 ### 🌐 Ports
 
 | Port  | Service         | Required | Notes                        |
-|-------|------------------|----------|------------------------------|
-| 9833  | Kaizoku.NET UI   | ✅       | Web interface                |
+|-------|--------------|----------|------------------------------|
+| 9833  | Rensaiō UI   | ✅       | Web interface                |
 
 ---
 
@@ -139,7 +139,7 @@ It is recommended to use **host networking** for optimal performance when downlo
 
 ```bash
 docker run -d \
-  --name kaizoku-net \
+  --name Rensaio \
   --network host \
   -p 9833:9833 \
   -e UID=99 \
@@ -147,7 +147,7 @@ docker run -d \
   -e UMASK=022 \
   -v /path/to/your/config:/config \
   -v /path/to/your/series:/series \
-  maxpiva/kaizoku-net:latest
+  maxpiva/rensaio:latest
 ```
 Replace /path/to/your/config and /path/to/your/series with real paths on your host.
 
@@ -158,9 +158,9 @@ Replace /path/to/your/config and /path/to/your/series with real paths on your ho
 
 ```yaml
 services:
-  kaizoku-net:
-    container_name: kaizoku-net
-    image: 'maxpiva/kaizoku-net:latest'
+  rensaio:
+    container_name: rensaio
+    image: 'maxpiva/rensaio:latest'
     volumes:
         - '/path/to/your/series:/series'
         - '/path/to/your/config:/config'
@@ -179,19 +179,19 @@ services:
 
 ```xml
 <Container>
-  <Name>Kaizoku.NET</Name>
-  <Repository>maxpiva/kaizoku-net:latest</Repository>
-  <Registry>https://hub.docker.com/r/maxpiva/kaizoku-net</Registry>
+  <Name>Rensaiō</Name>
+  <Repository>maxpiva/rensaio:latest</Repository>
+  <Registry>https://hub.docker.com/r/maxpiva/rensaio</Registry>
   <Network>host</Network>
-  <MyID>kaizoku-net</MyID>
+  <MyID>rensaio</MyID>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/maxpiva/kaizoku-net/issues</Support>
-  <Project>https://github.com/maxpiva/kaizoku-net</Project>
-  <Overview>Kaizoku.NET – a feature-complete series manager powered by Suwayomi extensions. Forked from Kaizoku Next by OAE.</Overview>
+  <Support>https://github.com/maxpiva/rensaio/issues</Support>
+  <Project>https://github.com/maxpiva/rensaio</Project>
+  <Overview>Rensaiō – a feature-complete series manager powered by Mihon extensions. </Overview>
   <Category>MediaManager:Comics</Category>
 
-  <Config Name="Config Folder" Target="/config" Default="/mnt/user/appdata/kaizoku-net" Mode="rw" Description="Path to store configuration, database, and settings." Type="Path" />
+  <Config Name="Config Folder" Target="/config" Default="/mnt/user/appdata/rensaio" Mode="rw" Description="Path to store configuration, database, and settings." Type="Path" />
   <Config Name="Series Folder" Target="/series" Default="/mnt/user/media/series" Mode="rw" Description="Path where series and chapters will be downloaded." Type="Path" />
 
   <Config Name="UID" Target="UID" Default="99" Mode="rw" Description="User ID to run the container as." Type="Variable" />
@@ -200,8 +200,8 @@ services:
 
   <WebUI>http://[IP]:9833</WebUI>
 
-  <TemplateURL>https://raw.githubusercontent.com/maxpiva/kaizoku-net/main/unraid/kaizoku-net.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/maxpiva/Kaizoku.NET/refs/heads/main/KaizokuFrontend/public/kaizoku.net.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/maxpiva/rensaio/main/unraid/rensaio.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/maxpiva/rensaio/refs/heads/main/RensaioFrontend/public/rensaio.png</Icon>
 </Container>
 ```
 
@@ -210,31 +210,48 @@ services:
 
 ## 🖥️ Desktop App
 
-- A **tray application** based on Avalonia is available in the [Releases](https://github.com/maxpiva/Kaizoku.NET/releases).
+- A **tray application** based on Avalonia is available in the [Releases](https://github.com/maxpiva/Rensaio/releases).
 - Currently tested only on **Windows**. Testers for Linux and macOS are welcome, as I’m unable to verify it myself.
 
 ---
 
 ## 🧱 Build It Yourself
 
-It should be straightforward to build.  
-Documentation coming soon™ (once laziness subsides).
+Build scripts are provided for convenience:
+
+### Frontend
+```powershell
+.\build_frontend.ps1
+```
+Builds the Next.js frontend and packages it as `wwwroot.zip` for the backend to serve.
+
+### Docker Image
+```powershell
+.\build_docker.ps1
+```
+Restores and publishes the backend for `linux-x64` and `linux-arm64`, then builds and pushes a multi-arch Docker image.
+
+### Desktop Apps + Backend
+```powershell
+.\build_apps.ps1
+```
+Publishes the backend and tray app for `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, and `osx-arm64`, then zips the tray binaries.
 
 ---
 
 ## ⚠️ Resource Usage
 
-Be aware: **Kaizoku.NET** can be **memory-intensive**, especially when managing large libraries or doing parallel searches and downloads.
+Be aware: **Rensaiō** can be **memory-intensive**, especially when managing large libraries or doing parallel searches and downloads.
 
 ---
 
 ## 🤝 Contributing
 
 ### Frontend Devs ! You're Needed 🙏  
-Help clean up the mess left behind by our overenthusiastic friend, GitHub Copilot.
+Help clean up the mess left behind by our overenthusiastic friends, Copilot, Claude and ~~Fable~~ (banned).
 
 ### Backend Devs ! PRs Welcome  
-This was a **rushed 1-month project**. There are known race conditions and an import system that’s... let’s say *aggressively functional*.  
+
 PRs are welcome to improve stability and architecture.
 
 ---

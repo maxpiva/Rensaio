@@ -1,0 +1,7 @@
+allowBuilds:
+  '@tailwindcss/oxide': false
+  rensaio: false
+  sharp: false
+  unrs-resolver: false
+ignoredBuiltDependencies:
+  - rensaio

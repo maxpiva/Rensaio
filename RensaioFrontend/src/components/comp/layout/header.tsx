@@ -1,0 +1,64 @@
+"use client";
+import CompBreadcrumb from "@/components/comp/layout/breadcrumb";
+import { CompNavbar } from "@/components/comp/layout/sidebar";
+import { Button } from "@/components/ui/button";
+
+import { UserHeaderDropdown } from "@/components/comp/layout/user-header-dropdown";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useSearch } from "@/contexts/search-context";
+import { PanelLeft, Search } from "lucide-react";
+
+interface CompHeaderProps {
+  seriesTitle?: string;
+}
+
+export default function CompHeader({ seriesTitle }: CompHeaderProps = {}) {
+  const { searchTerm, setSearchTerm, currentPage, isSearchDisabled } = useSearch();
+
+  // Get placeholder text based on current page
+  const getPlaceholder = () => {
+    switch (currentPage) {
+      case 'library':
+        return 'Search series...';
+      case 'providers':
+        return 'Search sources...';
+      case 'queue':
+        return 'Search queue...';
+      default:
+        return 'Search...';
+    }
+  };
+
+  return (
+    <header className="sticky top-0 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button size="icon" variant="outline" className="sm:hidden">
+            <PanelLeft className="h-5 w-5" />
+            <span className="sr-only">Toggle Menu</span>
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="max-w-xs">
+          <CompNavbar />
+        </SheetContent>
+      </Sheet>
+
+      <CompBreadcrumb seriesTitle={seriesTitle} />
+
+      <div className="relative ml-auto flex-1 md:grow-0">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder={getPlaceholder()}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          disabled={isSearchDisabled}
+          className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
+        />
+      </div>
+      
+      <UserHeaderDropdown />
+    </header>
+  );
+}

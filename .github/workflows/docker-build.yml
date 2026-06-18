@@ -69,34 +69,34 @@ jobs:
           version: 10
 
       - name: Build Frontend
-        working-directory: KaizokuFrontend
+        working-directory: RensaioFrontend
         run: |
           pnpm install --frozen-lockfile
           pnpm run build
 
       - name: Package Frontend for Backend
         run: |
-          cd KaizokuFrontend/out
-          zip -r ../../KaizokuBackend/wwwroot.zip .
-          sha256sum ../../KaizokuBackend/wwwroot.zip | awk '{print $1}' > ../../KaizokuBackend/wwwroot.sha256
+          cd RensaioFrontend/out
+          zip -r ../../RensaioBackend/wwwroot.zip .
+          sha256sum ../../RensaioBackend/wwwroot.zip | awk '{print $1}' > ../../RensaioBackend/wwwroot.sha256
 
       - name: Build Backend (linux-x64)
         if: contains(inputs.platforms, 'linux/amd64')
         run: |
-          dotnet publish KaizokuBackend/KaizokuBackend.csproj \
+          dotnet publish RensaioBackend/RensaioBackend.csproj \
             -c Release \
             -r linux-x64 \
             --self-contained true \
-            -o KaizokuBackend/bin/linux/amd64
+            -o RensaioBackend/bin/linux/amd64
 
       - name: Build Backend (linux-arm64)
         if: contains(inputs.platforms, 'linux/arm64')
         run: |
-          dotnet publish KaizokuBackend/KaizokuBackend.csproj \
+          dotnet publish RensaioBackend/RensaioBackend.csproj \
             -c Release \
             -r linux-arm64 \
             --self-contained true \
-            -o KaizokuBackend/bin/linux/arm64
+            -o RensaioBackend/bin/linux/arm64
 
       - name: Determine image tag
         id: tag
@@ -122,8 +122,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./KaizokuBackend
-          file: ./KaizokuBackend/Dockerfile
+          context: ./RensaioBackend
+          file: ./RensaioBackend/Dockerfile
           platforms: ${{ inputs.platforms }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

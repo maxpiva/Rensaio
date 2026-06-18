@@ -1,0 +1,18 @@
+package kotlin.coroutines.jvm.internal
+
+/**
+ * Stub for kotlin.coroutines.jvm.internal.SpillingKt.
+ *
+ * This class is referenced by extension JARs compiled with Kotlin >= 2.2.x.
+ * The JVM coroutine spilling mechanism nulls out captured variables after
+ * suspension points to allow GC. At runtime the method is called but its
+ * return value is ignored by the caller — it exists solely as a compiler
+ * instrumentation marker.
+ *
+ * The real implementation (in kotlin-stdlib >= 2.2.0) does the same thing:
+ * always returns null regardless of input.
+ *
+ * See https://github.com/JetBrains/kotlin/blob/master/libraries/stdlib/src/kotlin/coroutines/jvm/internal/Spilling.kt
+@Suppress("UNUSED_PARAMETER")
+public fun nullOutSpilledVariable(`$any`: Any?): Any? = null
+ */

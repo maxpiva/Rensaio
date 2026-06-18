@@ -307,9 +307,9 @@ next-env.d.ts
 
 /runtime/
 
-KaizokuBackend/runtime/kaizoku.schedule.db-wal
-/KaizokuBackend/wwwroot.sha256
-/KaizokuBackend/wwwroot.zip
+RensaioBackend/runtime/rensaio.schedule.db-wal
+/RensaioBackend/wwwroot.sha256
+/RensaioBackend/wwwroot.zip
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/AndroidCompat/lib
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/.gradle
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/build/reports/problems

@@ -1,0 +1,662 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rensaiō - Series Manager Powered by Mihon Extensions</title>
+  <meta name="description" content="Rensaiō is a modern series manager that automatically downloads chapters from your configured providers. Powered by Mihon extensions." />
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #e4e4e7;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0a0a0a; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 80px 0; }
+    .section-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #9f1239, #f43f5e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .section-subtitle {
+      font-size: 1.05rem;
+      color: #a1a1aa;
+      max-width: 640px;
+      margin-bottom: 48px;
+    }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #27272a, transparent);
+      border: none;
+    }
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 20%, rgba(159,18,57,.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, rgba(244,63,94,.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .hero-logo {
+      width: 140px;
+      height: 140px;
+      margin-bottom: 24px;
+      filter: drop-shadow(0 0 40px rgba(244,63,94,.25));
+      animation: float 6s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .hero-logo-name {
+      max-width: 420px;
+      width: 100%;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, #9f1239, #f43f5e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: #a1a1aa;
+      max-width: 600px;
+      margin-bottom: 32px;
+    }
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 100px;
+      font-size: .875rem;
+      font-weight: 500;
+      background: #18181b;
+      color: #d4d4d8;
+      border: 1px solid #27272a;
+      text-decoration: none;
+      transition: all .2s;
+    }
+    .badge:hover {
+      background: #27272a;
+      border-color: #3f3f46;
+      transform: translateY(-1px);
+    }
+    .badge.primary {
+      background: linear-gradient(135deg, #881337, #e11d48);
+      color: #fff;
+      border: none;
+    }
+    .badge.primary:hover {
+      filter: brightness(1.15);
+    }
+    .tagline {
+      text-align: center;
+      font-size: 1.25rem;
+      color: #a1a1aa;
+      font-weight: 300;
+      margin: 0 auto;
+    }
+    .tagline strong { color: #e4e4e7; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: all .25s;
+    }
+    .feature-card:hover {
+      border-color: #3f3f46;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .feature-card .icon {
+      font-size: 1.75rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f4f4f5;
+    }
+    .feature-card p {
+      font-size: .9rem;
+      color: #a1a1aa;
+      line-height: 1.6;
+    }
+    .feature-card ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+      margin: 0;
+    }
+    .feature-card li {
+      font-size: .9rem;
+      color: #a1a1aa;
+      line-height: 1.7;
+      margin-bottom: 2px;
+    }
+    .feature-card li strong { color: #d4d4d8; }
+    .feature-card code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      background: #0a0a0a;
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: #fb7185;
+      border: 1px solid #27272a;
+    }
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .arch-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .arch-card .arch-icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+    }
+    .arch-card h3 { font-weight: 600; margin-bottom: 6px; }
+    .arch-card p { font-size: .9rem; color: #a1a1aa; }
+    .code-block {
+      background: #0f0f11;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .85rem;
+      line-height: 1.7;
+      overflow-x: auto;
+      color: #d4d4d8;
+    }
+    .docker-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 800px) { .docker-grid { grid-template-columns: 1fr; } }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    thead th {
+      text-align: left;
+      padding: 12px 16px;
+      font-weight: 600;
+      color: #a1a1aa;
+      border-bottom: 1px solid #27272a;
+      background: #18181b;
+    }
+    thead th:first-child { border-radius: 12px 0 0 0; }
+    thead th:last-child { border-radius: 0 12px 0 0; }
+    tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #1f1f22;
+      color: #d4d4d8;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    footer {
+      text-align: center;
+      padding: 48px 24px;
+      color: #52525b;
+      font-size: .875rem;
+    }
+    footer a { color: #fb7185; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .fade-in {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity .7s ease-out, transform .7s ease-out;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2rem; }
+      .hero-logo { width: 100px; height: 100px; }
+      .hero-logo-name { max-width: 280px; }
+      .section-title { font-size: 1.5rem; }
+      .section { padding: 48px 0; }
+      .features-grid { grid-template-columns: 1fr; }
+      .arch-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <section class="hero">
+    <img src="assets/rensaiow.png" alt="Rensaiō" class="hero-logo-name" width="420" height="auto" />
+    <h1>Your Series, <span>Automated</span></h1>
+    <p>Subscribe to a series once, Rensaiō automatically downloads new chapters from your configured providers. Set it and forget it.</p>
+    <div class="hero-badges">
+      <a class="badge primary" href="https://github.com/maxpiva/rensaio" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+      <a class="badge" href="https://hub.docker.com/r/maxpiva/rensaio" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13.983 11.78h-2.188v-2.18h2.188v2.18zm0-3.373h-2.188V6.22h2.188v2.187zm3.412 3.373h-2.188v-2.18h2.188v2.18zm0-3.373h-2.188V6.22h2.188v2.187zm3.373 3.373h-2.188v-2.18h2.188v2.18zm0-3.373h-2.188V6.22h2.188v2.187zm-6.744 6.745h-2.188v-2.18h2.188v2.18zM13.983 24C8.366 24 3.78 20.108 3.78 15.22 3.78 14.07 4.2 13.1 4.8 12.28c.4-.6 1.2-1.2 1.2-2.2 0-1.4 1.2-2.8 2.8-3.4 1.6-.6 3.2-.2 4.4.6.4-1.6 1.6-2.8 3.2-3.4 1.6-.6 3.4-.2 4.4 1 .6.8 1 2 1 3.2 0 1.4-.4 2.6-1.2 3.6-.4.6-1 1.2-1 2 0 1.2-.8 2.2-2 3-1.2.8-2.6 1.2-4.2 1.2v.4z"/></svg>
+        Docker Hub
+      </a>
+      <a class="badge" href="https://github.com/maxpiva/rensaio/releases" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        Downloads
+      </a>
+      <a class="badge" href="https://discord.gg/AvhtPPV8" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.054C2.552 7.297 2.21 10.165 2.38 12.994a.071.071 0 0 0 .027.05 19.9 19.9 0 0 0 5.987 3.029.074.074 0 0 0 .08-.026c.462-.632.875-1.295 1.226-1.994a.072.072 0 0 0-.04-.1 13.116 13.116 0 0 1-1.872-.892.075.075 0 0 1-.018-.123c.126-.094.252-.192.372-.292a.072.072 0 0 1 .075-.01 13.583 13.583 0 0 0 11.384 0 .072.072 0 0 1 .076.01c.12.1.246.198.372.292a.075.075 0 0 1-.017.123c-.6.357-1.23.655-1.873.892a.072.072 0 0 0-.04.1c.36.697.77 1.36 1.226 1.993a.075.075 0 0 0 .08.027 19.88 19.88 0 0 0 6.002-3.03.072.072 0 0 0 .027-.05c.206-3.167-.396-6.012-1.975-8.57a.066.066 0 0 0-.032-.054zM8.02 10.96c-.694 0-1.258-.637-1.258-1.418 0-.78.547-1.418 1.258-1.418.718 0 1.275.646 1.258 1.418 0 .78-.54 1.418-1.258 1.418zm7.963 0c-.694 0-1.258-.637-1.258-1.418 0-.78.547-1.418 1.258-1.418.718 0 1.275.646 1.258 1.418 0 .78-.547 1.418-1.258 1.418z"/></svg>
+        Discord
+      </a>
+    </div>
+    <div style="margin-top:48px">
+      <a href="#features" style="color:#71717a;font-size:.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:6px;animation:bounce 2s infinite;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        Explore
+      </a>
+    </div>
+  </section>
+
+  <!-- TAGLINE -->
+  <div class="container">
+    <p class="tagline">
+      <strong>Rensaiō</strong> a modern take of a Series Manager Powered by <strong>Mihon extensions</strong>.
+    </p>
+  </div>
+
+  <hr class="divider" style="margin:64px 0" />
+
+  <!-- FEATURES -->
+  <section class="container section" id="features">
+    <h2 class="section-title">Key Features</h2>
+    <p class="section-subtitle">Everything you need to manage your manga & comic library automatically.</p>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <span class="icon">🧙‍♂️</span>
+        <h3>Startup Wizard</h3>
+        <p>Automatically imports your existing library on first run — no tedious setup.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🔁</span>
+        <h3>Temporary vs Permanent Sources</h3>
+        <p>Chapters are only downloaded from <strong>temporary</strong> sources when no permanent source is available. Auto-deleted when a permanent source provides them.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🔎</span>
+        <h3>Multi-Search & Multi-Linking</h3>
+        <p>Search and link one series to <strong>multiple sources / providers</strong> simultaneously.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">📥</span>
+        <h3>Automatic Downloads</h3>
+        <p>Everything is automatic — retries, reschedules, with a dedicated download page.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🔄</span>
+        <h3>Auto-Updates</h3>
+        <p>Extensions are kept up to date automatically so you never miss a release.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">👥</span>
+        <h3>Multi-User System</h3>
+        <ul>
+          <li>Create separate accounts with different permission levels</li>
+          <li>Invite people and control who has access to what</li>
+          <li>Optionally enable authentication to restrict access to authorized users only</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🩺</span>
+        <h3>Status & Health Dashboard</h3>
+        <ul>
+          <li>A dedicated page that shows which series and providers need attention</li>
+          <li>Color-coded alerts (<strong>green</strong> / <strong>yellow</strong> / <strong>red</strong>) help you spot issues at a glance</li>
+          <li>See broken providers, stale series with no new chapters, and more</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">📡</span>
+        <h3>OPDS Server</h3>
+        <ul>
+          <li>Read your library from any OPDS-compatible reader app</li>
+          <li>Browse by all series, what's new, what you're currently reading, categories, and tags</li>
+          <li>Reading progress syncs back automatically</li>
+          <li>Each user gets their own unique random OPDS path (e.g. <code>door-pebble</code>) for private access</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🤖</span>
+        <h3>MCP Server (AI Integration)</h3>
+        <ul>
+          <li>Expose your library to AI tools through the Model Context Protocol</li>
+          <li>Let LLMs search your series, check status, and more — all respecting user permissions</li>
+          <li>Just add <code>/mcp</code> to your OPDS path: <code>https://rensaio.example.com/door-pebble/mcp</code></li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">📖</span>
+        <h3>Read State Tracking</h3>
+        <ul>
+          <li>Remembers where you left off reading each chapter, across all your devices</li>
+          <li>Backed in your series, not the database</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🔗</span>
+        <h3>External Scrobbler Sync</h3>
+        <ul>
+          <li>Sync your reading progress with external trackers</li>
+          <li>Supported providers: <strong>AniList</strong>, <strong>MyAnimeList</strong>, <strong>Kitsu</strong>, <strong>MangaDex</strong></li>
+          <li>Each user controls their own connections and sync settings</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🧹</span>
+        <h3>Filename Normalization</h3>
+        <p>Rebuild your library easily with consistent naming, that will help you reimport it back when needed.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🧾</span>
+        <h3>ComicInfo.xml Injection</h3>
+        <p>Chapters include rich metadata from the original source.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="icon">🖼️</span>
+        <h3>Extras</h3>
+        <ul>
+          <li>Stores <code>cover.jpg</code> per series</li>
+          <li>Stores <code>rensaio.json</code> for full metadata mapping, and read-state stored with your series</li>
+          <li>External Domain Support for reverse proxy scenarios</li>
+          <li>Support for <strong>jxl</strong>, <strong>jp2</strong>, <strong>avif</strong> image formats, with real-time transcoding for clients not supporting them</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ARCHITECTURE -->
+  <section class="container section">
+    <h2 class="section-title">Under the Hood</h2>
+    <p class="section-subtitle">Rensaiō is composed of these core components working together.</p>
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-icon">🎨</div>
+        <h3>Frontend</h3>
+        <p>A beautiful Next.js UI forked from Kaizoku Next by OAE.</p>
+      </div>
+      <div class="arch-card">
+        <div class="arch-icon">⚙️</div>
+        <h3>Backend</h3>
+        <p>A custom .NET engine managing schedules, downloads, metadata, OPDS / MCP servers, and scrobbler sync.</p>
+      </div>
+      <div class="arch-card">
+        <div class="arch-icon">🔌</div>
+        <h3>Mihon Bridge</h3>
+        <p>Enables the use of Mihon Android extensions on .NET through IKVM and the Java Android compatibility layer.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- DOCKER -->
+  <section class="container section">
+    <h2 class="section-title">Docker Quick Start</h2>
+    <p class="section-subtitle">Available for both <strong>amd64</strong> and <strong>arm64</strong>. Get up and running in minutes.</p>
+
+    <div style="display:grid;gap:8px;margin-bottom:32px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:#f4f4f5">9833</div>
+        <div style="font-size:.8rem;color:#a1a1aa">Port (UI)</div>
+      </div>
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:#f4f4f5">/config</div>
+        <div style="font-size:.8rem;color:#a1a1aa">Config Volume</div>
+      </div>
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:#f4f4f5">/series</div>
+        <div style="font-size:.8rem;color:#a1a1aa">Series Volume</div>
+      </div>
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:#f4f4f5">022</div>
+        <div style="font-size:.8rem;color:#a1a1aa">UMASK</div>
+      </div>
+    </div>
+
+    <div class="docker-grid">
+      <div>
+        <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px;color:#d4d4d8">One-Liner</h3>
+        <div class="code-block">
+docker run -d \ <span style="color:#6b7280"># detached</span><br />
+  --name Rensaio \<br />
+  --network host \<br />
+  -p 9833:9833 \<br />
+  -e <span style="color:#a78bfa">UID</span>=<span style="color:#34d399">99</span> \<br />
+  -e <span style="color:#a78bfa">PGID</span>=<span style="color:#34d399">100</span> \<br />
+  -e <span style="color:#a78bfa">UMASK</span>=<span style="color:#34d399">022</span> \<br />
+  -v <span style="color:#fbbf24">/path/to/config</span>:<span style="color:#34d399">/config</span> \<br />
+  -v <span style="color:#fbbf24">/path/to/series</span>:<span style="color:#34d399">/series</span> \<br />
+  maxpiva/rensaio:latest
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px;color:#d4d4d8">Docker Compose</h3>
+        <div class="code-block">
+<span style="color:#6b7280"># docker-compose.yml</span><br />
+services:<br />
+  rensaio:<br />
+    container_name: rensaio<br />
+    image: <span style="color:#34d399">'maxpiva/rensaio:latest'</span><br />
+    volumes:<br />
+      - <span style="color:#fbbf24">/path/to/series</span>:<span style="color:#34d399">/series</span><br />
+      - <span style="color:#fbbf24">/path/to/config</span>:<span style="color:#34d399">/config</span><br />
+    environment:<br />
+      - <span style="color:#a78bfa">UMASK</span>=<span style="color:#34d399">022</span><br />
+      - <span style="color:#a78bfa">PGID</span>=<span style="color:#34d399">100</span><br />
+      - <span style="color:#a78bfa">UID</span>=<span style="color:#34d399">99</span><br />
+    ports:<br />
+      - <span style="color:#34d399">'9833:9833'</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- PERMISSIONS -->
+  <section class="container section">
+    <h2 class="section-title">Permissions</h2>
+    <p class="section-subtitle">Ensure the specified UID and PGID have write access to your mounted <code>/config</code> and <code>/series</code> directories.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>UID</code></td><td>99</td><td>Host user ID</td></tr>
+          <tr><td><code>PGID</code></td><td>100</td><td>Host group ID</td></tr>
+          <tr><td><code>UMASK</code></td><td>022</td><td>File permission mask (default)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- UNRAID -->
+  <section class="container section">
+    <h2 class="section-title">Unraid Template</h2>
+    <p class="section-subtitle">Ready-to-use XML template for Unraid users.</p>
+
+    <div style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px 24px;overflow-x:auto;">
+      <pre class="code-block" style="border:none;margin:0;white-space:pre-wrap;word-break:break-word;">&lt;Container&gt;
+  &lt;Name&gt;Rensaiō&lt;/Name&gt;
+  &lt;Repository&gt;maxpiva/rensaio:latest&lt;/Repository&gt;
+  &lt;Registry&gt;https://hub.docker.com/r/maxpiva/rensaio&lt;/Registry&gt;
+  &lt;Network&gt;host&lt;/Network&gt;
+  &lt;MyID&gt;rensaio&lt;/MyID&gt;
+  &lt;Shell&gt;sh&lt;/Shell&gt;
+  &lt;Privileged&gt;false&lt;/Privileged&gt;
+  &lt;Support&gt;https://github.com/maxpiva/rensaio/issues&lt;/Support&gt;
+  &lt;Project&gt;https://github.com/maxpiva/rensaio&lt;/Project&gt;
+  &lt;Overview&gt;Rensaiō – a feature-complete series manager powered by Mihon extensions. &lt;/Overview&gt;
+  &lt;Category&gt;MediaManager:Comics&lt;/Category&gt;
+
+  &lt;Config Name=&quot;Config Folder&quot; Target=&quot;/config&quot; Default=&quot;/mnt/user/appdata/rensaio&quot; Mode=&quot;rw&quot; Description=&quot;Path to store configuration, database, and settings.&quot; Type=&quot;Path&quot; /&gt;
+  &lt;Config Name=&quot;Series Folder&quot; Target=&quot;/series&quot; Default=&quot;/mnt/user/media/series&quot; Mode=&quot;rw&quot; Description=&quot;Path where series and chapters will be downloaded.&quot; Type=&quot;Path&quot; /&gt;
+
+  &lt;Config Name=&quot;UID&quot; Target=&quot;UID&quot; Default=&quot;99&quot; Mode=&quot;rw&quot; Description=&quot;User ID to run the container as.&quot; Type=&quot;Variable&quot; /&gt;
+  &lt;Config Name=&quot;PGID&quot; Target=&quot;PGID&quot; Default=&quot;100&quot; Mode=&quot;rw&quot; Description=&quot;Group ID to run the container as.&quot; Type=&quot;Variable&quot; /&gt;
+  &lt;Config Name=&quot;UMASK&quot; Target=&quot;UMASK&quot; Default=&quot;022&quot; Mode=&quot;rw&quot; Description=&quot;UMASK for file permissions.&quot; Type=&quot;Variable&quot; /&gt;
+
+  &lt;WebUI&gt;http://[IP]:9833&lt;/WebUI&gt;
+
+  &lt;TemplateURL&gt;https://raw.githubusercontent.com/maxpiva/rensaio/main/unraid/rensaio.xml&lt;/TemplateURL&gt;
+  &lt;Icon&gt;https://raw.githubusercontent.com/maxpiva/rensaio/refs/heads/main/RensaioFrontend/public/rensaio.png&lt;/Icon&gt;
+&lt;/Container&gt;</pre>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- RESOURCES -->
+  <section class="container section">
+    <h2 class="section-title">Resource Usage</h2>
+    <div style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:28px 24px;">
+      <p style="font-size:1rem;color:#d4d4d8;line-height:1.7">
+        ⚠️ <strong>Rensaiō</strong> can be <strong>memory-intensive</strong>,
+        especially when managing large libraries or performing parallel searches and downloads.
+        Plan your deployment accordingly.
+      </p>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- CONTRIBUTING -->
+  <section class="container section">
+    <h2 class="section-title">Contributing</h2>
+    <div style="display:grid;gap:16px">
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:28px 24px">
+        <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:8px;color:#f4f4f5">🎨 Frontend Devs — You're Needed 🙏</h3>
+        <p style="color:#a1a1aa">Help clean up the mess left behind by our overenthusiastic friends, Copilot, Claude and ~~Fable~~ (banned).</p>
+      </div>
+      <div style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:28px 24px">
+        <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:8px;color:#f4f4f5">⚙️ Backend Devs — PRs Welcome</h3>
+        <p style="color:#a1a1aa">PRs are welcome to improve stability and architecture.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- FOOTER -->
+  <footer>
+    <p>
+      <a href="https://github.com/maxpiva/rensaio" target="_blank" rel="noopener">Rensaiō on GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://hub.docker.com/r/maxpiva/rensaio" target="_blank" rel="noopener">Docker Hub</a>
+      &nbsp;·&nbsp;
+      <a href="https://discord.gg/AvhtPPV8" target="_blank" rel="noopener">Discord</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/maxpiva/rensaio/issues" target="_blank" rel="noopener">Report an Issue</a>
+    </p>
+    <p style="margin-top:12px">Rensaiō a modern take of a Series Manager Powered by Mihon extensions</p>
+  </footer>
+
+  <!-- SCROLL ANIMATIONS -->
+  <script>
+    (function() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+      const cards = document.querySelectorAll('.feature-card, .arch-card, .docker-grid > div, .code-block, table, pre, .table-wrap, [style*="background:#18181b"]');
+      cards.forEach((el, i) => {
+        el.classList.add('fade-in');
+        el.style.transitionDelay = (i % 6) * 80 + 'ms';
+        observer.observe(el);
+      });
+    })();
+  </script>
+</body>
+</html>

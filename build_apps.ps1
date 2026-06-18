@@ -1,7 +1,7 @@
-$backendPath = "./KaizokuBackend"
-$trayPath = "./KaizokuTray"
-$project = "KaizokuBackend.csproj"
-$projectTray = "KaizokuTray.csproj"
+$backendPath = "./RensaioBackend"
+$trayPath = "./RensaioTray"
+$project = "RensaioBackend.csproj"
+$projectTray = "RensaioTray.csproj"
 
 $trayOutputBase = "bin/App"
 
@@ -33,15 +33,15 @@ foreach ($rid in $runtimeIds) {
 
 # Remove unneeded runtimeconfig.json
 foreach ($rid in $runtimeIds) {
-    $jsonPath = "$trayOutputBase/$rid/KaizokuBackend.runtimeconfig.json"
+    $jsonPath = "$trayOutputBase/$rid/RensaioBackend.runtimeconfig.json"
     if (Test-Path $jsonPath) {
         Remove-Item $jsonPath -Force
     }
 }
 
 
-$trayBaseName = "KaizokuTray"
-$finalName = "Kaizoku.NET"
+$trayBaseName = "RensaioTray"
+$finalName = "Rensaio"
 
 $version = $null
 
@@ -72,7 +72,7 @@ foreach ($rid in $runtimeIds) {
 # Create ZIPs using the retrieved version
 foreach ($rid in $runtimeIds) {
     $outputPath = "$trayOutputBase/$rid"
-    $zipName = "bin/Kaizoku.NET-$rid-v$version.zip"
+    $zipName = "bin/Rensaio-$rid-v$version.zip"
 
     if (Test-Path $zipName) {
         Remove-Item $zipName -Force

@@ -1,0 +1,48 @@
+name = "rensaio-oauth-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# Custom domain route — auth.rensaio.net
+routes = [
+  { pattern = "auth.rensaio.net/*", zone_id = "618dd986bbb822c7977287c05b4f5e16" }
+]
+
+# D1 database binding for token store
+[[d1_databases]]
+binding = "DB"
+database_name = "rensaio-oauth-proxy"
+database_id = "31db3309-4622-4a41-a5e2-857c47746aca"
+
+# Hourly cleanup of expired OAuth sessions
+[triggers]
+crons = ["0 * * * *"]
+
+# Client IDs (public) — set via wrangler.toml vars
+[vars]
+PROXY_ANILIST_CLIENT_ID = "14568"
+PROXY_MYANIMELIST_CLIENT_ID = "208854d17ce70fa931eb4b431df7f374"
+PROXY_KITSU_CLIENT_ID = ""
+PROXY_MANGADEX_CLIENT_ID = ""
+
+# Client Secrets (sensitive) — set via: wrangler secret put PROXY_ANILIST_CLIENT_SECRET
+#   wrangler secret put PROXY_ANILIST_CLIENT_SECRET
+#   wrangler secret put PROXY_MYANIMELIST_CLIENT_SECRET
+#   wrangler secret put PROXY_KITSU_CLIENT_SECRET
+#   wrangler secret put PROXY_MANGADEX_CLIENT_SECRET
+
+[env.dev]
+vars = { PROXY_ANILIST_CLIENT_ID = "dev_anilist_id", PROXY_MYANIMELIST_CLIENT_ID = "dev_mal_id", PROXY_KITSU_CLIENT_ID = "dev_kitsu_id", PROXY_MANGADEX_CLIENT_ID = "dev_mangadex_id" }
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

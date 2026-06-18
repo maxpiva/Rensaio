@@ -202,7 +202,7 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
         {
             if (_initialized)
             {
-                _logger.LogWarning("Bridge Manager is already initialized.");
+                _logger.LogInformation("Bridge Manager is already initialized.");
                 return;
             }
             _logger.LogInformation("Bridge Manager initializing...");

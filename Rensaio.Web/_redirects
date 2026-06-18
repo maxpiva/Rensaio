@@ -1,0 +1,6 @@
+# Cloudflare Pages redirects
+# Redirect root to the main page (no-op, but explicit)
+/  / 200
+
+# Redirect old favicon paths if needed
+/favicon.ico  /favicon.ico 200

@@ -1,5 +1,5 @@
-$frontendPath = "./KaizokuFrontend"
-$backendPath = "./KaizokuBackend"
+$frontendPath = "./RensaioFrontend"
+$backendPath = "./RensaioBackend"
 
 $frontendOutput = Join-Path $frontendPath "out"
 $backendWWWZip = Join-Path $backendPath "wwwroot.zip"

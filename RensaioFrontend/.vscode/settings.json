@@ -1,0 +1,10 @@
+{
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "rensaio",
+      "database": "${workspaceFolder:rensaio}/db.sqlite"
+    }
+  ]
+}

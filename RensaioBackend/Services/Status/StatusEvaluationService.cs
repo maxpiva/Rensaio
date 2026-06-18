@@ -129,6 +129,31 @@ public class StatusEvaluationService
 
         double daysSinceLastChapter = (DateTime.UtcNow - series.LastChapterDate.Value).TotalDays;
 
+        // Check if the alert was recently dismissed (suppression period = one cadence cycle).
+        // When the user dismisses an alert, we honor that decision and won't recreate it
+        // until at least one full cadence period has elapsed since the dismissal.
+        var lastResolvedAlert = await _db.HealthStatuses
+            .Where(h => h.TargetType == HealthStatusTargetType.Series
+                        && h.TargetId == series.Id
+                        && !h.IsActive
+                        && h.ResolvedAt != null)
+            .OrderByDescending(h => h.ResolvedAt)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(token)
+            .ConfigureAwait(false);
+
+        if (lastResolvedAlert?.ResolvedAt != null)
+        {
+            DateTime suppressionDeadline = lastResolvedAlert.ResolvedAt.Value.AddDays(estimatedCadenceDays);
+            if (DateTime.UtcNow < suppressionDeadline)
+            {
+                _logger.LogDebug(
+                    "Series {SeriesId} alert was dismissed at {ResolvedAt}, suppression active until {Deadline} ({Cadence:F1} days)",
+                    series.Id, lastResolvedAlert.ResolvedAt, suppressionDeadline, estimatedCadenceDays);
+                return;
+            }
+        }
+
         // Check for RED: no active sources AND past red threshold
         if (activeProviders.Count == 0 && daysSinceLastChapter >= estimatedCadenceDays * settings.ReleaseCadenceMultiplierRed)
         {

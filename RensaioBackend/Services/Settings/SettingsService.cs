@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Mihon.ExtensionsBridge.Models;
 using Mihon.ExtensionsBridge.Models.Abstractions;
 using System.ComponentModel;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -74,13 +75,13 @@ namespace RensaioBackend.Services.Settings
                         setting.Value = p.GetValue(editableSettings)?.ToString() ?? "0";
                         break;
                     case "float":
-                        setting.Value = p.GetValue(editableSettings)?.ToString() ?? "0";
+                        setting.Value = ((float)(p.GetValue(editableSettings) ?? 0f)).ToString(CultureInfo.InvariantCulture) ?? "0";
                         break;
                     case "double":
-                        setting.Value = p.GetValue(editableSettings)?.ToString() ?? "0";
+                        setting.Value = ((double)(p.GetValue(editableSettings) ?? 0d)).ToString(CultureInfo.InvariantCulture) ?? "0";
                         break;
                     case "decimal":
-                        setting.Value = p.GetValue(editableSettings)?.ToString() ?? "0";
+                        setting.Value = ((decimal)(p.GetValue(editableSettings) ?? 0m)).ToString(CultureInfo.InvariantCulture) ?? "0";
                         break;
                     case "boolean":
                         setting.Value = p.GetValue(editableSettings)?.ToString() ?? "false";
@@ -135,13 +136,13 @@ namespace RensaioBackend.Services.Settings
                 switch (propType)
                 {
                     case "float":
-                        p.SetValue(newEditableSettings, float.TryParse(setting.Value, out float floatValue) ? floatValue : 0f);
+                        p.SetValue(newEditableSettings, float.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue) ? floatValue : 0f);
                         break;
                     case "double":
-                        p.SetValue(newEditableSettings, double.TryParse(setting.Value, out double doubleValue) ? doubleValue : 0d);
+                        p.SetValue(newEditableSettings, double.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue) ? doubleValue : 0d);
                         break;
                     case "decimal":
-                        p.SetValue(newEditableSettings, decimal.TryParse(setting.Value, out decimal decimalValue) ? decimalValue : 0m);
+                        p.SetValue(newEditableSettings, decimal.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal decimalValue) ? decimalValue : 0m);
                         break;
                     case "string":
                         p.SetValue(newEditableSettings, setting.Value);

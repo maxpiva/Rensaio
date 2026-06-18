@@ -4,6 +4,22 @@ import "@/styles/globals.css";
 import React from "react";
 
 import { GeistSans } from "geist/font/sans";
+import { Fraunces, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "sonner";
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+  axes: ["opsz"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${GeistSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <title>Rensaiō</title>
         <meta name="description" content="Series Downloader" />
@@ -85,6 +101,7 @@ export default function RootLayout({
                       <ClientSideSetupWizard />
                       <ImportWizard />
                       {children}
+                      <Toaster position="top-center" richColors />
                     </SearchProvider>
                   </ImportWizardProvider>
                 </SetupWizardProvider>

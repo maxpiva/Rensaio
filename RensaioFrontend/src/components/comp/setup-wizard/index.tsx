@@ -4,7 +4,7 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Step, Stepper, type StepItem } from "@/components/ui/stepper";
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, Settings, File, CheckSquare, Flag, Sliders, Clock, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, Settings, File, CheckSquare, Flag, Sliders, Clock, User, X } from "lucide-react";
 import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
 
 // Import step components
@@ -67,9 +67,10 @@ export function SetupWizard() {
   const [disableDownloads, setDisableDownloads] = React.useState(false);
   const [autoCreatedUsers, setAutoCreatedUsers] = React.useState<string[]>([]);
   const [usersAutoCreated, setUsersAutoCreated] = React.useState(false);
-  // Once the (long-running) import has started it runs in the background, so allow the
-  // user to close the wizard and keep using the app. The import survives reloads.
-  const [importStarted, setImportStarted] = React.useState(false);
+  // Once a long-running step (scan/search or the final import) has started, the work runs
+  // on the server, so allow the user to close (minimize) the wizard and keep using the app.
+  // The work survives reloads and progress is shown in a floating pill.
+  const [canMinimize, setCanMinimize] = React.useState(false);
 
   if (!isWizardActive) {
     return null;
@@ -78,25 +79,38 @@ export function SetupWizard() {
   return (<Dialog
     open={true}
     onOpenChange={(open) => {
-      // Once the import has started, the X button minimizes the wizard (it does NOT
-      // complete it) so the import can keep running in the background while the user
-      // uses the app. They reopen it from the floating pill to finish the remaining steps.
-      if (!open && importStarted) {
+      // Once a long-running step has started, the X button minimizes the wizard (it does
+      // NOT complete it) so the work can keep running in the background while the user uses
+      // the app. They reopen it from the floating pill to finish the remaining steps.
+      if (!open && canMinimize) {
         minimizeWizard();
       }
     }}
     modal
   >
+    {/* The built-in (top-right) close button is absolutely positioned and would scroll away
+        on mobile's single-scroll layout, so it's only used on desktop (and only once the
+        wizard can be minimized). Mobile gets its own sticky minimize button in the header. */}
     <DialogContent
-      className={`w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] sm:min-h-[85vh] flex flex-col overflow-hidden ${importStarted ? '' : '[&>button]:hidden'}`}
+      className={`w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] sm:min-h-[85vh] flex flex-col overflow-hidden max-[768px]:overflow-y-auto max-[768px]:overflow-x-hidden [&>button]:hidden ${canMinimize ? 'min-[769px]:[&>button]:flex' : ''}`}
       onInteractOutside={(e) => e.preventDefault()}
       onEscapeKeyDown={(e) => e.preventDefault()}
-    >        <DialogHeader>
+    >        <DialogHeader className="relative max-[768px]:sticky max-[768px]:top-0 max-[768px]:z-20 max-[768px]:bg-background max-[768px]:pb-2">
         <DialogTitle>Import Wizard</DialogTitle>
         <DialogDescription>
           Configure your Rensaiō installation by following these steps to set up preferences, add sources, and import existing series.
         </DialogDescription>
-      </DialogHeader><div className="flex w-full flex-col gap-4 min-w-0 flex-1 min-h-0 overflow-hidden">          <Stepper
+        {canMinimize && (
+          <button
+            type="button"
+            onClick={() => minimizeWizard()}
+            aria-label="Minimize wizard"
+            className="min-[769px]:hidden absolute right-0 top-0 -m-1 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </DialogHeader><div className="flex w-full flex-col gap-4 min-w-0 flex-1 min-h-0 overflow-hidden max-[768px]:flex-none max-[768px]:min-h-0 max-[768px]:overflow-visible">          <Stepper
         initialStep={0}
         activeStep={currentStep}
         steps={Object.values(steps)}
@@ -106,10 +120,9 @@ export function SetupWizard() {
         responsive={true}
         state={isLoading ? "loading" : error ? "error" : undefined}
         styles={{
-          // On mobile the stepper switches to a vertical layout. Make that area the single
-          // scroll region so tall steps (e.g. Add Sources) don't push the footer off-screen,
-          // and so the Next/Back buttons stay visible.
-          "main-container": "max-[768px]:flex-1 max-[768px]:min-h-0 max-[768px]:overflow-y-auto max-[768px]:overflow-x-hidden",
+          // On mobile the whole dialog scrolls as one container (see DialogContent) with a
+          // sticky footer, so the stepper area must not create its own nested scroll region.
+          "main-container": "max-[768px]:overflow-visible",
           // Hide the vertical connector line on mobile so it doesn't draw straight through
           // the active step's content.
           "vertical-step": "max-[768px]:after:hidden",
@@ -160,6 +173,7 @@ export function SetupWizard() {
             setError={setError}
             setIsLoading={setIsLoading}
             setCanProgress={setCanProgress}
+            onProcessStarted={() => setCanMinimize(true)}
           />
         </Step>
         {error && currentStep === 2 && (
@@ -211,7 +225,7 @@ export function SetupWizard() {
             setIsLoading={setIsLoading}
             setCanProgress={setCanProgress}
             disableDownloads={disableDownloads}
-            onImportStarted={() => setImportStarted(true)}
+            onImportStarted={() => setCanMinimize(true)}
             onUsersDetected={(users) => {
               setAutoCreatedUsers(users);
               setUsersAutoCreated(users.length > 0);
@@ -270,7 +284,7 @@ function Footer({ currentStep, totalSteps, canProgress, isLoading, onNext, onPre
   const isLastStep = currentStep === totalSteps - 1;
 
   return (
-    <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0">
+    <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0 max-[768px]:sticky max-[768px]:bottom-0 max-[768px]:z-10 max-[768px]:bg-background max-[768px]:pb-1">
       <Button
         variant="outline"
         onClick={onPrevious}

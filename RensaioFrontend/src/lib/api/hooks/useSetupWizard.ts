@@ -49,6 +49,15 @@ export function useSetupWizardImportStatus() {
   });
 }
 
+export function useSetupWizardStatus() {
+  return useMutation({
+    mutationFn: () => setupWizardService.getSetupStatus(),
+    onError: (error) => {
+      console.error('Get setup status error:', error);
+    },
+  });
+}
+
 export function useSetupWizardImportSeries() {
   const queryClient = useQueryClient();
   

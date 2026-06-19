@@ -4,17 +4,35 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Loader2, Maximize2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useSetupWizardImportStatus, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
+import { useSetupWizardStatus, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
 import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
-import { JobType } from "@/lib/api/types";
+import { JobType, type SetupJobStatusValue } from "@/lib/api/types";
+
+const SETUP_JOBS = [
+  JobType.ScanLocalFiles,
+  JobType.InstallAdditionalExtensions,
+  JobType.SearchProviders,
+  JobType.ImportSeries,
+];
+
+function jobLabel(job: JobType | null): string {
+  switch (job) {
+    case JobType.ScanLocalFiles: return "Scanning local files";
+    case JobType.InstallAdditionalExtensions: return "Installing sources";
+    case JobType.SearchProviders: return "Searching series";
+    case JobType.ImportSeries: return "Importing library";
+    default: return "Setting up your library";
+  }
+}
 
 /**
  * Floating indicator shown while the setup wizard is minimized.
  *
- * The series import can take hours, so the wizard lets the user close (minimize) it once
- * the import has started and keep using the app. This pill surfaces the import's progress
- * and, when clicked, re-opens the wizard so the user can finish the remaining setup steps
- * (the wizard is NOT completed by minimizing it). It resumes correctly after a page reload.
+ * The scan/search and the final import can each take a long time, so the wizard lets the
+ * user close (minimize) it once a long-running step has started and keep using the app.
+ * This pill surfaces the current step's progress and, when clicked, re-opens the wizard so
+ * the user can finish the remaining setup steps (minimizing does NOT complete the wizard).
+ * It resumes correctly after a page reload.
  */
 export function ImportProgressPill() {
   const { isWizardMinimized, reopenWizard } = useSetupWizard();
@@ -24,31 +42,43 @@ export function ImportProgressPill() {
 
 function ImportProgressPillInner({ reopen }: { reopen: () => void }) {
   const queryClient = useQueryClient();
-  const importStatusMutation = useSetupWizardImportStatus();
+  const statusMutation = useSetupWizardStatus();
 
+  const [currentJob, setCurrentJob] = useState<JobType | null>(null);
   const [done, setDone] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const handleComplete = useCallback(() => {
-    setDone(true);
-    // Refresh the library so newly imported series appear without a manual reload.
-    void queryClient.invalidateQueries({ queryKey: ["series", "library"] });
-  }, [queryClient]);
-
   const { getProgressForJob, getJobProgress } = useSignalRProgress({
-    jobTypes: [JobType.ImportSeries],
-    onComplete: handleComplete,
+    jobTypes: SETUP_JOBS,
+    onProgress: (p) => {
+      setCurrentJob(p.jobType);
+    },
+    onComplete: (jobType) => {
+      if (jobType === JobType.ImportSeries) {
+        setDone(true);
+        // Refresh the library so newly imported series appear without a manual reload.
+        void queryClient.invalidateQueries({ queryKey: ["series", "library"] });
+      }
+    },
     onError: () => setFailed(true),
   });
 
-  // On mount, sync with the server in case the import already finished/failed while away.
+  // On mount, sync with the server so the pill shows the right state after a reload.
   useEffect(() => {
     let cancelled = false;
-    importStatusMutation.mutateAsync()
+    const inFlight = (s: SetupJobStatusValue) => s === "Running" || s === "Waiting";
+    statusMutation.mutateAsync()
       .then((status) => {
         if (cancelled) return;
-        if (status.hasCompleted) setDone(true);
-        else if (status.hasFailed) setFailed(true);
+        if (status.importSeries === "Completed") {
+          setDone(true);
+          return;
+        }
+        // Pick the latest in-flight job to label the pill until SignalR sends updates.
+        if (inFlight(status.searchProviders)) setCurrentJob(JobType.SearchProviders);
+        else if (inFlight(status.installAdditionalExtensions)) setCurrentJob(JobType.InstallAdditionalExtensions);
+        else if (inFlight(status.scanLocalFiles)) setCurrentJob(JobType.ScanLocalFiles);
+        else if (inFlight(status.importSeries)) setCurrentJob(JobType.ImportSeries);
       })
       .catch(() => {
         // Keep showing the in-progress state if the status check fails.
@@ -57,17 +87,17 @@ function ImportProgressPillInner({ reopen }: { reopen: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const progressData = getProgressForJob(JobType.ImportSeries);
-  const progress = done ? 100 : getJobProgress(JobType.ImportSeries);
+  const progressData = currentJob !== null ? getProgressForJob(currentJob) : null;
+  const progress = done ? 100 : currentJob !== null ? getJobProgress(currentJob) : 0;
 
   const title = failed
-    ? "Import failed"
+    ? "Setup paused"
     : done
       ? "Import complete — finish setup"
-      : "Importing library";
+      : jobLabel(currentJob);
 
   const subtitle = failed
-    ? progressData?.errorMessage ?? "Reopen setup to retry."
+    ? progressData?.errorMessage ?? "Reopen setup to continue."
     : done
       ? "Tap to finish the remaining setup steps."
       : progressData?.message ?? "Running in the background — tap to reopen.";

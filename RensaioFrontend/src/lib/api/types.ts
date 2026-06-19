@@ -287,6 +287,15 @@ export interface ImportJobStatus {
   hasFailed: boolean;
 }
 
+export type SetupJobStatusValue = 'Running' | 'Waiting' | 'Completed' | 'Failed' | null;
+
+export interface SetupJobsStatus {
+  scanLocalFiles: SetupJobStatusValue;
+  installAdditionalExtensions: SetupJobStatusValue;
+  searchProviders: SetupJobStatusValue;
+  importSeries: SetupJobStatusValue;
+}
+
 export enum JobType {
   ScanLocalFiles = 0,
   InstallAdditionalExtensions = 1,

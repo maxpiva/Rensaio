@@ -28,6 +28,7 @@ import { AuthProvider } from "@/contexts/auth-context";
 import { SetupWizardProvider } from "@/components/providers/setup-wizard-provider";
 import { ImportWizardProvider } from "@/components/providers/import-wizard-provider";
 import { ClientSideSetupWizard } from "@/components/comp/setup-wizard/client-wrapper";
+import { ImportProgressPill } from "@/components/comp/setup-wizard/import-progress-pill";
 import { ImportWizard } from "@/components/comp/import-wizard";
 import { FontLoader } from "@/components/ui/font-loader";
 import { SearchProvider } from "@/contexts/search-context";
@@ -99,6 +100,7 @@ export default function RootLayout({
                     <SearchProvider>
                       <FontLoader />
                       <ClientSideSetupWizard />
+                      <ImportProgressPill />
                       <ImportWizard />
                       {children}
                       <Toaster position="top-center" richColors />

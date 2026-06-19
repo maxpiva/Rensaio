@@ -213,6 +213,19 @@ namespace RensaioBackend.Controllers
         {
             try
             {
+                // Idempotency guard: if an import is already running or queued, don't enqueue another one.
+                // This prevents a page reload (which re-mounts the wizard's final step) from restarting
+                // a long-running import from scratch.
+                bool alreadyActive = await _db.Queues
+                    .AnyAsync(q => q.JobType == JobType.ImportSeries &&
+                                   (q.Status == QueueStatus.Running || q.Status == QueueStatus.Waiting), token)
+                    .ConfigureAwait(false);
+
+                if (alreadyActive)
+                {
+                    return Ok(new { success = true, message = "Import Series already in progress", alreadyRunning = true });
+                }
+
                 await _jobManagementService.EnqueueJobAsync<bool>(JobType.ImportSeries, disableDownloads, Priority.High, null, null, null,"Default", token).ConfigureAwait(false);
                 return Ok(new { success = true, message = "Import Series Scheduled" });
             }
@@ -220,6 +233,46 @@ namespace RensaioBackend.Controllers
             {
                 _logger.LogError(ex, "Error scheduling Import Series");
                 return StatusCode(500, new { error = $"An error occurred during scheduling: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// GET /api/setup/import/status - Reports the current state of the series import job.
+        /// Lets the frontend reconnect to an in-progress import after a page reload instead of
+        /// restarting it, and lets a background progress indicator resume after a disconnect.
+        /// </summary>
+        [HttpGet("import/status")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> GetImportStatusAsync(CancellationToken token = default)
+        {
+            try
+            {
+                var latest = await _db.Queues
+                    .Where(q => q.JobType == JobType.ImportSeries)
+                    .OrderByDescending(q => q.EnqueuedDate)
+                    .Select(q => new { q.Status })
+                    .FirstOrDefaultAsync(token)
+                    .ConfigureAwait(false);
+
+                bool isRunning = latest?.Status == QueueStatus.Running;
+                bool isQueued = latest?.Status == QueueStatus.Waiting;
+                bool hasCompleted = latest?.Status == QueueStatus.Completed;
+                bool hasFailed = latest?.Status == QueueStatus.Failed;
+
+                return Ok(new
+                {
+                    isRunning,
+                    isQueued,
+                    isActive = isRunning || isQueued,
+                    hasCompleted,
+                    hasFailed
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving import status");
+                return StatusCode(500, new { error = $"An error occurred retrieving import status: {ex.Message}" });
             }
         }
 

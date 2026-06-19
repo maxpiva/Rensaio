@@ -4,8 +4,10 @@ import { apiClient } from '@/lib/api/client';
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, AlertCircle, Loader2, Flag } from "lucide-react";
-import { useSetupWizardImports, useSetupWizardImportSeriesWithOptions, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, AlertCircle, Loader2, Flag, MinusCircle } from "lucide-react";
+import { useSetupWizardImports, useSetupWizardImportSeriesWithOptions, useSetupWizardImportStatus, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
+import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
 import { JobType, ImportStatus } from "@/lib/api/types";
 
 // Custom hook to detect if scrollbar is visible
@@ -59,10 +61,16 @@ interface FinishStepProps {
 export function FinishStep({ setError, setIsLoading, setCanProgress, disableDownloads = false, onUsersDetected }: FinishStepProps) {
   const hasTriggeredImportRef = useRef(false);
   const [importCompleted, setImportCompleted] = useState(false);
+  // Whether we've checked the backend for an already-running import (after a reload).
+  const [statusChecked, setStatusChecked] = useState(false);
+  // True when we reconnected to an import that was already in progress (page reload / reconnect).
+  const [resumed, setResumed] = useState(false);
   const hasCheckedUsersRef = useRef(false);
   const { hasScrollbar, containerRef } = useScrollbarDetection();
   const { data: imports } = useSetupWizardImports();
   const importMutation = useSetupWizardImportSeriesWithOptions();
+  const importStatusMutation = useSetupWizardImportStatus();
+  const { nextStep } = useSetupWizard();
   const { getProgressForJob, isJobCompleted, isJobFailed, getJobProgress } = useSignalRProgress({
     jobTypes: [JobType.ImportSeries],
     onComplete: (jobType) => {
@@ -76,13 +84,44 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
     },
   });
 
+  // On mount, ask the backend whether an import is already running/queued/completed.
+  // This survives a page reload: instead of restarting the import from scratch we
+  // reconnect to the running job (or show the completed state).
+  useEffect(() => {
+    let cancelled = false;
+    importStatusMutation.mutateAsync()
+      .then((status) => {
+        if (cancelled) return;
+        if (status.isActive) {
+          // An import is already in progress on the server - resume monitoring, don't restart it.
+          hasTriggeredImportRef.current = true;
+          setResumed(true);
+        } else if (status.hasCompleted) {
+          // The import already finished (e.g. reloaded after completion) - show success.
+          hasTriggeredImportRef.current = true;
+          setImportCompleted(true);
+        }
+      })
+      .catch(() => {
+        // If the status check fails, fall back to the normal trigger behavior below.
+      })
+      .finally(() => {
+        if (!cancelled) setStatusChecked(true);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Single effect to handle import triggering
   useEffect(() => {
+    // Wait until we know whether an import is already running so a reload doesn't restart it.
+    if (!statusChecked) return;
+
     const alreadyCompleted = isJobCompleted(JobType.ImportSeries);
     const alreadyFailed = isJobFailed(JobType.ImportSeries);
     const progress = getJobProgress(JobType.ImportSeries);
     const alreadyRunning = progress > 0 && !alreadyCompleted && !alreadyFailed;
-    
+
     // Only trigger if we haven't already triggered and job isn't running/completed/failed
     if (!hasTriggeredImportRef.current && !alreadyCompleted && !alreadyRunning && !alreadyFailed) {
       hasTriggeredImportRef.current = true;
@@ -110,7 +149,7 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
         });
       }
     }
-  }, [imports, importMutation, setError, isJobCompleted, isJobFailed, getJobProgress]);
+  }, [statusChecked, imports, importMutation, setError, isJobCompleted, isJobFailed, getJobProgress]);
 
   // Check for auto-created users after import completes
   useEffect(() => {
@@ -153,7 +192,7 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
   const getStatusMessage = () => {
     if (isFailed) return "Import process failed";
     if (importCompleted || isJobCompleted(JobType.ImportSeries)) return "Import process completed successfully!";
-    if (isActive) return "Importing series...";
+    if (isActive) return resumed && progress === 0 ? "Resuming import..." : "Importing series...";
     return "Preparing to import series...";
   };
 
@@ -163,6 +202,9 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
     }
     if (isActive && progressData?.message) {
       return progressData.message;
+    }
+    if (isActive && resumed) {
+      return "Reconnected to an import that was already running on the server. It will keep running even if you reload or close this page.";
     }
     if (isFailed && progressData?.errorMessage) {
       return progressData.errorMessage;
@@ -178,7 +220,7 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
 
       <div 
         ref={containerRef}
-        className={`max-h-[60vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+        className={`max-h-[60vh] p-0.5 overflow-y-auto max-[768px]:max-h-none max-[768px]:overflow-visible ${hasScrollbar ? 'pr-2' : ''}`}
       >
         <div className="space-y-6">
           <Card className={`w-full ${isActive ? 'ring-2 ring-primary' : ''}`}>
@@ -204,6 +246,24 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
               {progressData?.errorMessage && (
                 <div className="text-sm text-destructive bg-destructive/10 p-3 rounded">
                   <strong>Error:</strong> {progressData.errorMessage}
+                </div>
+              )}
+
+              {isActive && (
+                <div className="space-y-2 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full min-h-[44px] gap-2"
+                    onClick={() => void nextStep()}
+                  >
+                    <MinusCircle className="h-4 w-4" />
+                    Continue in background
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    The import keeps running on the server. You can finish setup and use the app
+                    while it completes — progress shows in a floating indicator and survives reloads.
+                  </p>
                 </div>
               )}
             </CardContent>

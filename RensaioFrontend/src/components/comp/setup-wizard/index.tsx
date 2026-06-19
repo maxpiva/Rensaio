@@ -91,6 +91,17 @@ export function SetupWizard() {
         size="md"
         responsive={true}
         state={isLoading ? "loading" : error ? "error" : undefined}
+        styles={{
+          // On mobile the stepper switches to a vertical layout. Make that area the single
+          // scroll region so tall steps (e.g. Add Sources) don't push the footer off-screen,
+          // and so the Next/Back buttons stay visible.
+          "main-container": "max-[768px]:flex-1 max-[768px]:min-h-0 max-[768px]:overflow-y-auto max-[768px]:overflow-x-hidden",
+          // Hide the vertical connector line on mobile so it doesn't draw straight through
+          // the active step's content.
+          "vertical-step": "max-[768px]:after:hidden",
+          // Reclaim the icon-width indent on mobile so content uses the full width.
+          "vertical-step-content": "max-[768px]:ps-0 max-[768px]:w-full",
+        }}
       >
         <Step
           label={steps.preferences.label}
@@ -244,7 +255,7 @@ function Footer({ currentStep, totalSteps, canProgress, isLoading, onNext, onPre
   const isLastStep = currentStep === totalSteps - 1;
 
   return (
-    <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0">
+    <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0">
       <Button
         variant="outline"
         onClick={onPrevious}

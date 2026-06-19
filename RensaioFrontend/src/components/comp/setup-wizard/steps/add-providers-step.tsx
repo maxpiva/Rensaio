@@ -33,7 +33,7 @@ export default function AddProvidersStep({
   );
 
   return (
-    <div className="min-h-[90%] overflow-y-auto pr-1">
+    <div className="min-h-[90%] overflow-y-auto pr-1 max-[768px]:overflow-visible max-[768px]:pr-0">
       <SourcesList
         embedded
         description={

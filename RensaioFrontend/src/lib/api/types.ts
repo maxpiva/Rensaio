@@ -279,6 +279,14 @@ export interface ProgressState {
   errorMessage?: string;
 }
 
+export interface ImportJobStatus {
+  isRunning: boolean;
+  isQueued: boolean;
+  isActive: boolean;
+  hasCompleted: boolean;
+  hasFailed: boolean;
+}
+
 export enum JobType {
   ScanLocalFiles = 0,
   InstallAdditionalExtensions = 1,

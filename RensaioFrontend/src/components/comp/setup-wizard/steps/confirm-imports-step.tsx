@@ -337,7 +337,7 @@ function ScrollableTabContent({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={containerRef}
-      className={`max-h-[calc(95vh-18rem)] w-full overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+      className={`max-h-[calc(95vh-18rem)] w-full overflow-y-auto max-[768px]:max-h-none max-[768px]:overflow-visible ${hasScrollbar ? 'pr-2' : ''}`}
     >
       {children}
     </div>

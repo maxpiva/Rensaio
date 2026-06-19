@@ -83,6 +83,11 @@ namespace RensaioBackend.Services.Downloads
             ISourceInterop src;
             try
             {
+                if (ch.MihonProviderId == null)
+                {
+                    _logger.LogError("MihonProviderId is null for chapter {ParsedNumber} of series {SeriesTitle}", ch.Chapter.ParsedNumber, ch.Title);
+                    return await RescheduleDownloadAsync(ch, token).ConfigureAwait(false);
+                }
                 src = await _mihon.SourceFromProviderIdAsync(ch.MihonProviderId, token).ConfigureAwait(false);
             }
             catch (Exception e)

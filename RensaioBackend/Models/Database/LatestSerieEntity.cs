@@ -12,7 +12,7 @@ namespace RensaioBackend.Models.Database;
 public class LatestSerieEntity : IBridgeItemInfo, IThumb
 {
     [Key]
-    public string MihonId { get; set; }
+    public string? MihonId { get; set; }
     public string? MihonProviderId { get; set; }
     public string? BridgeItemInfo { get; set; }
     public string Provider { get; set; } = string.Empty;

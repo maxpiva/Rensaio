@@ -5,7 +5,7 @@ namespace RensaioBackend.Models.Dto;
 public class ExtensionSourceDto
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = "";
     [JsonPropertyName("lang")]
-    public string Language { get; set; }
+    public string Language { get; set; } = "";
 }

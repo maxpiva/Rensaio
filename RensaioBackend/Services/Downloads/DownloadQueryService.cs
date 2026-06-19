@@ -44,7 +44,7 @@ namespace RensaioBackend.Services.Downloads
         {
             string extraKey = seriesId.ToString();
             List<EnqueueEntity> result = await _db.Queues.Where(a => a.JobType == JobType.Download && a.ExtraKey == extraKey).ToListAsync(token);
-            return result.Select(a => a.ToDownloadChapterInfo()).Where(a => a.Status==QueueStatus.Completed).OrderByDescending(a => a.ChapterNumber).ToList()!;
+            return result.Select(a => a.ToDownloadChapterInfo()).Where(a => a!=null && a.Status==QueueStatus.Completed).OrderByDescending(a => a?.ChapterNumber ?? -2).ToList()!;
         }
 
         /// <summary>

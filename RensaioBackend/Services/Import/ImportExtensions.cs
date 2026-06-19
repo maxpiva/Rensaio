@@ -1,3 +1,4 @@
+using System.Globalization;
 using RensaioBackend.Extensions;
 using RensaioBackend.Models;
 using RensaioBackend.Services.Import.Models;
@@ -333,7 +334,7 @@ public static class ImportExtensions
                 CreationDate = a.CreationDate
             }).ToList();
 
-            archives = archives.OrderByChapter(a => (a.ChapterNumber?.ToString() ?? "")).ToList();
+            archives = archives.OrderByChapter(a => (a.ChapterNumber?.ToString(CultureInfo.InvariantCulture) ?? "")).ToList();
             int start = 0;
             archives.ForEach(a =>
             {

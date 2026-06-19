@@ -6,11 +6,12 @@ using System.Runtime.InteropServices;
 
 namespace RensaioTray;
 
-class Program
+static class Program
 {
     [STAThread]
     public static void Main(string[] args)
     {
+        java.lang.System.setProperty("java.awt.headless", "true");
         if (!EnvironmentSetup.IsApplicationAlreadyRunning())
         {
             try

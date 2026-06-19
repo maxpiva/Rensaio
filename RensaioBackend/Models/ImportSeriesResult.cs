@@ -50,7 +50,7 @@ public class ImportSeriesResult
 }
 public class ExternalMapping
 {
-    public string Provider { get; set; }
-    public string ExternalId { get; set; }
-    public string ExternalTitle { get; set; }
+    public string Provider { get; set; } = "";
+    public string ExternalId { get; set; } = "";
+    public string ExternalTitle { get; set; } = "";
 }

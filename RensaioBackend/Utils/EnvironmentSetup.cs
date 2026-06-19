@@ -197,7 +197,7 @@ namespace RensaioBackend.Utils
                 {
                     string currentDb = connectionStrings["DefaultConnection"]?.ToString() ?? "";
                     string destPath = currentDb.Substring("Data Source=".Length).Trim();
-                    string dir = System.IO.Path.GetDirectoryName(destPath);
+                    string dir = System.IO.Path.GetDirectoryName(destPath) ?? "";
                     if (dir.EndsWith("KaizokuNet", StringComparison.InvariantCultureIgnoreCase))
                     {
                         dir = dir.Substring(0, dir.Length - 10) + "Rensaio";

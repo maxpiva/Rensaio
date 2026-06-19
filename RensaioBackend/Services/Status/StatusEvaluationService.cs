@@ -252,8 +252,9 @@ public class StatusEvaluationService
 
     /// <summary>
     /// Creates or updates an active health alert for the given target.
-    /// If an active alert already exists with the same level, it's updated.
-    /// If a different level exists, it's replaced.
+    /// If an active alert already exists for the same target, it's updated in-place
+    /// rather than creating a new record. This ensures only one active alert
+    /// exists per target at any time.
     /// </summary>
     private async Task UpsertAlertAsync(HealthStatusTargetType targetType, Guid targetId,
         HealthStatusLevel level, string message, CancellationToken token = default,
@@ -268,24 +269,29 @@ public class StatusEvaluationService
             if (existing.Level == level && existing.Message == message)
                 return; // No change needed
 
-            // Resolve the old alert
-            existing.IsActive = false;
-            existing.ResolvedAt = DateTime.UtcNow;
+            // Update the existing alert in-place instead of creating a new one
+            existing.Level = level;
+            existing.Message = message;
+            existing.AffectedSeriesJson = affectedSeriesJson;
+            existing.CreatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            var alert = new HealthStatusEntity
+            {
+                Id = Guid.NewGuid(),
+                TargetType = targetType,
+                TargetId = targetId,
+                Level = level,
+                Message = message,
+                AffectedSeriesJson = affectedSeriesJson,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            _db.HealthStatuses.Add(alert);
         }
 
-        var alert = new HealthStatusEntity
-        {
-            Id = Guid.NewGuid(),
-            TargetType = targetType,
-            TargetId = targetId,
-            Level = level,
-            Message = message,
-            AffectedSeriesJson = affectedSeriesJson,
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
-        };
-
-        _db.HealthStatuses.Add(alert);
         await _db.SaveChangesAsync(token).ConfigureAwait(false);
     }
 

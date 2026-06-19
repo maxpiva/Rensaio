@@ -23,6 +23,7 @@ namespace RensaioBackend.Services.Background
         private readonly JobsSettings _settings;
         private readonly ConcurrentDictionary<JobQueues, ConcurrentDictionary<string, byte>> _runningJobs = new();
         private readonly object _slotLock = new object();
+        private readonly ConcurrentBag<Task> _inFlightJobTasks = new();
 
         public JobQueueHostedService(IServiceScopeFactory scopeFactory, ILogger<JobQueueHostedService> logger,
             JobsSettings settings)
@@ -65,7 +66,22 @@ namespace RensaioBackend.Services.Background
                 }
             }
 
-            _logger.LogInformation("Job Queue Service is stopping");
+            _logger.LogInformation("Job Queue Service is stopping. Waiting for {Count} in-flight jobs to complete...", _inFlightJobTasks.Count);
+            
+            // Drain in-flight jobs with a bounded timeout to prevent shutdown hang
+            try
+            {
+                await Task.WhenAll(_inFlightJobTasks).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                _logger.LogInformation("All in-flight jobs completed successfully.");
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Some in-flight jobs did not complete within the 30-second shutdown timeout.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown - some jobs were cancelled
+            }
         }
 
         private async Task ProcessJobQueuesAsync(CancellationToken stoppingToken)
@@ -120,8 +136,9 @@ namespace RensaioBackend.Services.Background
                 await UpdateJobStatusAsync(job, stoppingToken).ConfigureAwait(false);
                 jobManagement.DetachJob(job);
                 
-                // Start job execution in background
-                _ = ExecuteJobAsync(job, queueName, queueSettings, stoppingToken);
+                // Track in-flight job task so we can drain on shutdown
+                var jobTask = ExecuteJobAsync(job, queueName, queueSettings, stoppingToken);
+                _inFlightJobTasks.Add(jobTask);
             }
         }
 
@@ -185,10 +202,24 @@ namespace RensaioBackend.Services.Background
                 
                 await HandleJobResultAsync(job, result, queueName, stoppingToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown — job was cancelled, no need to log as error
+            }
+            catch (ObjectDisposedException)
+            {
+                // DI container is being disposed during shutdown — job scope creation failed
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error executing job {Key} in queue {queueName}", job.Key, queueName);
-                await HandleJobFailureAsync(job, queueSettings, stoppingToken).ConfigureAwait(false);
+                // Attempt graceful failure handling; if it fails due to shutdown, just swallow
+                try
+                {
+                    await HandleJobFailureAsync(job, queueSettings, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { }
+                catch (ObjectDisposedException) { }
             }
             finally
             {
@@ -203,6 +234,10 @@ namespace RensaioBackend.Services.Background
         private async Task HandleJobResultAsync(EnqueueEntity job, JobResult result, JobQueues queueName,
             CancellationToken stoppingToken)
         {
+            // Guard against disposed container during shutdown
+            if (stoppingToken.IsCancellationRequested)
+                return;
+
             using var scope = _scopeFactory.CreateScope();
             var management = scope.ServiceProvider.GetRequiredService<JobManagementService>();
             
@@ -249,6 +284,10 @@ namespace RensaioBackend.Services.Background
 
         private async Task HandleJobFailureAsync(EnqueueEntity job, QueueSettings queueSettings, CancellationToken stoppingToken)
         {
+            // Guard against disposed container during shutdown
+            if (stoppingToken.IsCancellationRequested)
+                return;
+
             using var scope = _scopeFactory.CreateScope();
             var management = scope.ServiceProvider.GetRequiredService<JobManagementService>();
             

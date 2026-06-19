@@ -3,7 +3,7 @@
     public class UniquePreference
     {
         public List<KeyLanguage> Languages { get; set; } = [];
-        public Preference Preference { get; set; }
+        public Preference? Preference { get; set; }
     }
 
     public class KeyLanguage

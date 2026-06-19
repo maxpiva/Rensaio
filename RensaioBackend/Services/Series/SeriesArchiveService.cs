@@ -70,7 +70,7 @@ namespace RensaioBackend.Services.Series
 
                 foreach (Chapter chapter in provider.Chapters.Where(c => !string.IsNullOrEmpty(c.Filename)))
                 {
-                    string archivePath = Path.Combine(basePath, chapter.Filename);
+                    string archivePath = Path.Combine(basePath, chapter.Filename!);
 
                     // Remove chapter if the archive file does not exist on disk
                     if (!File.Exists(archivePath))

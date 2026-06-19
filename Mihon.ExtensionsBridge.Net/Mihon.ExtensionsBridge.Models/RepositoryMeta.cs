@@ -7,6 +7,6 @@ namespace Mihon.ExtensionsBridge.Models
 
     public class RepositoryMeta
     {
-        public Meta meta { get; set; }
+        public Meta? meta { get; set; }
     }
 }

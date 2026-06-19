@@ -147,7 +147,7 @@ namespace RensaioBackend
             }
 
             app.UseResponseCompression();
-            app.UseSerilogRequestLogging();
+            //app.UseSerilogRequestLogging();
             // Apply CORS policy before other middleware
             app.UseCors();
 
@@ -246,6 +246,7 @@ namespace RensaioBackend
             Logger.LogInformation("Initializing Complete.");
         }
     }
+    /*
     public sealed class RequestLoggingMiddleware
     {
         private readonly RequestDelegate _next;
@@ -311,5 +312,5 @@ namespace RensaioBackend
                 throw;
             }
         }
-    }
+    }**/
 }

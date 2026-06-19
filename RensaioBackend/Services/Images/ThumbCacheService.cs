@@ -94,7 +94,7 @@ namespace RensaioBackend.Services.Images
         }
         public async ValueTask PopulateThumbsAsync(IThumb thumb, string prefix = "/api/image/", CancellationToken token = default)
         {
-            thumb.ThumbnailUrl = prefix + await GetKeyAsync(thumb.ThumbnailUrl, token).ConfigureAwait(false);
+            thumb.ThumbnailUrl = prefix + await GetKeyAsync(thumb.ThumbnailUrl ?? "", token).ConfigureAwait(false);
         }
         public async ValueTask PopulateThumbsAsync(IEnumerable<IThumb> thumbs, string prefix = "/api/image/", CancellationToken token = default)
         {
@@ -108,16 +108,17 @@ namespace RensaioBackend.Services.Images
                     string? url = t?.ThumbnailUrl;
                     if (t==null || string.IsNullOrEmpty(url))
                     {
-                        all.Remove(t);
+                        if (t!=null)
+                            all.Remove(t);
                         continue;
                     }
-                    if (_urlCache.TryGetValue(url, out string k))
+                    if (_urlCache.TryGetValue(url, out string? k))
                     {
-                        t.ThumbnailUrl = prefix + k;
+                        t.ThumbnailUrl = prefix + (k ?? "");
                         all.Remove(t);
                     }
                 }
-                Dictionary<string, List<IThumb>> allUrl = all.GroupBy(a => a.ThumbnailUrl, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+                Dictionary<string, List<IThumb>> allUrl = all.Where(a=>a.ThumbnailUrl!=null).GroupBy(a => a.ThumbnailUrl!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
                 etags = await _db.ETagCache.AsNoTracking().Where(e => allUrl.Keys.Contains(e.Url)).ToListAsync(token).ConfigureAwait(false);                
                 foreach(EtagCacheEntity m in etags)
@@ -125,14 +126,19 @@ namespace RensaioBackend.Services.Images
                     List<IThumb> allT = allUrl[m.Url];
                     foreach (IThumb t in allT)
                     {
-                        _urlCache[t.ThumbnailUrl] = m!.Key;
-                        t.ThumbnailUrl = prefix + m!.Key;
-                        all.Remove(t);
+                        if (t!= null && !string.IsNullOrEmpty(t.ThumbnailUrl))
+                        {
+                            _urlCache[t.ThumbnailUrl] = m!.Key;
+                            t.ThumbnailUrl = prefix + m!.Key;
+                            all.Remove(t);
+                        }
                     }
                 }
 
                 foreach (IThumb t in all)
                 {
+                    if (t == null || string.IsNullOrEmpty(t.ThumbnailUrl))
+                        continue;
                     EtagCacheEntity? ee = await AddInternalUrlAsync(t.ThumbnailUrl, null, token).ConfigureAwait(false);
                     if (ee == null)
                         continue;

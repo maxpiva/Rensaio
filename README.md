@@ -12,6 +12,14 @@ When you subscribe to a series, it will automatically download it. Whenever the 
   </tr>
 </table>
 
+> [!IMPORTANT]
+> ⬆️ **You can upgrade directly from Kaizoku.Net to Rensaiō.** No changes are required on your side: simply run the new executable or update your Docker image, and everything will be upgraded automatically.
+>
+> Nevertheless, **before upgrading**, make sure to back up your config directory, including your database. Since the devil never rests.
+
+<p align="center">
+  <a href="https://discord.gg/AvhtPPV8">💬 Discord</a> &nbsp;|&nbsp; <a href="https://www.rensaio.net">🌐 Website</a>
+</p>
 
 ---
 
@@ -211,7 +219,7 @@ services:
 ## 🖥️ Desktop App
 
 - A **tray application** based on Avalonia is available in the [Releases](https://github.com/maxpiva/Rensaio/releases).
-- Currently tested only on **Windows**. Testers for Linux and macOS are welcome, as I’m unable to verify it myself.
+- Currently tested only on **Windows**. Testers for Linux and macOS are welcome, as I'm unable to verify it myself.
 
 ---
 

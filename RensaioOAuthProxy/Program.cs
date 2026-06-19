@@ -2,7 +2,7 @@ using RensaioOAuthProxy.Services;
 
 namespace RensaioOAuthProxy;
 
-public class Program
+public static class Program
 {
     public static void Main(string[] args)
     {

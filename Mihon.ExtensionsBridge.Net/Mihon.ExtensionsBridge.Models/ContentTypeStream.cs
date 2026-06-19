@@ -5,7 +5,7 @@ namespace Mihon.ExtensionsBridge.Models
 {
     public class ContentTypeStream : MemoryStream
     {
-        public virtual string ContentType { get; init; }
+        public virtual string ContentType { get; init; } = "";
 
         public ContentTypeStream()
         {

@@ -10,7 +10,7 @@ namespace RensaioBackend.Models.Database;
 public class ProviderStorageEntity : ProviderSummaryBase
 {
     [Key]
-    public string MihonProviderId { get; set; }
+    public string MihonProviderId { get; set; } = "";
     private string _name = string.Empty;
 
     public string Name

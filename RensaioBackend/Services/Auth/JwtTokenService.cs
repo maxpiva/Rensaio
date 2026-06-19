@@ -16,7 +16,6 @@ namespace RensaioBackend.Services.Auth;
 public class JwtTokenService
 {
     private readonly IConfiguration _configuration;
-    private static string _secret;
     public JwtTokenService(IConfiguration configuration)
     {
         _configuration = configuration;

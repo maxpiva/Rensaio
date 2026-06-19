@@ -11,9 +11,9 @@ public class ChapterDownload : DownloadSummaryBase, IBridgeItemInfo
     public Guid Id { get; set; }
     public Guid SeriesId { get; set; }
     public Guid SeriesProviderId { get; set; }
-    public string BridgeItemInfo { get; set; }
-    public string MihonId { get; set; }
-    public string MihonProviderId { get; set; }
+    public string? BridgeItemInfo { get; set; }
+    public string? MihonId { get; set; }
+    public string? MihonProviderId { get; set; }
     public int Index { get; set; }
     public int PageCount { get; set; }
     public long? SourceId { get; set; }
@@ -28,7 +28,7 @@ public class ChapterDownload : DownloadSummaryBase, IBridgeItemInfo
     public string ChapterName { get; set; } = string.Empty;
     public string SeriesTitle { get; set; } = "";
 
-    public string? Url { get; set; } = null;
+
     public int Retries { get; set; }
 
     private string _storagePath = string.Empty;

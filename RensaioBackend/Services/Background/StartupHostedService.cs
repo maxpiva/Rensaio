@@ -194,30 +194,34 @@ namespace RensaioBackend.Services.Background
             });
             return task;
         }
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             if (_workerCts == null)
-                return Task.CompletedTask;
+                return;
 
             _workerCts.Cancel();
 
-            return Task.Run(async () =>
+            try
             {
-                try
-                {
-                    await Task.WhenAll(_workerTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // host is shutting down, swallow cancellation
-                }
-                finally
-                {
-                    _workerCts.Dispose();
-                    _workerCts = null;
-                    _workerTasks.Clear();
-                }
-            }, CancellationToken.None);
+                // Use a dedicated 30-second timeout independent of the host's cancellation token
+                // so workers have time to drain in-flight work even if the host cancels early.
+                await Task.WhenAll(_workerTasks).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                _logger.LogInformation("All background workers stopped gracefully.");
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Background workers did not stop within the 30-second shutdown timeout.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Swallow: host is shutting down, some workers may have been cancelled
+            }
+            finally
+            {
+                _workerCts.Dispose();
+                _workerCts = null;
+                _workerTasks.Clear();
+            }
         }
     }
 }

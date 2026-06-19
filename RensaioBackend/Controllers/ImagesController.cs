@@ -14,7 +14,7 @@ namespace RensaioBackend.Controllers
     {
         private readonly ThumbCacheService _thumbs;
         private readonly ILogger _logger;
-        private static string naetag=null;
+        private static string? naetag=null;
 
 
         public ImagesController(ILogger<ImagesController> logger, ThumbCacheService thumbs)

@@ -9,11 +9,11 @@ namespace RensaioBackend.Models.Dto;
 public class ExtensionDto : IThumb
 {
     [JsonPropertyName("package")]
-    public string Package { get; set; }
+    public string Package { get; set; } = "";
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("thumbnailUrl")]
-    public string ThumbnailUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
     [JsonPropertyName("isStorage")]
     public bool IsStorage { get; set; } = true;
     [JsonPropertyName("isEnabled")]

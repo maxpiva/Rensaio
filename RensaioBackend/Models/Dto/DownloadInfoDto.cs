@@ -22,6 +22,5 @@ public class DownloadInfoDto : DownloadSummaryBase
     [JsonPropertyName("retries")]
     public int Retries { get; set; }
 
-    [JsonPropertyName("url")]
-    public string? Url { get; set; } = null;
+
 }

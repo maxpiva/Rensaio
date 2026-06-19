@@ -54,7 +54,7 @@ namespace RensaioBackend.Services.Providers
                     _logger.LogError("No provider storage found for package '{PkgName}'", pkgName);
                     return null;
                 }
-                var repoGroup = _mihon.ListExtensions().FirstOrDefault(a => a.GetActiveEntry().Extension.Package == pkgName);
+                var repoGroup = _mihon.ListExtensions().FirstOrDefault(a => a.GetActiveEntry()?.Extension?.Package == pkgName);
                 if (repoGroup==null)
                 {
                     _logger.LogError("No provider storage found for package '{PkgName}'", pkgName);
@@ -124,10 +124,10 @@ namespace RensaioBackend.Services.Providers
                     await _providerCache.RefreshCacheAsync(false, token).ConfigureAwait(false);
                 }
                 var allPreferences = await extInterop.LoadPreferencesAsync(token).ConfigureAwait(false);
-                bool change = false;
+
                 foreach(ProviderPreferenceDto p in preferences.Preferences)
                 {
-                    UniquePreference? u = allPreferences.FirstOrDefault(a => a.Preference.Index == p.Index);
+                    UniquePreference? u = allPreferences.FirstOrDefault(a => a.Preference?.Index == p.Index);
                     if (u!=null)
                     {
                         if (ShouldUpdatePreference(p, u))
@@ -136,16 +136,16 @@ namespace RensaioBackend.Services.Providers
                             switch(p.ValueType)
                             {
                                 case ValueType.String:
-                                    u.Preference.CurrentValue = (string)obj;
+                                    u.Preference!.CurrentValue = (string)obj;
                                     break;
                                 case ValueType.Boolean:
-                                    u.Preference.CurrentValue = ((bool)obj) ? "true" : "false";
+                                    u.Preference!.CurrentValue = ((bool)obj) ? "true" : "false";
                                     break;
                                 case ValueType.StringCollection:
-                                    u.Preference.CurrentValue = JsonSerializer.Serialize((string[])obj);
+                                    u.Preference!.CurrentValue = JsonSerializer.Serialize((string[])obj);
                                     break;
                             }
-                            change = true;
+                            //change = true;
                         }
                     }
                 }
@@ -255,19 +255,19 @@ namespace RensaioBackend.Services.Providers
             {
                 case ValueType.String:
                     string newValue = (string)ConvertJsonObject(preference.CurrentValue!, preference.ValueType);
-                    string currentValue = (string)(ConvertJsonObject(currentPref.Preference.CurrentValue, preference.ValueType) ?? string.Empty);
+                    string currentValue = (string)(ConvertJsonObject(currentPref.Preference!.CurrentValue, preference.ValueType) ?? string.Empty);
                     if (newValue == "!empty-value!" && preference.Type == EntryType.ComboBox)
                         newValue = "";
                     return newValue != currentValue;
 
                 case ValueType.Boolean:
                     bool newBool = (bool)ConvertJsonObject(preference.CurrentValue!, preference.ValueType);
-                    bool currentBool = (bool)(ConvertJsonObject(currentPref.Preference.CurrentValue, preference.ValueType) ?? false);
+                    bool currentBool = (bool)(ConvertJsonObject(currentPref.Preference!.CurrentValue, preference.ValueType) ?? false);
                     return newBool != currentBool;
 
                 case ValueType.StringCollection:
                     string[] newArray = (string[])ConvertJsonObject(preference.CurrentValue!, preference.ValueType);
-                    string[] currentArray = (string[])(ConvertJsonObject(currentPref.Preference.CurrentValue, preference.ValueType) ?? Array.Empty<string>());
+                    string[] currentArray = (string[])(ConvertJsonObject(currentPref.Preference!.CurrentValue, preference.ValueType) ?? Array.Empty<string>());
                     return !newArray.SequenceEqual(currentArray);
 
                 default:
@@ -336,7 +336,7 @@ namespace RensaioBackend.Services.Providers
             }
             else if (type== ValueType.StringCollection && obj is string strc)
             {
-                string[] strm=new string[0];
+                string[]? strm;
                 if (strc.StartsWith("[\""))
                 {
                     strm = JsonSerializer.Deserialize<string[]>(strc);
@@ -346,6 +346,8 @@ namespace RensaioBackend.Services.Providers
                 }
                 else
                     strm = new string[] { strc.Replace("\"", "") };
+                if (strm == null)
+                    strm = new string[0];
                 return strm;
             }
             else if (type==ValueType.String && obj is string strcs)
@@ -359,7 +361,7 @@ namespace RensaioBackend.Services.Providers
         {
             var preference = new ProviderPreferenceDto();
             
-            switch (p.Preference.Type)
+            switch (p.Preference!.Type)
             {
                 case "ListPreference":
                     preference.Type = EntryType.ComboBox;

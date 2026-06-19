@@ -11,9 +11,9 @@ public class LatestSeriesDto : IThumb
     [Key]
 
     [JsonPropertyName("mihonId")]
-    public string MihonId { get; set; }
+    public string? MihonId { get; set; }
     [JsonPropertyName("mihonProviderId")]
-    public string? MihonProviderId { get; set; }
+    public string? MihonProviderId { get; set; } = "";
 
     [JsonPropertyName("provider")]
     public string Provider { get; set; } = string.Empty;

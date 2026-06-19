@@ -1,3 +1,4 @@
+using System.Globalization;
 using RensaioBackend.Data;
 using RensaioBackend.Models.Dto;
 using RensaioBackend.Models.Enums;
@@ -330,7 +331,7 @@ private static ConcurrentDictionary<string, decimal> _dedupState = new();
                 foreach (var chapter in historyResult.Data)
                 {
                     if (chapter.Attributes?.Chapter != null &&
-                        decimal.TryParse(chapter.Attributes.Chapter, out var chapterNum))
+                        decimal.TryParse(chapter.Attributes.Chapter, NumberStyles.Any, CultureInfo.InvariantCulture, out var chapterNum))
                     {
                         chapters[chapterNum] = 1.0f; // page-level detail not available from MangaDex
                     }
@@ -374,7 +375,7 @@ private static ConcurrentDictionary<string, decimal> _dedupState = new();
 
             var payload = new
             {
-                chapter = chapterNumber.ToString()
+                chapter = chapterNumber.ToString(CultureInfo.InvariantCulture)
             };
 
             await EnforceRateLimitAsync();

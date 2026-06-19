@@ -10,11 +10,8 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
 	<InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.EntityFrameworkCore.GeneratedInterceptors</InterceptorsNamespaces>
 	<RuntimeIdentifiers>linux-arm64;linux-x64;win-x64;win-arm64;osx-arm64;</RuntimeIdentifiers>
+	<RestoreSources>$(RestoreSources);$(ProjectDir)../packages;https://api.nuget.org/v3/index.json</RestoreSources>
   </PropertyGroup>
-	<PropertyGroup Condition="!$(DefineConstants.Contains('ImageMagick'))">
-		<!-- Temporary read Unofficial.Experimental.NetVips.Native packages from directory instead nuget.org -->
-		<RestoreSources>$(RestoreSources);$(SolutionDir)packages;https://api.nuget.org/v3/index.json</RestoreSources>
-   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Migration\NewFolder\**" />
     <Compile Remove="scripts\**" />
@@ -74,8 +71,8 @@
 		<PrivateAssets>all</PrivateAssets>
 	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 	</PackageReference>
-	  <PackageReference Include="NetVips" Version="3.1.0" />
-	  <PackageReference Include="Unofficial.Experimental.NetVips.Native" Version="8.17.1" />
+	<PackageReference Include="NetVips" Version="3.1.0" />
+	<PackageReference Include="Unofficial.Experimental.NetVips.Native" Version="8.17.1" />
 	<PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.*" />
 	<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
 	<PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />

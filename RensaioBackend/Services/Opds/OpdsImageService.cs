@@ -93,7 +93,7 @@ public class OpdsImageService
         // ── Fast path: chapter already fully extracted in cache ──
         // Use state.Pages (naturally ordered) to avoid a wasteful Directory.GetFiles + sort
         if (_coordinator.TryGetExtraction(userKey, out var state) &&
-            state.ChapterCacheKey == cacheKey &&
+            state !=null && state.ChapterCacheKey == cacheKey &&
             state.Pages.Count > 0)
         {
             if (pageIndex < state.Pages.Count)
@@ -117,8 +117,8 @@ public class OpdsImageService
         // If there's no active extraction for this exact chapter, cancel any other
         // extraction for this user and start one for the requested chapter.
         if (!_coordinator.TryGetExtraction(userKey, out state) ||
-            state.ChapterCacheKey != cacheKey ||
-            state.ExtractionTask is { IsCompleted: true })
+            (state!=null && state.ChapterCacheKey != cacheKey) ||
+            (state!=null && state.ExtractionTask is { IsCompleted: true }))
         {
             _coordinator.CancelActiveExtraction(userKey);
 
@@ -130,7 +130,8 @@ public class OpdsImageService
             if (state == null)
                 return (null, null, null);
         }
-
+        if (state == null)
+            return (null, null, null);
         // ── Wait for the specific page to be extracted ──
         if (pageIndex < state.Pages.Count)
         {
@@ -409,7 +410,7 @@ public class OpdsImageService
 
             // Wait for any current extraction for this user to finish
             if (_coordinator.TryGetExtraction(userKey, out var activeState) &&
-                activeState.ExtractionTask is { IsCompleted: false })
+                activeState!=null && activeState.ExtractionTask is { IsCompleted: false })
             {
                 _logger.LogDebug("Waiting for current extraction to finish before preloading next chapter for {User}", user.Username);
                 try { await activeState.ExtractionTask.WaitAsync(CancellationToken.None); }

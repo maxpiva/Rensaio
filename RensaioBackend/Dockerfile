@@ -1,5 +1,4 @@
-
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble
+FROM ubuntu:resolute
 
 ARG TARGETPLATFORM
 ARG TARGETARCH
@@ -7,9 +6,12 @@ ARG TARGETOS
 
 # ---- System deps for Chromium/CEF (JCEF) + headless X ----
 RUN apt-get update && \
- apt-get -y install --no-install-recommends -y gettext-base unzip tini libicu-dev gosu cron libxss1 libxext6 libxrender1 libxcomposite1 libxdamage1 libxkbcommon0 libxtst6 \
+ apt-get install -y --no-install-recommends software-properties-common ca-certificates && \
+ add-apt-repository ppa:dotnet/backports -y && \
+ apt-get update && \
+ apt-get -y install --no-install-recommends -y aspnetcore-runtime-8.0 gettext-base unzip tini libicu-dev gosu cron libxss1 libxext6 libxrender1 libxcomposite1 libxdamage1 libxkbcommon0 libxtst6 \
  libgtk-3-0 libjogl2-jni libgluegen2-jni libglib2.0-0t64 libnss3 libdbus-1-3 libpango-1.0-0 libcairo2 libasound2t64 \
- libatk-bridge2.0-0t64 libcups2t64 libdrm2 libgbm1 xvfb && \
+ libatk-bridge2.0-0t64 libcups2t64 libdrm2 libgbm1 xvfb libssl3t64 libgdiplus libjxl0.11 libavif-bin libheif1 libopenjp2-7 && \
  rm -rf /var/lib/apt/lists/*
 
 ENV QT_X11_NO_MITSHM=1

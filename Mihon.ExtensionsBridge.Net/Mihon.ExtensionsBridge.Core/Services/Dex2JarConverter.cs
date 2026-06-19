@@ -110,7 +110,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 throw new ArgumentException("APK cannot be null.", nameof(workUnit));
             if (string.IsNullOrWhiteSpace(workUnit.Entry.Apk.FileName))
                 throw new ArgumentException("APK file name cannot be empty.", nameof(workUnit));
-            string apkFile = System.IO.Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Apk.FileName);
+            string apkFile = System.IO.Path.Combine(workUnit.WorkingFolder?.Path ?? "", workUnit.Entry.Apk.FileName);
             if (!File.Exists(apkFile))
                 throw new FileNotFoundException("APK file not found.", apkFile);
             string jarFile = System.IO.Path.ChangeExtension(apkFile, ".jar");
@@ -158,7 +158,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// <param name="jarFile">The path to the generated JAR file.</param>
         public void FixAndroidClasses(java.nio.file.Path jarFile)
         {
-            FileSystem fs = null;
+            FileSystem? fs = null;
             try
             {
                 fs = FileSystems.newFileSystem(jarFile, (java.lang.ClassLoader?)null);

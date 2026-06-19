@@ -226,7 +226,7 @@ namespace RensaioBackend.Services.Series
             }
 
             List<string> deletedSeries = dbSeries.Sources
-                .Select(a => a.MihonId)
+                .Where(a=>a.MihonId!=null).Select(a => a.MihonId!)
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .ToList();
             
@@ -256,7 +256,7 @@ namespace RensaioBackend.Services.Series
         {
             try
             {
-                Dictionary<string, (DateTime, Manga?, ParsedChapter?)> latestDates = await _db.LatestSeries.Where(a => a.MihonProviderId == mihonProviderId).ToDictionaryAsync(a => a.MihonId, a => (a.FetchDate, a.ToManga(), a.Chapters.OrderByDescending(b => b.Index).FirstOrDefault()), token).ConfigureAwait(false);
+                Dictionary<string, (DateTime, Manga?, ParsedChapter?)> latestDates = await _db.LatestSeries.Where(a => a.MihonId!=null && a.MihonProviderId == mihonProviderId).ToDictionaryAsync(a => a.MihonId!, a => (a.FetchDate, a.ToManga(), a.Chapters.OrderByDescending(b => b.Index).FirstOrDefault()), token).ConfigureAwait(false);
                 ConcurrentDictionary<string, ComboSeries> newChaps = [];
                 int page = 1;
                 bool upToDate = false;
@@ -332,7 +332,7 @@ namespace RensaioBackend.Services.Series
                 } while (!upToDate && !neverDone);
 
                 List<string> ids = newChaps.Keys.ToList();
-                List<LatestSerieEntity> toUpdate = await _db.LatestSeries.Where(a => ids.Contains(a.MihonId)).ToListAsync(token).ConfigureAwait(false);
+                List<LatestSerieEntity> toUpdate = await _db.LatestSeries.Where(a => a.MihonId != null && ids.Contains(a.MihonId)).ToListAsync(token).ConfigureAwait(false);
                 List<(LatestSerieEntity, SeriesProviderEntity)> toCheck = [];
 
                 foreach (ComboSeries c in newChaps.Values)
@@ -844,7 +844,7 @@ namespace RensaioBackend.Services.Series
 
         private class ComboSeries
         {
-            public string MihonId { get; set; }
+            public string MihonId { get; set; } = "";
             public ParsedManga? Series { get; set; }
             public List<ParsedChapter> Chapters { get; set; } = [];
         }

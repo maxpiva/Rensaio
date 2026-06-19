@@ -16,7 +16,7 @@ public class BaseSeriesDto : IThumb
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
     [JsonPropertyName("thumbnailUrl")]
-    public string ThumbnailUrl { get; set; } = string.Empty;
+    public string? ThumbnailUrl { get; set; }
     [JsonPropertyName("artist")]
     public string Artist { get; set; } = string.Empty;
     [JsonPropertyName("author")]

@@ -17,7 +17,7 @@ using System.Text.Json;
 
 namespace Mihon.ExtensionsBridge.Test
 {
-    internal class Program
+    internal static class Program
     {
         static async Task Main(string[] args)
         {
@@ -57,12 +57,13 @@ namespace Mihon.ExtensionsBridge.Test
             _logger = logger;
             _bridge = bridge;
         }
+        /*
         public class ScriptModel
         {
             public string imageDecryptEval { get; set; }
             public object postDecryptEval { get; set; }
             public bool shouldVerifyLinks { get; set; }
-        }
+        }*/
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             string nn = Assembly.GetExecutingAssembly().GetName().FullName;
@@ -106,13 +107,15 @@ namespace Mihon.ExtensionsBridge.Test
 
            // RepositoryGroup grp = await _extManager.AddExtensionAsync(data);
             var n = list[0].Extensions.FirstOrDefault(a => a.Name.Contains("ReadComicOnline"));
-            RepositoryGroup grp = await _extManager.AddExtensionAsync(n);
+            if (n == null)
+                return;
+            RepositoryGroup? grp = await _extManager.AddExtensionAsync(n);
             if (grp!=null)
             {
                 IExtensionInterop extension = await _extManager.GetInteropAsync(grp);
                 List<ISourceInterop> sources = extension.Sources;
                 var prefs = await extension.LoadPreferencesAsync(cancellationToken);
-                prefs[0].Preference.CurrentValue = "https://plainraw.com/raw/7388602029b1";
+                prefs[0].Preference!.CurrentValue = "https://plainraw.com/raw/7388602029b1";
                 await extension.SavePreferencesAsync(prefs, cancellationToken);
                 prefs = await extension.LoadPreferencesAsync(cancellationToken);
                 ISourceInterop source = sources.FirstOrDefault()!;

@@ -7,9 +7,7 @@
 # This is a windows only PowerShell script to create android.jar stubs
 
 # foolproof against running from AndroidCompat dir instead of running from project root
-if ($(Split-Path -Path (Get-Location) -Leaf) -eq "AndroidCompat" ) {
-    Set-Location ..
-}
+Set-Location Android.Compatibility.Layer
 
 Write-Output "Getting required Android.jar..."
 Remove-Item -Recurse -Force "tmp" -ErrorAction SilentlyContinue | Out-Null
@@ -95,11 +93,12 @@ function Dedupe($path)
 }
 
 Dedupe "AndroidCompat/src/main/java"
-
 Write-Output "Copying Android.jar to library folder..."
+New-Item -ItemType Directory -Force -Path "AndroidCompat/lib" | Out-Null
 Move-Item -Force $android_jar "AndroidCompat/lib/android.jar"
 
 Write-Output "Cleaning up..."
 Remove-Item -Recurse -Force "tmp"
 
 Write-Output "Done!"
+Pop-Location

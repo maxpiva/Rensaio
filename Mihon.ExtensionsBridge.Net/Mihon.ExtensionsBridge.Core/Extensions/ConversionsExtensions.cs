@@ -252,7 +252,7 @@ namespace Mihon.ExtensionsBridge.Core.Extensions
             }
         }
 
-        public static void PrefillMissing(eu.kanade.tachiyomi.source.model.SManga details, Manga original)
+        public static void PrefillMissing(eu.kanade.tachiyomi.source.model.SManga details, Manga? original)
         {
             if (details == null)
                 return;
@@ -268,7 +268,7 @@ namespace Mihon.ExtensionsBridge.Core.Extensions
         }
 
 
-        public static T ToManga<T>(this eu.kanade.tachiyomi.source.model.SManga smanga, Manga backup = null) where T: Manga, new()
+        public static T ToManga<T>(this eu.kanade.tachiyomi.source.model.SManga smanga, Manga? backup = null) where T: Manga, new()
         {
             if (smanga == null) throw new ArgumentNullException(nameof(smanga));
             PrefillMissing(smanga, backup);

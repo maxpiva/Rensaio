@@ -46,11 +46,15 @@ namespace Mihon.ExtensionsBridge.Core.Utilities
                 return Convert.ToDecimal(chapterNumber.Value);
 
             // Get chapter title with lower case
-            var cleanChapterName =
-                (chapterName ?? string.Empty)
-                    .ToLowerInvariant()
-                    // Remove manga title from chapter title.
-                    .Replace((mangaTitle ?? string.Empty).ToLowerInvariant(), "")
+            var cleanChapterName = (chapterName ?? string.Empty).ToLowerInvariant();
+
+            // Remove manga title from chapter title only if mangaTitle is non-empty.
+            // String.Replace throws ArgumentException when oldValue is empty string.
+            var mangaTitleClean = (mangaTitle ?? string.Empty).ToLowerInvariant();
+            if (!string.IsNullOrEmpty(mangaTitleClean))
+                cleanChapterName = cleanChapterName.Replace(mangaTitleClean, "");
+
+            cleanChapterName = cleanChapterName
                     .Trim()
                     // Remove commas or hyphens (normalize to '.')
                     .Replace(',', '.')

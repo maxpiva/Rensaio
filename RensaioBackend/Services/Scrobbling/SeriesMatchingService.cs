@@ -555,7 +555,7 @@ public class SeriesMatchingService
 
             if (existingUserMapping != null)
             {
-                existingUserMapping.ExternalSeriesId = existingId;
+                existingUserMapping.ExternalSeriesId = existingId ?? "";
                 existingUserMapping.ExternalSeriesTitle = existingTitle;
                 existingUserMapping.MappingStatus = SeriesMappingStatus.AutoMatched;
             }
@@ -567,7 +567,7 @@ public class SeriesMatchingService
                     UserId = userId,
                     SeriesId = series.Id,
                     Provider = provider,
-                    ExternalSeriesId = existingId,
+                    ExternalSeriesId = existingId ?? "",
                     ExternalSeriesTitle = existingTitle,
                     MappingStatus = SeriesMappingStatus.AutoMatched
                 });

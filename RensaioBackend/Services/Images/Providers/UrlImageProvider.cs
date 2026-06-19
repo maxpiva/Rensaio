@@ -107,7 +107,7 @@ namespace RensaioBackend.Services.Images.Providers
                 if (!Directory.Exists(directory))
                     Directory.CreateDirectory(directory);
                 string baseFile = Path.Combine(directory, cache.Key.Substring(2));
-                string originalFile = null;
+                string? originalFile = null;
                 if (!string.IsNullOrEmpty(cache.Extension))
                 {
                     originalFile = baseFile + cache.Extension;

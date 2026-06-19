@@ -4,8 +4,8 @@ namespace Mihon.ExtensionsBridge.Models.Extensions
 {
     public class Manga
     {
-        public string Url { get; set; }
-        public string Title { get; set; }
+        public string Url { get; set; } = "";
+        public string Title { get; set; } = "";
         public string? Artist { get; set; }
         public string? Author { get; set; }
         public string? Description { get; set; }
@@ -19,6 +19,6 @@ namespace Mihon.ExtensionsBridge.Models.Extensions
 
     public class ParsedManga : Manga
     {
-        public string RealUrl { get; set; }
+        public string RealUrl { get; set; } = "";
     }
 }

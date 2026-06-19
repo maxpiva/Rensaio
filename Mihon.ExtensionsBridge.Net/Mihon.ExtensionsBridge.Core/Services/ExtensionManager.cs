@@ -1,3 +1,4 @@
+using System.Globalization;
 using com.sun.javadoc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -85,10 +86,8 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// Initializes a new instance of the <see cref="ExtensionManager"/> class.
         /// </summary>
         /// <param name="workingStructure">Provides working folders and persistence for local repository groups.</param>
-        /// <param name="repositoryManager">Resolves online repositories and their extensions.</param>
         /// <param name="repoDownload">Downloader used to fetch extension artifacts.</param>
         /// <param name="dex2jar">Converter for transforming DEX files into JAR files.</param>
-        /// <param name="compiler">Compiler that produces .NET assemblies via IKVM.</param>
         /// <param name="logger">Logger for operational diagnostics.</param>
         /// <exception cref="ArgumentNullException">Thrown if any provided dependency is null.</exception>
         public ExtensionManager(IWorkingFolderStructure workingStructure,
@@ -108,7 +107,6 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// <summary>
         /// Returns a snapshot list of local extension repository groups.
         /// </summary>
-        /// <param name="token">Cancellation token to observe for early termination.</param>
         /// <returns>A task producing a copy of the current local repository groups.</returns>
         /// <remarks>
         /// The returned list is a new instance detached from internal state. Modifying it does not affect stored groups.
@@ -156,17 +154,17 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     }
                     else
                     {
-                        var lastEntry = group.Entries.OrderByDescending(e => e.Extension.VersionCode).First();
+                        var lastEntry = group.Entries.OrderByDescending(e => e.Extension?.VersionCode ?? 0).First();
                         group.ActiveEntry = group.Entries.IndexOf(lastEntry);
                     }
                 }
-                if (InteropCache.TryGetValue(group, out var interop))
+                if (InteropCache.TryGetValue(group!, out var interop))
                 {
-                    if (interop.Version != repoEntry.Extension.Version)
+                    if (interop.Version != repoEntry.Extension?.Version)
                     {
-                        if (InteropCache.TryRemove(group, out var interop2))
+                        if (InteropCache.TryRemove(group!, out var interop2))
                         {
-                            try { interop2.Dispose(); } catch (Exception ex) { _logger.LogError(ex, "Error disposing interop during removal for group {GroupName}.", group.Name); }
+                            try { interop2.Dispose(); } catch (Exception ex) { _logger.LogError(ex, "Error disposing interop during removal for group {GroupName}.", group!.Name); }
                         }
                     }
                 }
@@ -182,7 +180,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
         private RepositoryGroup? ResolveLocal(RepositoryGroup? group)
         {
             if (group == null)
-                return null;
+                return group;
             foreach(var g in LocalExtensions)
             {
                 if (g.Name == group.Name)
@@ -191,11 +189,13 @@ namespace Mihon.ExtensionsBridge.Core.Services
             throw new InvalidOperationException("Group not found in local repository groups.");
         }
 
-        public async Task<RepositoryGroup> SetActiveExtensionVersionAsync(RepositoryGroup group, CancellationToken token = default)
+        public async Task<RepositoryGroup> SetActiveExtensionVersionAsync(RepositoryGroup? group, CancellationToken token = default)
         {
             if (!_localInitialized)
                 throw new InvalidOperationException("Local extensions not initialized.");
             group = ResolveLocal(group);
+            if (group==null)
+                throw new InvalidOperationException("Group not found in local repository groups.");
             if (group.ActiveEntry < 0 || group.ActiveEntry >= group.Entries.Count)
                 throw new InvalidOperationException("Active entry index is out of bounds for repository group.");
             RepositoryEntry current = group.Entries[group.ActiveEntry];
@@ -204,7 +204,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
             {
                 if (InteropCache.TryGetValue(group, out var interop))
                 {
-                    if (interop.Version != current.Extension.Version)
+                    if (interop.Version != current.Extension?.Version)
                     {
                         if (InteropCache.TryRemove(group, out var interop2))
                         {
@@ -254,11 +254,13 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// If an existing gatekept interop is present but its version differs from the group's active version,
         /// this method swaps the underlying repository entry to keep the interop aligned.
         /// </remarks>
-        public async Task<IExtensionInterop> GetInteropAsync(RepositoryGroup entry, CancellationToken token = default)
+        public async Task<IExtensionInterop> GetInteropAsync(RepositoryGroup? entry, CancellationToken token = default)
         {
             if (!_localInitialized)
                 throw new InvalidOperationException("Local extensions not initialized.");
             entry = ResolveLocal(entry);
+            if (entry==null)
+                throw new InvalidOperationException("Group not found in local repository groups.");
             if (entry.ActiveEntry < 0 || entry.ActiveEntry >= entry.Entries.Count)
                 throw new InvalidOperationException("Active entry index is out of bounds for repository group.");
             RepositoryEntry initialEntry = entry.Entries[entry.ActiveEntry];
@@ -270,7 +272,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
                         (wk, en, log) => {
                             return new JarExtensionInterop(wk, en, log);
                     }, _logger);
-                    _logger.LogInformation("Initialized interop for group {GroupName} version {Version}.", entry.Name, initialEntry.Extension.Version);
+                    _logger.LogInformation("Initialized interop for group {GroupName} version {Version}.", entry.Name, initialEntry.Extension?.Version ?? "");
                     return created;
                 });
                 if (interop.Id == initialEntry.Id)
@@ -320,12 +322,13 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// <remarks>
         /// On successful removal, the updated local repository groups are persisted and an informational log entry is emitted.
         /// </remarks>
-        public async Task<bool> RemoveExtensionAsync(RepositoryGroup group, CancellationToken token = default)
+        public async Task<bool> RemoveExtensionAsync(RepositoryGroup? group, CancellationToken token = default)
         {
             if (!_localInitialized)
                 throw new InvalidOperationException("Local extensions not initialized.");
             group = ResolveLocal(group);
-            if (group == null) throw new ArgumentNullException(nameof(group));
+            if (group == null) 
+                throw new ArgumentNullException(nameof(group));
 
             bool removed;
             await _localExtensionsLock.WaitAsync(token).ConfigureAwait(false);
@@ -456,12 +459,13 @@ namespace Mihon.ExtensionsBridge.Core.Services
 
         private async Task<ExtensionWorkUnit> WorkUnitFromManifestAsync(ExtensionWorkUnit unit, CancellationToken token = default)
         {
+      
             unit.Entry.DownloadUTC = DateTime.UtcNow;
-            string originalName = Path.Combine(unit.WorkingFolder.Path, unit.Entry.Apk.FileName);
+            string originalName = Path.Combine(unit.WorkingFolder?.Path ?? "", unit.Entry.Apk?.FileName ?? "");
             ApkFile z = new ApkFile(originalName);
             ApkMeta meta = z.getApkMeta();
            
-            List<string>? features = meta.getUsesFeatures()?.toArray()?.Select(a=>a.ToString()).ToList();
+            List<string>? features = meta.getUsesFeatures()?.toArray()?.Select(a=>a.ToString() ?? "").ToList();
             if (features==null || features.Count==0)
                 throw new ArgumentException("APK does not declare any uses-features in its manifest.");
             if (!features.Contains("tachiyomi.extension"))
@@ -470,7 +474,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
             int idx = version.LastIndexOf('.');
 
             version = idx > 0 ? version.Substring(0, idx) : version;
-            if (float.TryParse(version, out float ver))
+            if (float.TryParse(version, NumberStyles.Any, CultureInfo.InvariantCulture, out float ver))
             {
                 if (ver < LIB_VERSION_MIN || ver > LIB_VERSION_MAX)
                     throw new ArgumentException($"APK Tachiyomi library version {ver} is outside the supported range of {LIB_VERSION_MIN} to {LIB_VERSION_MAX}.");
@@ -522,7 +526,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
             if (iconData != null)
             {
                 string iconFileName = Path.ChangeExtension(unit.Entry.Extension.Apk, "png");
-                string iconPath = Path.Combine(unit.WorkingFolder.Path, iconFileName);
+                string iconPath = Path.Combine(unit.WorkingFolder?.Path ?? "", iconFileName);
                 await File.WriteAllBytesAsync(iconPath, iconData, token).ConfigureAwait(false);
                 unit.Entry.Icon = await iconPath.CalculateFileHashAsync(token).ConfigureAwait(false);
             }
@@ -584,12 +588,16 @@ namespace Mihon.ExtensionsBridge.Core.Services
         }
         private async Task<ExtensionWorkUnit> CreateWorkUnitFromApkAsync(byte[] apkData, CancellationToken token = default)
         {
-            ExtensionWorkUnit unitofWork = new ExtensionWorkUnit();
-            unitofWork.Entry = new RepositoryEntry();
-            unitofWork.Entry.Extension = new TachiyomiExtension();
+            ExtensionWorkUnit unitofWork = new ExtensionWorkUnit
+            {
+                WorkingFolder = _workingStructure.CreateTemporaryDirectory(),
+                Entry = new RepositoryEntry
+                {
+                    Extension = new TachiyomiExtension()
+                }
+            };
             unitofWork.Entry.IsLocal = true;
             unitofWork.Entry.RepositoryId= "Local";
-            unitofWork.WorkingFolder = _workingStructure.CreateTemporaryDirectory();
             string fileName = Path.Combine(unitofWork.WorkingFolder.Path, "extension.apk");
             File.WriteAllBytes(fileName, apkData);
             unitofWork.Entry.Apk = await fileName.CalculateFileHashAsync(token);
@@ -627,16 +635,16 @@ namespace Mihon.ExtensionsBridge.Core.Services
         private async Task AcceptWorkUnitAsync(ExtensionWorkUnit workUnit, CancellationToken token = default)
         {
             string expectedFolder = _workingStructure.GetExtensionVersionFolder(workUnit.Entry);
-            string srcApkFile = Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Apk.FileName);
-            string destApkFile = Path.Combine(expectedFolder, workUnit.Entry.Apk.FileName);
-            string srcJarFile = Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Jar.FileName);
-            string destJarFile = Path.Combine(expectedFolder, workUnit.Entry.Jar.FileName);
+            string srcApkFile = Path.Combine(workUnit.WorkingFolder?.Path ?? "", workUnit.Entry.Apk?.FileName ?? "");
+            string destApkFile = Path.Combine(expectedFolder, workUnit.Entry.Apk?.FileName ?? "");
+            string srcJarFile = Path.Combine(workUnit.WorkingFolder?.Path ?? "", workUnit.Entry.Jar?.FileName ?? "");
+            string destJarFile = Path.Combine(expectedFolder, workUnit.Entry.Jar?.FileName ?? "");
             //string srcDllFile = Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Dll.FileName);
             //string destDllFile = Path.Combine(expectedFolder, workUnit.Entry.Dll.FileName);
             //string srcpdbFile = Path.ChangeExtension(Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Dll.FileName), "pdb");
             //string destpdbFile = Path.ChangeExtension(Path.Combine(expectedFolder, workUnit.Entry.Icon.FileName), "pdb");
-            string srcIconFile = Path.Combine(workUnit.WorkingFolder.Path, workUnit.Entry.Icon.FileName);
-            string destIconFile = Path.Combine(expectedFolder, workUnit.Entry.Icon.FileName);
+            string srcIconFile = Path.Combine(workUnit.WorkingFolder?.Path ?? "", workUnit.Entry.Icon?.FileName ?? "");
+            string destIconFile = Path.Combine(expectedFolder, workUnit.Entry.Icon?.FileName ?? "");
             GC.Collect();
             await MoveFileSafeAsync(srcApkFile, destApkFile,
                 $"Failed to move APK file for extension {workUnit.Entry.Extension.Name} version {workUnit.Entry.Extension.Version} after multiple attempts. (File Copied)",
@@ -803,9 +811,11 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     RepositoryId = repository.Id,
                     IsLocal = false
                 };
-                unitofWork = new ExtensionWorkUnit();
-                unitofWork.Entry = entry;
-                unitofWork.WorkingFolder = _workingStructure.CreateTemporaryDirectory();
+                unitofWork = new ExtensionWorkUnit
+                {
+                    Entry = entry,
+                    WorkingFolder = _workingStructure.CreateTemporaryDirectory()
+                };
                 using (IServiceScope scope = _serviceProvider.CreateScope())
                 {
                     var downloader = scope.ServiceProvider.GetRequiredService<IRepositoryDownloader>();
@@ -904,14 +914,14 @@ namespace Mihon.ExtensionsBridge.Core.Services
                             {
                                 string expectedFolder = _workingStructure.GetExtensionVersionFolder(entry);
 
-                                if (File.Exists(Path.Combine(expectedFolder, entry.Apk.FileName)) &&
-                                    File.Exists(Path.Combine(expectedFolder, entry.Jar.FileName)) &&
-                                    File.Exists(Path.Combine(expectedFolder, entry.Icon.FileName)) /*&&
-                                    File.Exists(Path.Combine(expectedFolder, entry.Dll.FileName))*/)
+                                if (File.Exists(Path.Combine(expectedFolder, entry.Apk?.FileName ?? "")) &&
+                                    File.Exists(Path.Combine(expectedFolder, entry.Jar?.FileName ?? "")) &&
+                                    File.Exists(Path.Combine(expectedFolder, entry.Icon?.FileName ?? "")) /*&&
+                                    File.Exists(Path.Combine(expectedFolder, entry.Dll?.FileName ?? ""))*/)
                                 {
-                                    string apkPath = Path.Combine(expectedFolder, entry.Apk.FileName);
+                                    string apkPath = Path.Combine(expectedFolder, entry.Apk?.FileName ?? "");
                                     FileHash hash = await apkPath.CalculateFileHashAsync(token).ConfigureAwait(false);
-                                    if (hash.SHA256 == entry.Apk.SHA256)
+                                    if (hash.SHA256 == entry.Apk?.SHA256)
                                     {
                                         _logger.LogInformation("Found local entry for extension {Apk} version {Version}.", extension.Apk, entry.Extension.Version);
                                         return (foundGroup, entry);
@@ -950,9 +960,9 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 // Determine current stored versions on the artifacts
                 string expectedFolder = _workingStructure.GetExtensionVersionFolder(entry);
 
-                string jarPath = Path.Combine(expectedFolder, entry.Jar.FileName);
-                //string dllPath = Path.Combine(expectedFolder, entry.Dll.FileName);
-                string apkPath = Path.Combine(expectedFolder, entry.Apk.FileName);
+                string jarPath = Path.Combine(expectedFolder, entry.Jar?.FileName ?? "");
+                //string dllPath = Path.Combine(expectedFolder, entry.Dll?.FileName ?? "");
+                string apkPath = Path.Combine(expectedFolder, entry.Apk?.FileName ?? "");
 
                 // If files are missing, skip this entry gracefully
                 if (!File.Exists(jarPath) || !File.Exists(apkPath))
@@ -961,7 +971,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     continue;
                 }
 
-                bool dex2jarMismatch = !string.Equals(entry.Jar.Version, _dex2Jar.Version, StringComparison.OrdinalIgnoreCase);
+                bool dex2jarMismatch = !string.Equals(entry.Jar?.Version ?? "", _dex2Jar.Version, StringComparison.OrdinalIgnoreCase);
                 //bool ikvmMismatch = !string.Equals(entry.Dll.Version, _compiler.Version, StringComparison.OrdinalIgnoreCase);
 
                 if (!dex2jarMismatch)// && !ikvmMismatch)
@@ -972,7 +982,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 {
                     _logger.LogInformation(
                         "DEX2JAR version mismatch for {EntryName}: JAR version {JarVersion} != converter version {Dex2JarVersion}. Recreating JAR and Recompiling DLL.",
-                        entry.Name, entry.Jar.Version, _dex2Jar.Version);
+                        entry.Name, entry.Jar?.Version ?? "", _dex2Jar.Version);
                 }
                 /*
                 if (!dex2jarMismatch && ikvmMismatch)
@@ -992,8 +1002,8 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 try
                 {
                     // Copy required artifacts into the working folder based on the operation needed
-                    string workingApk = Path.Combine(unit.WorkingFolder.Path, entry.Apk.FileName);
-                    string workingJar = Path.Combine(unit.WorkingFolder.Path, entry.Jar.FileName);
+                    string workingApk = Path.Combine(unit.WorkingFolder.Path, entry.Apk?.FileName ?? "");
+                    string workingJar = Path.Combine(unit.WorkingFolder.Path, entry.Jar?.FileName ?? "");
 
                     if (dex2jarMismatch)
                     {
@@ -1002,8 +1012,7 @@ namespace Mihon.ExtensionsBridge.Core.Services
 
                         // Run full compile (Dex2Jar + IKVM)
                         var compiled = await CompileAsync(unit, token).ConfigureAwait(false);
-                        if (compiled == null)
-                            continue;
+
                     }
                     /*
                     else if (ikvmMismatch)

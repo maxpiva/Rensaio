@@ -48,11 +48,16 @@ public partial class App : Application
                 if (!_isShuttingDown)
                 {
                     e.Cancel = true;
-                    Task.Run(async () =>
+                    // GracefulShutdownAsync now disposes the tray icon, so the app can exit cleanly.
+                    // If the process still refuses to exit after shutdown completes, force-exit via
+                    // Environment.Exit(0) as a last resort after a timeout.
+                    _ = Task.Run(async () =>
                     {
                         await GracefulShutdownAsync();
-                        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-                            lifetime.Shutdown();
+                        // Small delay to let the UI thread process the tray cleanup
+                        await Task.Delay(500);
+                        // Force process exit to guarantee no hang
+                        Environment.Exit(0);
                     });
                 }
             };
@@ -126,7 +131,7 @@ public partial class App : Application
             // Build and start the ASP.NET Core host (this can run on background thread)
             _host = RensaioBackend.Program.CreateHostBuilder(Array.Empty<string>()).Build();
             // Start the ASP.NET Core host (this can run on background thread)
-            _ = Task.Run(async()=>await _host.StartAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false));   
+            _ = Task.Run(async()=>await _host.StartAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false));
             // Setup the tray icon on the UI thread
             Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
             {
@@ -150,30 +155,42 @@ public partial class App : Application
         {
             if (_host != null)
             {
+                // 1) Stop the host with a 30-second timeout
                 using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     _shutdownCancellationTokenSource.Token, timeoutCts.Token);
 
                 try
                 {
-                    await _host.StopAsync(combinedCts.Token);
+                    await _host.StopAsync(combinedCts.Token).ConfigureAwait(false);
                 }
-                catch (Exception )
+                catch
                 {
+                    // Swallow shutdown exceptions
                 }
 
-                try
-                {
-                    _host.Dispose();
-                }
-                catch (Exception )
-                {
-                }
+                // 2) Dispose the host — use ConfigureAwait(false) to avoid UI thread deadlock.
+                // IHost.Dispose() internally calls DisposeAsync().GetAwaiter().GetResult()
+                // which can deadlock on Avalonia's UI synchronization context.
+                await Task.Run(() => _host.Dispose()).ConfigureAwait(false);
             }
 
-        }
-        catch (Exception )
-        {
+            // 3) Clean up UI resources on the UI thread to let the event loop exit
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    // macOS: clear the Dock context menu
+                    MacOsTrayInterop.ClearDockMenu();
+                }
+                else if (_trayIcon != null)
+                {
+                    // Windows / Linux: dispose the Avalonia TrayIcon
+                    _trayIcon.IsVisible = false;
+                    _trayIcon.Dispose();
+                    _trayIcon = null;
+                }
+            });
         }
         finally
         {
@@ -185,6 +202,24 @@ public partial class App : Application
     {
         try
         {
+            // ── macOS: use native Objective-C interop ────────────────────
+            // Avalonia 12.0.4's NativeMenu→NSMenu bridge is broken on macOS,
+            // so we bypass it entirely and create a native NSStatusItem +
+            // NSMenu via direct Objective-C runtime calls.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // macOS: populate the Dock icon's context menu via native interop
+                // Avalonia's NativeMenu→NSMenu bridge is broken on macOS 12.0.4
+                MacOsTrayInterop.SetDockMenu(new[]
+                {
+                    ("Open App in the Browser", new Action(OpenAppInBrowser)),
+                    ("Show Console", new Action(ConsoleItem_Click_Mac)),
+                    ("Exit", new Action(ExitApplication)),
+                });
+                return;
+            }
+
+            // ── Windows / Linux: use Avalonia's TrayIcon with NativeMenu ─
             var trayIcon = new TrayIcon();
 
             try
@@ -214,8 +249,8 @@ public partial class App : Application
             exitItem.Click += async (sender, args) =>
             {
                 await GracefulShutdownAsync();
-                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-                    lifetime.Shutdown();
+                // Force process exit — the backend is fully stopped at this point
+                Environment.Exit(0);
             };
 
             menu.Add(openItem);
@@ -232,6 +267,46 @@ public partial class App : Application
         {
             Console.WriteLine($"Failed to setup tray icon: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Opens the Rensaiō web interface in the default browser (macOS helper).
+    /// </summary>
+    private void OpenAppInBrowser()
+    {
+        try
+        {
+            var server = _host?.Services.GetService<IServer>();
+            var addresses = server?.Features.Get<IServerAddressesFeature>();
+            var address = addresses?.Addresses.FirstOrDefault();
+
+            if (address != null)
+            {
+                var url = address.Replace("[::]", "localhost").Replace("0.0.0.0", "localhost");
+                Process.Start("open", url);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to open web interface: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Shows a terminal window (macOS helper).
+    /// </summary>
+    private void ConsoleItem_Click_Mac()
+    {
+        ShowConsoleAlternative();
+    }
+
+    /// <summary>
+    /// Gracefully shuts down and exits the application (macOS helper).
+    /// </summary>
+    private async void ExitApplication()
+    {
+        await GracefulShutdownAsync();
+        Environment.Exit(0);
     }
 
 

@@ -40,7 +40,7 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             _structure = structure ?? throw new ArgumentNullException(nameof(structure));
             _entry = entry ?? throw new ArgumentNullException(nameof(entry));
 
-            if (string.IsNullOrWhiteSpace(entry.Jar.FileName))
+            if (string.IsNullOrWhiteSpace(entry.Jar?.FileName))
                 throw new ArgumentException("JAR file name is required.", nameof(entry));
             if (string.IsNullOrWhiteSpace(structure.ExtensionsFolder))
                 throw new ArgumentException("Extensions folder path is required.", nameof(structure));
@@ -55,10 +55,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 throw new System.IO.FileNotFoundException("Jar file not found.", jarPath);
             _jarPath = jarPath;
             Name = entry.Name;
-            Version = entry.Extension.Version;
-            string className = entry.Extension.Package + entry.ClassName;
-            java.util.List ops = null;
-            ops = extension.bridge.Extensions.INSTANCE.loadExtensionSources(jarPath, className);
+            Version = entry.Extension?.Version ?? "";
+            string className = entry.Extension?.Package + entry.ClassName;
+            java.util.List ops = extension.bridge.Extensions.INSTANCE.loadExtensionSources(jarPath, className);
             var list = new List<ISourceInterop>();
             ops.toArray().Cast<Source>().ToList().ForEach(s => list.Add(new SourceInterop(s, logger)));
             /*
@@ -150,8 +149,8 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 {
                     if (keyDict.ContainsKey(p.Key))
                     {
-                        Preference pr = keyDict[p.Key].Preference;
-                        if (p.CurrentValue != pr.CurrentValue)
+                        Preference? pr = keyDict[p.Key].Preference;
+                        if (pr != null && p.CurrentValue != pr.CurrentValue)
                         {
                             p.CurrentValue = pr.CurrentValue;
                             change = true;

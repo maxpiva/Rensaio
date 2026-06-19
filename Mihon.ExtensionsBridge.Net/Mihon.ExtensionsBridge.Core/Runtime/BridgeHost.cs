@@ -12,12 +12,13 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
 {
     public class BridgeHost : BackgroundService
     {
+
         private readonly ILogger _logger;
         private readonly IWorkingFolderStructure _folder;
         private readonly IBridgeManager _manager;
         private readonly ILoggerFactory _loggerFactory;
-        private ILogger _androidLogger;
-        private IkvmAssemblyLoadContext alc;
+        private ILogger? _androidLogger;
+        //private IkvmAssemblyLoadContext alc;
 
         public sealed class IkvmAssemblyLoadContext : AssemblyLoadContext
         {
@@ -96,6 +97,8 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
     
             await _manager.SetPreferencesAsync(prefs, cancellationToken);
             _logger.LogInformation("Android App initialized.");
+
+
         }
         /*
         private sealed class PreloadingAssemblyLoadContext : AssemblyLoadContext
@@ -155,12 +158,32 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 ((Action)(() => {
                     StartupKt.applicationShutdown(extension.bridge.logging.AndroidCompatLoggerKt.androidCompatLogger(typeof(BridgeManager)));
                 })).InvokeInJavaContext();
-                alc.Unload();
+            }
+            catch (java.lang.IllegalStateException ex) when (ex.Message?.Contains("Main thread not allowed to quit") == true)
+            {
+                // Benign: the main looper is already quitting during app shutdown.
+                _logger.LogInformation("Main thread already quitting, Android app shutdown proceeding.");
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "applicationShutdown invocation failed.");
             }
+
+            // ALC is commented out in InitAndroidAppAsync, so it may be null.
+            // Only attempt unload if it was actually initialized.
+            /*
+            if (alc != null)
+            {
+                try
+                {
+                    alc.Unload();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ALC unload failed during shutdown.");
+                }
+            }
+            */
             _logger.LogInformation("Android App shut down.");
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)

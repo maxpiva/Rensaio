@@ -9,7 +9,7 @@ using static RensaioBackend.Extensions.ImageExtensions;
 
 namespace RensaioBackend.Extensions
 {
-    // <summary>
+    /// <summary>
     /// Defines a factory for creating and manipulating images from various sources and formats.
     /// </summary>
     public interface IImageFactory
@@ -38,7 +38,7 @@ namespace RensaioBackend.Extensions
         (int Width, int Height)? GetDimensions(string filename);
 
     }
-    // <summary>
+    /// <summary>
     /// Defines operations for manipulating and saving images.
     /// </summary>
     public interface IImage : IDisposable
@@ -130,7 +130,7 @@ namespace RensaioBackend.Extensions
     /// </summary>
     public class NetVipsImage : IImage
     {
-        Image _image;
+        Image? _image = null;
 
         /// <inheritdoc/>
         public int Width => _image?.Width ?? 0;
@@ -193,15 +193,15 @@ namespace RensaioBackend.Extensions
         /// <inheritdoc/>
         public IImage Clone()
         {
-            return new NetVipsImage(_image);
+            return new NetVipsImage(_image!);
         }
 
         /// <inheritdoc/>
         public void Resize(int width, int height)
         {
             // Scale separately in X and Y
-            double scaleX = (double)width / _image.Width;
-            double scaleY = (double)height / _image.Height;
+            double scaleX = (double)width / _image!.Width;
+            double scaleY = (double)height / _image!.Height;
             var old = _image;
             _image = old.Resize(scaleX, kernel: Enums.Kernel.Lanczos3, vscale: scaleY);
             old.Dispose();
@@ -210,7 +210,7 @@ namespace RensaioBackend.Extensions
         /// <inheritdoc/>
         public void Crop(int x, int y, int width, int height)
         {
-            var old = _image;
+            var old = _image!;
             _image = old.Crop(x, y, width, height);
             old.Dispose();
         }
@@ -247,7 +247,7 @@ namespace RensaioBackend.Extensions
             // NetVips is synchronous — execute synchronously and return completed task
             if (token.IsCancellationRequested)
                 return Task.FromCanceled(token);
-            _image.WriteToFile(filename, GetSaveOptions(format));
+            _image!.WriteToFile(filename, GetSaveOptions(format));
             return Task.CompletedTask;
         }
 
@@ -256,7 +256,7 @@ namespace RensaioBackend.Extensions
         {
             if (token.IsCancellationRequested)
                 return;
-            var buffer = _image.WriteToBuffer(format.GetExtension(), GetSaveOptions(format));
+            var buffer = _image!.WriteToBuffer(format.GetExtension(), GetSaveOptions(format));
             await stream.WriteAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
         }
         /// <inheritdoc/>
@@ -487,9 +487,9 @@ namespace RensaioBackend.Extensions
 
 
         /// <inheritdoc/>
-        public static async Task<string> CreateImageFileFormatIfNeeded(IImageFactory imageFactory, string filename, List<string> supportedImageFormats = null, EncodeFormat format = EncodeFormat.JPEG, CancellationToken token = default)
+        public static async Task<string> CreateImageFileFormatIfNeeded(IImageFactory imageFactory, string filename, List<string>? supportedImageFormats = null, EncodeFormat format = EncodeFormat.JPEG, CancellationToken token = default)
         {
-            if (CheckDirectSupport(filename, supportedImageFormats)) return filename;
+            if (CheckDirectSupport(filename, supportedImageFormats ?? [])) return filename;
 
             Match m = Regex.Match(Path.GetExtension(filename), HttpExtensions.NonUniversalFileImageExtensions, RegexOptions.IgnoreCase);
             if (!m.Success) return filename;
@@ -527,7 +527,7 @@ namespace RensaioBackend.Extensions
                     {
                         File.Delete(filename);
                     }
-                    catch (Exception) { /* Swallow Exception */ }
+                    catch  { /* Swallow Exception */ }
                 }
                 finally
                 {

@@ -121,9 +121,9 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     }, cancellationToken).ConfigureAwait(false);
                     if (reposMeta != null)
                     {
-                        repository.WebSite = reposMeta.meta.website;
-                        repository.Name = reposMeta.meta.name;
-                        repository.Fingerprint = reposMeta.meta.signingKeyFingerprint;
+                        repository.WebSite = reposMeta.meta?.website ?? "";
+                        repository.Name = reposMeta.meta?.name ?? "";
+                        repository.Fingerprint = reposMeta.meta?.signingKeyFingerprint ?? "";
                     }
                 }
 
@@ -189,8 +189,6 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// Downloads the APK and icon for a specific extension into the working folder structure.
         /// </summary>
         /// <param name="repository">The repository that hosts the extension artifacts.</param>
-        /// <param name="extension">The extension metadata used to resolve artifact names and version.</param>
-        /// <param name="force">If true, forces re-download even if files already exist.</param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         public async Task DownloadExtensionAsync(TachiyomiRepository repository, ExtensionWorkUnit workUnit, CancellationToken cancellationToken = default)
         {

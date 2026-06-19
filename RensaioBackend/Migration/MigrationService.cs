@@ -43,8 +43,8 @@ public class MigrationService
     private readonly ILogger<MigrationService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IServiceProvider _serviceProvider;
-    private ProviderCacheService _providerCache;
-    private ThumbCacheService _thumbs;
+    private ProviderCacheService? _providerCache = null;
+    private ThumbCacheService? _thumbs = null;
     
     public MigrationService(IServiceProvider factory, MihonBridgeService mihon, ILogger<MigrationService> logger,
                 IConfiguration configuration)
@@ -162,18 +162,18 @@ public class MigrationService
             return true;
         }
         _logger.LogInformation("Kaizoku v1.0 Database found, starting migration...");
-        string directoryPath = Path.GetDirectoryName(newDatabasePath);
+        string? directoryPath = Path.GetDirectoryName(newDatabasePath);
         string dbFile = Path.GetFileName(newDatabasePath);
         string dbFileWithoutExtension = Path.GetFileNameWithoutExtension(dbFile);
         string extension = Path.GetExtension(dbFile);
-        string legacyDatabasePath = Path.Combine(directoryPath, dbFileWithoutExtension + "_1.0_backup" + extension);
+        string legacyDatabasePath = Path.Combine(directoryPath ?? "", dbFileWithoutExtension + "_1.0_backup" + extension);
         try
         {
             File.Move(newDatabasePath, legacyDatabasePath);
         }
         catch(Exception e)
         {
-            _logger.LogError("Unable to backup original Kaizoku 1.0 Database.");
+            _logger.LogError(e, "Unable to backup original Kaizoku 1.0 Database.");
             return false;
         }
 
@@ -295,7 +295,7 @@ public class MigrationService
             await ApplyProviderPreferencesAsync(grp, legacyProvider, cancellationToken).ConfigureAwait(false);
             state.ProviderPackageLookup[legacyProvider.Name] = legacyProvider.PkgName;
         }
-        await _providerCache.RefreshCacheAsync(true, cancellationToken);
+        await _providerCache!.RefreshCacheAsync(true, cancellationToken);
        
         _logger.LogInformation("Migrated {Count} providers into the new database.", cnt);
     }
@@ -330,7 +330,7 @@ public class MigrationService
         var runtimeContexts = new Dictionary<string, ProviderRuntimeContext>(StringComparer.OrdinalIgnoreCase);
         var migratedProviders = new List<RensaioBackend.Models.Database.SeriesProviderEntity>(legacySeriesProviders.Count);
 
-        var cachedProviders = await _providerCache.GetCachedProvidersAsync(cancellationToken);
+        var cachedProviders = await _providerCache!.GetCachedProvidersAsync(cancellationToken);
 
         int cnt = 1;
         foreach (var legacyProvider in legacySeriesProviders)
@@ -416,7 +416,7 @@ public class MigrationService
         foreach (var series in state.SeriesProviders)
         {
             if (series.ThumbnailUrl != null)
-               await _thumbs.AddUrlAsync(series.ThumbnailUrl, series.MihonProviderId, cancellationToken).ConfigureAwait(false);
+               await _thumbs!.AddUrlAsync(series.ThumbnailUrl, series.MihonProviderId, cancellationToken).ConfigureAwait(false);
         }
         await targetDb.SeriesProviders.AddRangeAsync(state.SeriesProviders, cancellationToken).ConfigureAwait(false);
 
@@ -458,7 +458,9 @@ public class MigrationService
             };
             if (newJob.JobType==JobType.GetChapters)
             {
-                string id = JsonSerializer.Deserialize<string>(newJob.JobParameters);
+                string? id = JsonSerializer.Deserialize<string>(newJob.JobParameters ?? "");
+                if (id == null)
+                    continue;
                 Guid spid = Guid.Parse(id);
                 var p = state.SeriesProviders.FirstOrDefault(a => a.Id == spid);
                 if (p == null || p.IsLocal || p.IsUnknown)
@@ -466,7 +468,9 @@ public class MigrationService
             }
             if (newJob.JobType == JobType.GetLatest)
             {
-                LegacySuwayomiSource? source = JsonSerializer.Deserialize<LegacySuwayomiSource>(newJob.JobParameters);
+                LegacySuwayomiSource? source = JsonSerializer.Deserialize<LegacySuwayomiSource>(newJob.JobParameters ?? "");
+                if (source == null)
+                    continue;
                 string end = "|" + source.Id;
                 NewProviderStorage? prov = providers.FirstOrDefault(p => p.MihonProviderId.EndsWith(end));
                 if (prov==null)
@@ -1148,7 +1152,7 @@ public class MigrationService
         private readonly Dictionary<string, string> _packageLookup;
         private readonly MihonBridgeService _mihon;
 
-        public ProviderRuntimeContext(string key, MihonBridgeService mihon, List<NewProviderStorage> storages, Dictionary<string, string> packageLookup, LegacyProvider legacy)
+        public ProviderRuntimeContext(string key, MihonBridgeService mihon, List<NewProviderStorage> storages, Dictionary<string, string> packageLookup, LegacyProvider? legacy)
         {
             Key = key;
             _storages = storages;
@@ -1158,7 +1162,7 @@ public class MigrationService
         }
 
         public string Key { get; }
-        public LegacyProvider Legacy { get; }
+        public LegacyProvider? Legacy { get; }
 
         private IExtensionInterop? _interop;
         public async Task<IExtensionInterop?> GetInteropAsync(CancellationToken token = default)
@@ -1219,16 +1223,20 @@ public class MigrationService
 
             var normalizedName = NormalizeProviderName(providerName);
             var normalizedLang = NormalizeLanguage(language);
-            Mappings mapping = Legacy.Mappings.FirstOrDefault(a => a.Source.Lang.Equals(normalizedLang, StringComparison.OrdinalIgnoreCase) && a.Source.Name.Equals(normalizedName));
+            if (Legacy == null)
+                return null;
+            Mappings? mapping = Legacy.Mappings.FirstOrDefault(a => a.Source!=null && a.Source.Lang.Equals(normalizedLang, StringComparison.OrdinalIgnoreCase) && a.Source.Name.Equals(normalizedName));
             if (mapping == null)
-                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source.Lang == "all" && a.Source.Name.Equals(normalizedName));
+                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source != null && a.Source.Lang == "all" && a.Source.Name.Equals(normalizedName));
             if (mapping == null)
-                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source.Lang.Equals(normalizedLang, StringComparison.OrdinalIgnoreCase));
+                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source != null && a.Source.Lang.Equals(normalizedLang, StringComparison.OrdinalIgnoreCase));
             if (mapping == null)
-                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source.Lang == "all");
+                mapping = Legacy.Mappings.FirstOrDefault(a => a.Source != null && a.Source.Lang == "all");
             if (mapping == null)
                 mapping = Legacy.Mappings.First();
-            string sourceId = mapping.Source.Id;
+            if (mapping == null || mapping.Source==null)
+                return null;
+            string sourceId = mapping.Source!.Id;
             var candidate = interop.Sources.FirstOrDefault(s => s.Id.ToString(CultureInfo.InvariantCulture) == sourceId);
             if (candidate == null)
                 candidate = interop.Sources.FirstOrDefault(a => a.Language.Equals(normalizedLang, StringComparison.OrdinalIgnoreCase) && a.Name.Equals(normalizedName));
@@ -1258,7 +1266,7 @@ public class MigrationService
 
     private sealed class MigrationState
     {
-        public Dictionary<int, (long, ParsedManga)> OriginalMap { get; set; }
+        public Dictionary<int, (long, ParsedManga)> OriginalMap { get; set; } = [];
         public List<RensaioBackend.Models.Database.SeriesProviderEntity> SeriesProviders { get; set; } = [];
         public IReadOnlyList<string> MihonRepositories { get; set; } = Array.Empty<string>();
         public IReadOnlyList<string> Languages { get; set; } = Array.Empty<string>();

@@ -95,7 +95,7 @@ namespace RensaioBackend.Services.Helpers
                 return false;
             }
 
-            series.ThumbnailUrl = candidate.ThumbnailUrl;
+            series.ThumbnailUrl = candidate.ThumbnailUrl ?? "";
             EnsureSingleCover(candidate, providers);
             return true;
         }

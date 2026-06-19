@@ -63,10 +63,10 @@ namespace Mihon.ExtensionsBridge.Core.Extensions
                 Extension = entry.Extension.Clone(),
                 DownloadUrl = entry.DownloadUrl,
                 DownloadUTC = entry.DownloadUTC,
-                Apk = entry.Apk.Clone(),
-                Jar = entry.Jar.Clone(),
-                //Dll = entry.Dll.Clone(),
-                Icon = entry.Icon.Clone(),
+                Apk = entry.Apk?.Clone(),
+                Jar = entry.Jar?.Clone(),
+                //Dll = entry.Dll?.Clone(),
+                Icon = entry.Icon?.Clone(),
                 ClassName = entry.ClassName,
             };
         }

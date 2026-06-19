@@ -1,3 +1,4 @@
+using System.Globalization;
 using com.sun.tools.@internal.xjc;
 using RensaioBackend.Extensions;
 using RensaioBackend.Models;
@@ -9,7 +10,6 @@ using RensaioBackend.Services.Import.Models;
 using RensaioBackend.Services.Jobs.Report;
 using Mihon.ExtensionsBridge.Core.Extensions;
 using Mihon.ExtensionsBridge.Models;
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -142,7 +142,7 @@ namespace RensaioBackend.Services.Import
                         _ = decimal.TryParse(!string.IsNullOrEmpty(parsedInfo.Chapters) &&
                                          parsedInfo.Chapters != Parser.DefaultChapter
                             ? parsedInfo.Chapters
-                            : "0", out chap);
+                            : "0", NumberStyles.Any, CultureInfo.InvariantCulture, out chap);
                     }
                     if (!string.IsNullOrEmpty(parsedInfo?.Scanlator))
                     {

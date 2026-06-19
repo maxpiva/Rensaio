@@ -1,18 +1,19 @@
 ﻿using android;
 using androidx.preference;
+using com.sun.org.apache.xerces.@internal.dom;
 using eu.kanade.tachiyomi.network;
 using eu.kanade.tachiyomi.source;
 using eu.kanade.tachiyomi.source.model;
 using Microsoft.Extensions.Logging;
-using okhttp3;
-using System.Reflection;
 using Mihon.ExtensionsBridge.Core.Extensions;
 using Mihon.ExtensionsBridge.Core.Utilities;
 using Mihon.ExtensionsBridge.Models;
 using Mihon.ExtensionsBridge.Models.Abstractions;
 using Mihon.ExtensionsBridge.Models.Extensions;
-using Page = Mihon.ExtensionsBridge.Models.Extensions.Page;
+using okhttp3;
 using System.Net;
+using System.Reflection;
+using Page = Mihon.ExtensionsBridge.Models.Extensions.Page;
 
 namespace Mihon.ExtensionsBridge.Core.Runtime
 {
@@ -51,12 +52,12 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
         /// <summary>
         /// Cached preference screen built from the configurable source, if available.
         /// </summary>
-        PreferenceScreen _preference = null;
+        PreferenceScreen? _preference = null;
 
         /// <summary>
         /// Cached filter list for catalogue queries. Populated on first access.
         /// </summary>
-        public eu.kanade.tachiyomi.source.model.FilterList _cachedList = null;
+        public eu.kanade.tachiyomi.source.model.FilterList? _cachedList = null;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SourceInterop"/> class.
@@ -143,7 +144,7 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             {
                 throw new HttpRequestException(ex.getMessage(), ex, (HttpStatusCode)ex.getCode());
             }
-            catch(Exception z)
+            catch(Exception)
             {
                 throw;
             }
@@ -160,7 +161,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
             {
                 if (_httpSource == null)
                     throw new InvalidOperationException("Source does not support catalogue operations.");
+#pragma warning disable CS0612 // Type or member is obsolete
                 var mangaPage = await _httpSource.fetchPopularManga(page).ConsumeObservableOneOrDefaultAsync<MangasPage>(EmptyMangasPage(), token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 return mangaPage!.ToMangaList(_httpSource);
             }).ConfigureAwait(false);
         }
@@ -182,7 +185,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                     throw new InvalidOperationException("Source does not support catalogue operations.");
                 if (!SupportsLatest)
                     throw new InvalidOperationException("Source does not support latest updates.");
+#pragma warning disable CS0612 // Type or member is obsolete
                 var mangaPage = await _httpSource.fetchLatestUpdates(page).ConsumeObservableOneOrDefaultAsync<MangasPage>(EmptyMangasPage(), token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 return mangaPage!.ToMangaList(_httpSource);
             }).ConfigureAwait(false);
         }
@@ -202,7 +207,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (_httpSource == null)
                     throw new InvalidOperationException("Source does not support catalogue operations.");
                 PopulateFilterList();
+#pragma warning disable CS0612 // Type or member is obsolete
                 var mangaPage = await _httpSource.fetchSearchManga(page, query, _cachedList).ConsumeObservableOneOrDefaultAsync<MangasPage>(EmptyMangasPage(), token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 return mangaPage!.ToMangaList(_httpSource);
             }).ConfigureAwait(false);
         }
@@ -221,7 +228,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (_httpSource == null)
                     throw new InvalidOperationException("Source does not support catalogue operations.");
                 SManga mangaImpl = manga.ToSManga();
+#pragma warning disable CS0612 // Type or member is obsolete
                 var mangaDetails = await _httpSource.fetchMangaDetails(mangaImpl).ConsumeObservableOneOrDefaultAsync<SManga>(mangaImpl, token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 ParsedManga m = mangaDetails!.ToManga<ParsedManga>(manga);
                 m.RealUrl = _httpSource.getMangaUrl(mangaDetails ?? mangaImpl);
                 return m;
@@ -242,7 +251,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (_httpSource == null)
                     throw new InvalidOperationException("Source does not support catalogue operations.");
                 SManga mangaImpl = manga.ToSManga();
+#pragma warning disable CS0612 // Type or member is obsolete
                 var chapters = await _httpSource.fetchChapterList(mangaImpl).ConsumeObservableOneOrDefaultAsync<java.util.List>(new java.util.ArrayList(), token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 return chapters!.toArray().Cast<SChapter>().ToParsedChapters(manga.Title, mangaImpl, _httpSource);
             }).ConfigureAwait(false);
         }
@@ -261,7 +272,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (_httpSource == null)
                     throw new InvalidOperationException("Source does not support catalogue operations.");
                 SChapterImpl chasImpl = chapter.ToSChapter();
+#pragma warning disable CS0612 // Type or member is obsolete
                 var pages = await _httpSource.fetchPageList(chasImpl).ConsumeObservableOneOrDefaultAsync<java.util.List>(new java.util.ArrayList(), token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                 return pages!.toArray().Cast<eu.kanade.tachiyomi.source.model.Page>().Select(a => a.ToPage()).ToList();
             }).ConfigureAwait(false);
         }
@@ -292,7 +305,9 @@ namespace Mihon.ExtensionsBridge.Core.Runtime
                 if (string.IsNullOrEmpty(page.ImageUrl))
                 {
                     var spage2 = page.ToSPage();
-                    string newImageUrl = await _httpSource.fetchImageUrl(spage2).ConsumeObservableOneOrDefaultAsync<string>(string.Empty, token).ConfigureAwait(false);
+#pragma warning disable CS0612 // Type or member is obsolete
+                    string? newImageUrl = await _httpSource.fetchImageUrl(spage2).ConsumeObservableOneOrDefaultAsync<string>(string.Empty, token).ConfigureAwait(false);
+#pragma warning restore CS0612 // Type or member is obsolete
                     if (!string.IsNullOrEmpty(newImageUrl))
                         page.ImageUrl = newImageUrl;
                 }

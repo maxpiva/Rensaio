@@ -129,8 +129,10 @@ namespace RensaioBackend.Services.Providers
             else
             {
                 RepositoryEntry entry = grp.GetActiveEntry();
-                TachiyomiExtension extension = entry.Extension;
-                foreach (TachiyomiSource source in extension.Sources)
+                TachiyomiExtension? extension = entry.Extension;
+                if (extension == null)
+                    return false;
+                foreach (TachiyomiSource source in extension?.Sources ?? [])
                 {
                     string repoName = onlinerepos.FirstOrDefault(a => a.Id == entry.RepositoryId)?.Name ?? "Removed";
                     ProviderStorageEntity? p = storages.FirstOrDefault(a => a.SourcePackageName == package && a.SourceSourceId == source.Id);
@@ -151,7 +153,7 @@ namespace RensaioBackend.Services.Providers
                     ProviderStorageEntity storage = new ProviderStorageEntity();
                     storage.MihonProviderId = entry.GetMihonProviderId(source);
                     ISourceInterop? interop = await _mihon.SourceFromProviderIdAsync(storage.MihonProviderId, token).ConfigureAwait(false);
-                    storage.FillProviderStorage(entry, extension, source, interop, repoName, entry.RepositoryId);
+                    storage.FillProviderStorage(entry, extension!, source, interop, repoName, entry.RepositoryId);
                     if (storage.Language == "all")
                         storage.IsEnabled = true;
                     else if (prefLanguages.Contains(storage.Language, StringComparer.InvariantCultureIgnoreCase))

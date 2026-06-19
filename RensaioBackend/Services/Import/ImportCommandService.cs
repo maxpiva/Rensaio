@@ -360,7 +360,7 @@ public class ImportCommandService
                                 }
                                 else
                                 {
-                                    ProviderStorageEntity k = filteredSources.BestMatch(local_repo, p.Provider, p.Language);
+                                    ProviderStorageEntity? k = filteredSources?.BestMatch(local_repo, p.Provider, p.Language) ?? null;
                                     if (k != null)
                                     {
                                         List<LinkedSeriesDto> linked2 = await _searchQuery
@@ -516,6 +516,8 @@ public class ImportCommandService
                 
                             foreach (LinkedSeriesDto l in list)
                             {
+                                if (l.MihonProviderId == null)
+                                    continue;
                                 List<string> lss = sourceTitles[l.MihonProviderId];
                                 foreach (string n in lss)
                                 {

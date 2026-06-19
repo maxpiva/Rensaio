@@ -13,6 +13,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <PackageIcon>rensaio.png</PackageIcon>
 	<ApplicationIcon>Assets\rensaio.ico</ApplicationIcon>
+	<RestoreSources>$(RestoreSources);$(ProjectDir)../packages;https://api.nuget.org/v3/index.json</RestoreSources>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\RensaioFrontend\public\rensaio.png">
@@ -27,6 +28,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.4" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+	<PackageReference Include="NetVips" Version="3.1.0" />
+	<PackageReference Include="Unofficial.Experimental.NetVips.Native" Version="8.17.1" />
     <PackageReference Include="Spectre.Console" Version="0.55.2" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
     <PackageReference Include="Avalonia.Diagnostics" Version="11.3.17">

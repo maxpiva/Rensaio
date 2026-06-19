@@ -2,8 +2,8 @@
 {
     public class Meta
     {
-        public string name { get; set; }
-        public string website { get; set; }
-        public string signingKeyFingerprint { get; set; }
+        public string name { get; set; } = "";
+        public string website { get; set; } = "";
+        public string signingKeyFingerprint { get; set; } = "";
     }
 }

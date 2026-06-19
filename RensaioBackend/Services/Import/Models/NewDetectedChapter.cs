@@ -6,7 +6,7 @@ namespace RensaioBackend.Services.Import.Models
     {
         public string MihonProviderId {  get; set; } = string.Empty;
         public string Provider { get; set; } = string.Empty;
-        public string ThumbnailUrl { get; set; } = string.Empty;
+        public string? ThumbnailUrl { get; set; }
         public string Scanlator { get; set; } = string.Empty;
         public string Title { get; set; } = "";
         public string Language { get; set; } = "";

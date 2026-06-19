@@ -37,8 +37,8 @@ namespace RensaioBackend.Extensions
         {
             (string packageName, string sourceId) = GetPackageAndSourceId(mihonproviderid);
             RepositoryEntry entry = group.GetActiveEntry();
-            TachiyomiExtension extension = entry.Extension;
-            if (extension.Package != packageName)
+            TachiyomiExtension? extension = entry.Extension;
+            if (extension==null || extension.Package != packageName)
                 return (null, null, null);
             TachiyomiSource? source = extension.Sources.FirstOrDefault(s => s.Id == sourceId);
             if (source == null)
@@ -95,14 +95,14 @@ namespace RensaioBackend.Extensions
                 return null;
             return filtered.First();
         }
-        public static ProviderStorageEntity BestMatch(this List<ProviderStorageEntity> providers, List<RepositoryGroup> local_repo, string name, string? language = null)
+        public static ProviderStorageEntity? BestMatch(this List<ProviderStorageEntity> providers, List<RepositoryGroup> local_repo, string name, string? language = null)
         {
             foreach (RepositoryGroup group in local_repo)
             {
                 RepositoryEntry entry = group.GetActiveEntry();
-                TachiyomiExtension ext = entry.Extension;
-                TachiyomiSource? src = ext.BestMatch(name, language);
-                if (src != null)
+                TachiyomiExtension? ext = entry.Extension;
+                TachiyomiSource? src = ext?.BestMatch(name, language);
+                if (src != null && ext!=null)
                 {
                     string mihonProviderId = ext.GetMihonProviderId(src);
                     ProviderStorageEntity? provider = providers.FirstOrDefault(p => p.MihonProviderId == mihonProviderId);

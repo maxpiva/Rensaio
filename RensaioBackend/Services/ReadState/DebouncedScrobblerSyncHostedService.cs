@@ -46,8 +46,15 @@ public sealed class DebouncedScrobblerSyncHostedService : BackgroundService
         var consumerTask = ConsumeChannelAsync(stoppingToken);
         var sweepTask = SweepLoopAsync(timer, stoppingToken);
 
-        // Wait for either to complete (they run until cancellation).
-        await Task.WhenAny(consumerTask, sweepTask);
+        // Wait for both to complete — using WhenAll ensures neither is abandoned on cancellation.
+        try
+        {
+            await Task.WhenAll(consumerTask, sweepTask).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown
+        }
     }
 
     private async Task ConsumeChannelAsync(CancellationToken token)
@@ -62,31 +69,42 @@ public sealed class DebouncedScrobblerSyncHostedService : BackgroundService
 
     private async Task SweepLoopAsync(PeriodicTimer timer, CancellationToken token)
     {
-        while (await timer.WaitForNextTickAsync(token))
+        try
         {
-            if (_pending.IsEmpty)
-                continue;
-
-            var now = DateTime.UtcNow;
-            var ready = new List<(Guid, Guid)>();
-
-            // Collect entries whose debounce window has elapsed.
-            foreach (var kvp in _pending)
+            while (await timer.WaitForNextTickAsync(token))
             {
-                if (now - kvp.Value >= DebounceWindow)
+                if (_pending.IsEmpty)
+                    continue;
+
+                var now = DateTime.UtcNow;
+                var ready = new List<(Guid, Guid)>();
+
+                // Collect entries whose debounce window has elapsed.
+                foreach (var kvp in _pending)
                 {
-                    ready.Add(kvp.Key);
+                    if (now - kvp.Value >= DebounceWindow)
+                    {
+                        ready.Add(kvp.Key);
+                    }
+                }
+
+                foreach (var key in ready)
+                {
+                    // If cancellation is requested, stop processing new sweeps
+                    if (token.IsCancellationRequested)
+                        break;
+
+                    // Try to remove — only process if we successfully claimed it.
+                    if (_pending.TryRemove(key, out _))
+                    {
+                        await ProcessEventAsync(key.Item1, key.Item2, token);
+                    }
                 }
             }
-
-            foreach (var key in ready)
-            {
-                // Try to remove — only process if we successfully claimed it.
-                if (_pending.TryRemove(key, out _))
-                {
-                    await ProcessEventAsync(key.Item1, key.Item2, token);
-                }
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown
         }
     }
 
@@ -94,6 +112,10 @@ public sealed class DebouncedScrobblerSyncHostedService : BackgroundService
     {
         try
         {
+            // Guard against shutdown — don't try to create a scope if the container is being disposed
+            if (token.IsCancellationRequested)
+                return;
+
             using var scope = _scopeFactory.CreateScope();
             var readStateService = scope.ServiceProvider.GetRequiredService<ReadStateService>();
             var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
@@ -119,6 +141,14 @@ public sealed class DebouncedScrobblerSyncHostedService : BackgroundService
 
             var syncService = scope.ServiceProvider.GetRequiredService<ScrobblerSyncService>();
             await syncService.UpdateForUserAndSeriesAsync(userId, seriesId, localStates, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown — swallow silently
+        }
+        catch (ObjectDisposedException)
+        {
+            // DI container disposed during shutdown — swallow silently
         }
         catch (Exception ex)
         {

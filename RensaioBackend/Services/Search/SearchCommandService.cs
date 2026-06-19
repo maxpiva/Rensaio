@@ -146,18 +146,21 @@ namespace RensaioBackend.Services.Search
                         .ToDictionary(g => g.Key ?? "", g => g.ToList());
 
                     var seriesPerScanlator = new List<ProviderSeriesDetails>();
-                    foreach (var scanlatorGroup in groupedChapters)
+                    if (groupedChapters != null)
                     {
-                        var seriesCopy = FastDeepCloner.DeepCloner.Clone(ProviderSeriesDetails);
-                        var firstChapter = scanlatorGroup.Value.First();
-                        
-                        seriesCopy.Scanlator = scanlatorGroup.Key;
-                        seriesCopy.LastUpdatedUTC = firstChapter.DateUpload.DateTime;
-                        seriesCopy.ChapterCount = scanlatorGroup.Value.Count;
-                        seriesCopy.Chapters = scanlatorGroup.Value.Select(a => a.ToChapter()).OrderBy(a => a.ProviderIndex).ToList();
-                        seriesCopy.ChapterList = scanlatorGroup.Value.Select(a => a.ParsedNumber).FormatDecimalRanges();
-                        
-                        seriesPerScanlator.Add(seriesCopy);
+                        foreach (var scanlatorGroup in groupedChapters)
+                        {
+                            var seriesCopy = FastDeepCloner.DeepCloner.Clone(ProviderSeriesDetails);
+                            var firstChapter = scanlatorGroup.Value.First();
+
+                            seriesCopy.Scanlator = scanlatorGroup.Key;
+                            seriesCopy.LastUpdatedUTC = firstChapter.DateUpload.DateTime;
+                            seriesCopy.ChapterCount = scanlatorGroup.Value.Count;
+                            seriesCopy.Chapters = scanlatorGroup.Value.Select(a => a.ToChapter()).OrderBy(a => a.ProviderIndex).ToList();
+                            seriesCopy.ChapterList = scanlatorGroup.Value.Select(a => a.ParsedNumber).FormatDecimalRanges();
+
+                            seriesPerScanlator.Add(seriesCopy);
+                        }
                     }
 
                     // Apply existing provider logic

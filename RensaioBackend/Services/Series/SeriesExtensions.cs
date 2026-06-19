@@ -682,7 +682,7 @@ public static class SeriesExtensions
             {
                 string key = fs.ThumbnailUrl.Substring(11);
                 var n = await cache.GetEtagAsync(key, token).ConfigureAwait(false);
-                provider.ThumbnailUrl = n.Url;
+                provider.ThumbnailUrl = n?.Url ?? "";
             }
             else
                 provider.ThumbnailUrl = await cache.AddUrlAsync(fs.ThumbnailUrl, fs.MihonProviderId, token).ConfigureAwait(false);
@@ -931,7 +931,7 @@ public static class SeriesExtensions
             if (chapter.Pages.Count > 0)
                 continue; // Already populated
 
-            string archivePath = Path.Combine(seriesBasePath, chapter.Filename);
+            string archivePath = Path.Combine(seriesBasePath, chapter.Filename!);
             if (!File.Exists(archivePath))
                 continue;
 

@@ -22,5 +22,5 @@ public class DownloadChapterInfo
     public decimal? ChapterNumber { get; set; }
     public DateTime? DownloadDateUTC { get; set; }
     public QueueStatus Status { get; set; }
-    public ChapterDownload Chapter { get; set; }
+    public ChapterDownload? Chapter { get; set; }
 }

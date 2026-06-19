@@ -3,6 +3,7 @@ using RensaioBackend.Models.Database;
 using RensaioBackend.Services.Jobs;
 using RensaioBackend.Services.Jobs.Settings;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace RensaioBackend.Services.Background
 {
@@ -14,6 +15,7 @@ namespace RensaioBackend.Services.Background
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<JobScheduledHostedService> _logger;
         private readonly JobsSettings _settings;
+        private readonly ConcurrentBag<Task> _inFlightSchedulingTasks = new();
 
         public JobScheduledHostedService(IServiceScopeFactory scopeFactory, ILogger<JobScheduledHostedService> logger,
             JobsSettings settings)
@@ -31,8 +33,9 @@ namespace RensaioBackend.Services.Background
             {
                 try
                 {
-                    await ProcessScheduledJobsAsync(stoppingToken).ConfigureAwait(false);
-                    await Task.Delay(_settings.JobsPollingInterval, stoppingToken).ConfigureAwait(false);
+                    var processingTask = ProcessScheduledJobsAsync(stoppingToken);
+                    _inFlightSchedulingTasks.Add(processingTask);
+                    await processingTask.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -43,9 +46,31 @@ namespace RensaioBackend.Services.Background
                 {
                     _logger.LogError(ex, "Error processing scheduled jobs");
                 }
+
+                try
+                {
+                    await Task.Delay(_settings.JobsPollingInterval, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
 
-            _logger.LogInformation("Job Scheduler Service is stopping");
+            _logger.LogInformation("Job Scheduler Service is stopping. Waiting for {Count} in-flight scheduling tasks...", _inFlightSchedulingTasks.Count);
+            
+            try
+            {
+                await Task.WhenAll(_inFlightSchedulingTasks).WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Some scheduled job processing tasks did not complete within the shutdown timeout.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown
+            }
         }
 
         private async Task ProcessScheduledJobsAsync(CancellationToken stoppingToken)
@@ -122,6 +147,11 @@ namespace RensaioBackend.Services.Background
                     
                     _logger.LogInformation("Next Queued Execution of job {Key} will be {NextExecution}",
                         job.Key, job.NextExecution);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Shutdown in progress — stop processing scheduled jobs gracefully
+                    break;
                 }
                 catch (Exception ex)
                 {

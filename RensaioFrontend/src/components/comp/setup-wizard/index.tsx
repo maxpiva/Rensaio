@@ -55,7 +55,7 @@ const steps = {
 } satisfies Record<string, StepItem>;
 
 export function SetupWizard() {
-  const { isWizardActive, currentStep, totalSteps, nextStep, previousStep, completeWizard } = useSetupWizard();
+  const { isWizardActive, currentStep, totalSteps, nextStep, previousStep, completeWizard, minimizeWizard } = useSetupWizard();
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [canProgress, setCanProgress] = React.useState(false);
@@ -78,9 +78,11 @@ export function SetupWizard() {
   return (<Dialog
     open={true}
     onOpenChange={(open) => {
-      // Only the import step lets the user close the wizard (via the X button).
+      // Once the import has started, the X button minimizes the wizard (it does NOT
+      // complete it) so the import can keep running in the background while the user
+      // uses the app. They reopen it from the floating pill to finish the remaining steps.
       if (!open && importStarted) {
-        void completeWizard();
+        minimizeWizard();
       }
     }}
     modal

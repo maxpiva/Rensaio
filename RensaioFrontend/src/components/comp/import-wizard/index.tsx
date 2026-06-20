@@ -50,7 +50,7 @@ export function ImportWizard() {
   return (
     <Dialog open={true} onOpenChange={() => { /* Prevent closing */ }} modal>
       <DialogContent
-        className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90%] flex flex-col overflow-hidden"
+        className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] sm:min-h-[85vh] flex flex-col overflow-hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -61,7 +61,7 @@ export function ImportWizard() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex w-full flex-col gap-4 min-w-0 overflow-hidden">
+        <div className="flex w-full flex-col gap-4 min-w-0 flex-1 min-h-0 overflow-hidden">
           <Stepper
             initialStep={0}
             activeStep={currentStep}

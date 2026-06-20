@@ -1973,6 +1973,7 @@
   flex-direction: column;
   gap: 10px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .iw-segment-bar {
@@ -2028,11 +2029,20 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 9.5px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: hsl(var(--as-fg-dim));
+}
+
+/* Truncate long step labels so a high step count (e.g. setup's 7) never wraps. */
+.iw-segment-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .iw-segment.is-complete .iw-segment-label { color: hsl(var(--as-fg-muted)); }
@@ -2254,9 +2264,35 @@
 
 /* ── Mobile ≤640px ── */
 @media (max-width: 640px) {
+  /* The Radix DialogContent wrapper carries leftover shadcn utilities
+     (max-h-[95vh] / overflow-y-auto / translate-x) that twMerge can't strip
+     because the wizard's overrides live in different class groups. Left as-is,
+     the wrapper stays a viewport-capped scroll container, so the 100dvh shell
+     overflows it and the footer (Next button + its top hairline) slips below
+     the fold. Force it to an edge-pinned, non-scrolling full-screen box so the
+     shell's own flex column owns the layout and pins the footer. */
+  .iw-modal {
+    /* Horizontal centering (left:50% + translate-x:-50% on a 100vw box =
+       full-bleed) and the top anchor (top-0/translate-y-0) already come from
+       the DialogContent's own classes — do NOT override them, or the leftover
+       `translate-x-[-50%]` recombines with a left:0 and shoves the modal
+       off-screen. We only need to defeat the leftover shadcn
+       max-h-[95vh]/overflow-y-auto so the 100dvh shell isn't clipped into a
+       viewport-capped scroll container that pushes the footer below the fold. */
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh !important; /* fallback for browsers without dvh */
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important; /* shell owns the internal scroll */
+    border-radius: 0 !important;
+  }
+
   /* Modal goes edge-to-edge, fullscreen */
   .iw-shell {
     width: 100vw !important;
+    height: 100vh !important; /* fallback for browsers without dvh */
     height: 100dvh !important;
     max-height: none !important;
     border-radius: 0 !important;
@@ -2363,9 +2399,11 @@
     padding: 0 16px;
   }
 
-  /* Footer: 2-row layout — centered meta on top, full-width buttons below */
+  /* Footer: 2-row layout — centered meta on top, full-width buttons below.
+     Extra bottom padding clears the home-indicator / safe-area inset so the
+     primary button is never obscured at the viewport edge. */
   .iw-footer {
-    padding: 12px 16px 20px;
+    padding: 12px 16px calc(20px + env(safe-area-inset-bottom, 0px));
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto auto;
     gap: 10px;

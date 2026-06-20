@@ -1,10 +1,6 @@
 "use client";
 
 import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Step, Stepper, type StepItem } from "@/components/ui/stepper";
-import { ArrowLeft, ArrowRight, Check, LoaderCircle, Settings, File, CheckSquare, Flag, Sliders, Clock, User } from "lucide-react";
 import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
 
 // Import step components
@@ -16,278 +12,175 @@ import { ScheduleUpdatesStep } from "./steps/schedule-updates-step";
 import { FinishStep } from "./steps/finish-step";
 import { IdentifyUserStep } from "./steps/identify-user-step";
 
-const steps = {
-  preferences: {
-    label: "Preferences",
-    description: "Configure settings",
-    icon: Sliders,
+import {
+  WizardShell,
+  type WizardStep,
+} from "@/components/comp/import-wizard/wizard-shell";
+
+// Setup-wizard steps reuse the redesigned glass WizardShell (same shell as the
+// import wizard). `label` is the short token shown in the progress pill; `title`
+// is the full hero heading. Order matches the provider's TOTAL_STEPS = 7.
+const WIZARD_STEPS: WizardStep[] = [
+  {
+    id: "preferences",
+    label: "Prefs",
+    eyebrow: "Step 01 · Configure",
+    title: "Preferences",
+    description: "Configure your core settings before importing.",
   },
-  providers: {
-    label: "Add Sources",
-    description: "Install sources",
-    icon: Settings,
+  {
+    id: "providers",
+    label: "Sources",
+    eyebrow: "Step 02 · Install",
+    title: "Add Sources",
+    description: "Install the manga sources you want to track.",
   },
-  import: {
-    label: "Import Local Files",
-    description: "Scan archives",
-    icon: File,
+  {
+    id: "import",
+    label: "Scan",
+    eyebrow: "Step 03 · Scan",
+    title: "Import Local Files",
+    description: "Scan your archives, install sources, and match series.",
   },
-  confirm: {
-    label: "Confirm Imports",
-    description: "Review series",
-    icon: CheckSquare,
+  {
+    id: "confirm",
+    label: "Review",
+    eyebrow: "Step 04 · Review",
+    title: "Confirm Imports",
+    description: "Review and match each detected series before importing.",
   },
-  schedule: {
-    label: "Schedule Summary",
-    description: "Check incoming updates",
-    icon: Clock,
+  {
+    id: "schedule",
+    label: "Schedule",
+    eyebrow: "Step 05 · Schedule",
+    title: "Schedule Summary",
+    description: "Check the incoming update schedule for your series.",
   },
-  userSetup: {
-    label: "User Setup",
-    description: "Create or identify admin",
-    icon: User,
+  {
+    id: "finish",
+    label: "Import",
+    eyebrow: "Step 06 · Import",
+    title: "Finish Import",
+    description: "Your selected series are being imported into the library.",
   },
-  finish: {
-    label: "Finish Import",
-    description: "Complete Import",
-    icon: Flag,
+  {
+    id: "user",
+    label: "User",
+    eyebrow: "Step 07 · Account",
+    title: "User Setup",
+    description: "Create or identify the administrator account.",
   },
-} satisfies Record<string, StepItem>;
+];
 
 export function SetupWizard() {
-  const { isWizardActive, currentStep, totalSteps, nextStep, previousStep, completeWizard } = useSetupWizard();
+  const {
+    isWizardActive,
+    currentStep,
+    totalSteps,
+    nextStep,
+    previousStep,
+    completeWizard,
+  } = useSetupWizard();
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [canProgress, setCanProgress] = React.useState(false);
+  const [disableDownloads, setDisableDownloads] = React.useState(false);
+  const [autoCreatedUsers, setAutoCreatedUsers] = React.useState<string[]>([]);
 
-  // Reset canProgress when entering a new step to prevent stale state
+  // Reset canProgress when entering a new step to prevent stale state.
   React.useEffect(() => {
     setCanProgress(false);
   }, [currentStep]);
-  const [disableDownloads, setDisableDownloads] = React.useState(false);
-  const [autoCreatedUsers, setAutoCreatedUsers] = React.useState<string[]>([]);
-  const [usersAutoCreated, setUsersAutoCreated] = React.useState(false);
 
   if (!isWizardActive) {
     return null;
   }
 
-  // First-time setup is mandatory: the wizard stays open (modal, non-dismissable) until the
-  // user finishes every step. There is no minimize/close — escape, outside-click and the
-  // built-in close button are all disabled below, so long-running steps simply keep running
-  // on the server while the wizard remains visible (it reconnects to them after a reload).
-  return (<Dialog open={true} modal>
-    {/* The built-in (top-right) close button is always hidden: first-time setup can't be
-        dismissed, so there is no close/minimize affordance anywhere in the wizard. */}
-    <DialogContent
-      className="w-[98vw] sm:w-[95vw] md:max-w-[90%] lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] sm:min-h-[85vh] flex flex-col overflow-hidden max-[768px]:overflow-y-auto max-[768px]:overflow-x-hidden [&>button]:hidden"
-      onInteractOutside={(e) => e.preventDefault()}
-      onEscapeKeyDown={(e) => e.preventDefault()}
-    >        <DialogHeader className="relative max-[768px]:sticky max-[768px]:top-0 max-[768px]:z-20 max-[768px]:bg-background max-[768px]:pb-2">
-        <DialogTitle>Import Wizard</DialogTitle>
-        <DialogDescription>
-          Configure your Rensaiō installation by following these steps to set up preferences, add sources, and import existing series.
-        </DialogDescription>
-      </DialogHeader><div className="flex w-full flex-col gap-4 min-w-0 flex-1 min-h-0 overflow-hidden max-[768px]:flex-none max-[768px]:min-h-0 max-[768px]:overflow-visible">          <Stepper
-        initialStep={0}
-        activeStep={currentStep}
-        steps={Object.values(steps)}
-        variant="circle"
-        orientation="horizontal"
-        size="md"
-        responsive={true}
-        state={isLoading ? "loading" : error ? "error" : undefined}
-        styles={{
-          // On mobile the whole dialog scrolls as one container (see DialogContent) with a
-          // sticky footer, so the stepper area must not create its own nested scroll region.
-          "main-container": "max-[768px]:overflow-visible",
-          // Hide the vertical connector line on mobile so it doesn't draw straight through
-          // the active step's content.
-          "vertical-step": "max-[768px]:after:hidden",
-          // Reclaim the icon-width indent on mobile so content uses the full width.
-          "vertical-step-content": "max-[768px]:ps-0 max-[768px]:w-full",
-        }}
-      >
-        <Step
-          label={steps.preferences.label}
-          description={steps.preferences.description}
-          icon={steps.preferences.icon}
-        >
-          <PreferencesStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-          />
-        </Step>
-        {error && currentStep === 0 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-
-        <Step
-          label={steps.providers.label}
-          description={steps.providers.description}
-          icon={steps.providers.icon}
-        >
-          <AddProvidersStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-          />
-        </Step>
-        {error && currentStep === 1 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-
-        <Step
-          label={steps.import.label}
-          description={steps.import.description}
-          icon={steps.import.icon}
-        >
-          <ImportLocalStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-          />
-        </Step>
-        {error && currentStep === 2 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}            <Step
-          label={steps.confirm.label}
-          description={steps.confirm.description}
-          icon={steps.confirm.icon}
-        >
-          <ConfirmImportsStep
-            key={`confirm-imports-step-${currentStep}`}
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-          />        </Step>
-        {error && currentStep === 3 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-
-        <Step
-          label={steps.schedule.label}
-          description={steps.schedule.description}
-          icon={steps.schedule.icon}
-        >
-          <ScheduleUpdatesStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-            onDownloadOptionChange={setDisableDownloads}
-          />
-        </Step>
-        {error && currentStep === 4 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-
-        <Step
-          label={steps.finish.label}
-          description={steps.finish.description}
-          icon={steps.finish.icon}
-        >
-          <FinishStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-            disableDownloads={disableDownloads}
-            onUsersDetected={(users) => {
-              setAutoCreatedUsers(users);
-              setUsersAutoCreated(users.length > 0);
-            }}
-          />
-        </Step>
-        {error && currentStep === 5 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-
-        <Step
-          label={steps.userSetup.label}
-          description={steps.userSetup.description}
-          icon={steps.userSetup.icon}
-        >
-          <IdentifyUserStep
-            setError={setError}
-            setIsLoading={setIsLoading}
-            setCanProgress={setCanProgress}
-            autoCreatedUsers={autoCreatedUsers}
-          />
-        </Step>
-        {error && currentStep === 6 && (
-          <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-            {error}
-          </div>
-        )}
-      </Stepper>
-        <Footer
-          currentStep={currentStep}
-          totalSteps={totalSteps}
-          canProgress={canProgress}
-          isLoading={isLoading}
-          onNext={currentStep === totalSteps - 1 ? () => void completeWizard() : () => void nextStep()}
-          onPrevious={() => previousStep()}
-        />
-      </div>
-    </DialogContent>
-  </Dialog>
-  );
-}
-
-interface FooterProps {
-  currentStep: number;
-  totalSteps: number;
-  canProgress: boolean;
-  isLoading: boolean;
-  onNext: () => void;
-  onPrevious: () => void;
-}
-
-function Footer({ currentStep, totalSteps, canProgress, isLoading, onNext, onPrevious }: FooterProps) {
-  const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
+  const handleNext = isLastStep
+    ? () => void completeWizard()
+    : () => void nextStep();
 
   return (
-    <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:justify-between items-center gap-3 sm:gap-2 pt-4 border-t sm:border-t-0 max-[768px]:sticky max-[768px]:bottom-0 max-[768px]:z-10 max-[768px]:bg-background max-[768px]:pb-1">
-      <Button
-        variant="outline"
-        onClick={onPrevious}
-        disabled={isFirstStep || isLoading}
-        className={`flex items-center gap-2 transition-opacity duration-200 w-full sm:w-auto min-h-[44px] ${isFirstStep ? 'opacity-0 pointer-events-none hidden sm:flex' : ''}`}
-        style={isFirstStep ? { visibility: 'hidden' } : {}}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Previous
-      </Button>
-      <div className="text-sm text-muted-foreground order-first sm:order-none pb-2 sm:pb-0">
-        Step {currentStep + 1} of {totalSteps}
-      </div>
-      <Button
-        onClick={onNext}
-        disabled={!canProgress || isLoading}
-        className="flex items-center gap-2 w-full sm:w-auto min-h-[44px]"
-      >
-        {isLoading ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : isLastStep ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <ArrowRight className="h-4 w-4" />
-        )}
-        {isLastStep ? "Finish" : "Next"}
-      </Button>
-    </div>
+    <WizardShell
+      open={true}
+      currentStep={currentStep}
+      steps={WIZARD_STEPS}
+      canPrevious={currentStep > 0}
+      canNext={canProgress}
+      isLoading={isLoading}
+      nextLabel={isLastStep ? "Finish" : "Continue →"}
+      onPrevious={() => previousStep()}
+      onNext={handleNext}
+      // First-time setup is mandatory: no close / escape / outside-click dismissal.
+      dismissable={false}
+    >
+      {error && (
+        <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
+          {error}
+        </div>
+      )}
+
+      {currentStep === 0 && (
+        <PreferencesStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+        />
+      )}
+
+      {currentStep === 1 && (
+        <AddProvidersStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+        />
+      )}
+
+      {currentStep === 2 && (
+        <ImportLocalStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+        />
+      )}
+
+      {currentStep === 3 && (
+        <ConfirmImportsStep
+          key={`confirm-imports-step-${currentStep}`}
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+        />
+      )}
+
+      {currentStep === 4 && (
+        <ScheduleUpdatesStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+          onDownloadOptionChange={setDisableDownloads}
+        />
+      )}
+
+      {currentStep === 5 && (
+        <FinishStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+          disableDownloads={disableDownloads}
+          onUsersDetected={(users) => setAutoCreatedUsers(users)}
+        />
+      )}
+
+      {currentStep === 6 && (
+        <IdentifyUserStep
+          setError={setError}
+          setIsLoading={setIsLoading}
+          setCanProgress={setCanProgress}
+          autoCreatedUsers={autoCreatedUsers}
+        />
+      )}
+    </WizardShell>
   );
 }

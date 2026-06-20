@@ -238,6 +238,7 @@ export interface ImportInfo {
 }
 
 export interface SmallSeries {
+  id?: string;
   mihonId?: string;
   mihonProviderId?: string;
   bridgeItemInfo?: string;

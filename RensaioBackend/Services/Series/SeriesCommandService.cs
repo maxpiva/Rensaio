@@ -10,6 +10,7 @@ using RensaioBackend.Services.Helpers;
 using RensaioBackend.Services.Images;
 using RensaioBackend.Services.Jobs;
 using RensaioBackend.Services.Jobs.Models;
+using RensaioBackend.Services.Opds;
 using RensaioBackend.Services.Settings;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -39,13 +40,15 @@ namespace RensaioBackend.Services.Series
         private readonly JobManagementService _jobManagement;
         private readonly CadenceCalculationService _cadenceService;
         private readonly SeriesStateService _stateService;
+        private readonly HashCacheService _hashCache;
 
         public SeriesCommandService(AppDbContext db, SettingsService settings, ArchiveHelperService archiveHelper,
             SeriesProviderService providerService, ILogger<SeriesCommandService> logger,
             DownloadCommandService downloadCommand, MihonBridgeService mihon, ThumbCacheService cache,
             JobManagementService jobManagement,
             CadenceCalculationService cadenceService,
-            SeriesStateService stateService)
+            SeriesStateService stateService,
+            HashCacheService hashCache)
         {
             _db = db;
             _settings = settings;
@@ -58,6 +61,7 @@ namespace RensaioBackend.Services.Series
             _jobManagement = jobManagement;
             _cadenceService = cadenceService;
             _stateService = stateService;
+            _hashCache = hashCache;
           }
 
         /// <summary>
@@ -566,6 +570,18 @@ namespace RensaioBackend.Services.Series
             // Sync rensaio.json after metadata refresh (series.Title, Artist, etc. may have changed)
             await _stateService.SyncToRensaioJsonAsync(series.Id, token).ConfigureAwait(false);
 
+            // Respect the series-level pause as the source of truth for downloads.
+            // Metadata above is always refreshed (status drives alerts), but no chapters are
+            // queued while paused. Pause is normally enforced by disabling the recurring job,
+            // however some paths re-run this job with the job enabled (e.g. extension
+            // (re)install/update reschedules providers with forceDisable=false), which would
+            // otherwise bypass the pause flag — guarding here closes every such path.
+            if (series.PauseDownloads)
+            {
+                _logger.LogInformation("Series {series} is paused; metadata refreshed but skipping chapter downloads", serie.Title);
+                return JobResult.Success;
+            }
+
             List<ChapterDownload> chaps = series.GenerateDownloadsFromChapterData(serie, chapterData);
 
             // Respect the series pause flag — don't queue downloads when paused
@@ -575,6 +591,156 @@ namespace RensaioBackend.Services.Series
             }
 
             return JobResult.Success;
+        }
+
+        /// <summary>
+        /// Triggers an immediate refresh for a single series: re-fetches metadata (status, title,
+        /// cover, description, etc.) and checks for new chapters by enqueuing the GetChapters job
+        /// for each active provider. Honors the series pause flag (paused series refresh metadata
+        /// but do not download — enforced inside <see cref="GetChaptersAsync"/>).
+        /// </summary>
+        /// <param name="seriesId">The series to refresh.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>The number of providers queued for refresh.</returns>
+        public async Task<int> RefreshSeriesMetadataAsync(Guid seriesId, CancellationToken token = default)
+        {
+            List<SeriesProviderEntity> providers = await _db.SeriesProviders
+                .Where(p => p.SeriesId == seriesId && !p.IsUnknown && !p.IsLocal
+                    && !p.IsDisabled && !p.IsUninstalled)
+                .ToListAsync(token).ConfigureAwait(false);
+
+            int queued = 0;
+            foreach (SeriesProviderEntity p in providers)
+            {
+                if (string.IsNullOrEmpty(p.MihonProviderId))
+                    continue;
+                await _jobManagement.EnqueueJobAsync(JobType.GetChapters, p.Id, Priority.High,
+                    key: p.Id.ToString(), token: token).ConfigureAwait(false);
+                queued++;
+            }
+
+            _logger.LogInformation("Queued metadata refresh for {count} provider(s) of series {seriesId}",
+                queued, seriesId);
+            return queued;
+        }
+
+        /// <summary>
+        /// Re-downloads (or downloads) a single chapter, replacing any existing file on disk. The
+        /// target source is resolved by priority — the storage source that offers the chapter, then
+        /// the source currently holding the file, then any other remote-capable source — unless an
+        /// explicit <paramref name="providerId"/> override is supplied. Honors the series pause flag
+        /// (paused series cannot re-download). Bypasses the bulk "already downloaded" filters so an
+        /// existing chapter is genuinely re-fetched.
+        /// </summary>
+        /// <param name="seriesId">The series owning the chapter.</param>
+        /// <param name="chapterNumber">The chapter number to (re-)download.</param>
+        /// <param name="providerId">Optional explicit source to force; null = priority default.</param>
+        /// <param name="token">Cancellation token.</param>
+        public async Task<RedownloadResult> RedownloadChapterAsync(Guid seriesId, decimal chapterNumber,
+            Guid? providerId = null, CancellationToken token = default)
+        {
+            Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources)
+                .FirstOrDefaultAsync(s => s.Id == seriesId, token).ConfigureAwait(false);
+            if (series == null)
+                return new RedownloadResult(RedownloadOutcome.SeriesNotFound);
+
+            // Pause is authoritative — block explicit re-downloads while the series is paused.
+            if (series.PauseDownloads)
+                return new RedownloadResult(RedownloadOutcome.Paused);
+
+            bool HasChapter(SeriesProviderEntity p) =>
+                p.Chapters.Any(c => !c.IsDeleted && c.Number == chapterNumber);
+            bool Capable(SeriesProviderEntity p) =>
+                !p.IsUnknown && !p.IsLocal && !p.IsDisabled && !p.IsUninstalled
+                && !string.IsNullOrEmpty(p.MihonProviderId);
+
+            SeriesProviderEntity? target;
+            if (providerId.HasValue)
+            {
+                target = series.Sources.FirstOrDefault(p => p.Id == providerId.Value);
+                if (target == null || !Capable(target))
+                    return new RedownloadResult(RedownloadOutcome.NoSourceAvailable);
+            }
+            else
+            {
+                List<SeriesProviderEntity> candidates = series.Sources
+                    .Where(p => Capable(p) && HasChapter(p)).ToList();
+                target = candidates.FirstOrDefault(p => p.IsStorage)
+                    ?? candidates.FirstOrDefault(p => p.Chapters.Any(c => c.Number == chapterNumber && !string.IsNullOrEmpty(c.Filename)))
+                    ?? candidates.FirstOrDefault();
+                if (target == null)
+                    return new RedownloadResult(RedownloadOutcome.NoSourceAvailable);
+            }
+
+            // Re-fetch the live chapter list so the download uses a fresh URL.
+            ISourceInterop src;
+            try
+            {
+                src = await _mihon.SourceFromProviderIdAsync(target.MihonProviderId!, token).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to resolve source for provider {Provider}", target.Provider);
+                return new RedownloadResult(RedownloadOutcome.NoSourceAvailable);
+            }
+
+            List<ParsedChapter>? chapterData = await _mihon.MihonErrorWrapperAsync(
+                () => src.GetChaptersAsync(target.ToManga()!, token),
+                "Unable to get Chapters from {series} from {provider}", series.Title, target.Provider).ConfigureAwait(false);
+            if (chapterData == null || chapterData.Count == 0)
+                return new RedownloadResult(RedownloadOutcome.ChapterNotFound);
+
+            // Apply the same scanlator scoping the bulk download path uses.
+            chapterData.ForEach(a =>
+            {
+                if (string.IsNullOrEmpty(a.Scanlator))
+                    a.Scanlator = target.Provider;
+            });
+            IEnumerable<ParsedChapter> pool = chapterData;
+            if (target.Scanlator == target.Provider || string.IsNullOrEmpty(target.Scanlator))
+                pool = pool.Where(a => string.IsNullOrEmpty(a.Scanlator) || a.Scanlator == target.Provider);
+            else
+                pool = pool.Where(a => a.Scanlator == target.Scanlator);
+
+            ParsedChapter? match = pool.FirstOrDefault(c => c.ParsedNumber == chapterNumber);
+            if (match == null)
+                return new RedownloadResult(RedownloadOutcome.ChapterNotFound);
+
+            // Remove any existing on-disk copy of this chapter (held by whichever source) and reset
+            // its row, so the fresh download replaces it instead of leaving an orphan or duplicate.
+            SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+            bool cleared = false;
+            foreach (SeriesProviderEntity sp in series.Sources)
+            {
+                foreach (Models.Chapter c in sp.Chapters.Where(c => c.Number == chapterNumber && !string.IsNullOrEmpty(c.Filename)))
+                {
+                    _hashCache.DeleteChapterHash(series.StoragePath, c.Filename!);
+                    string full = Path.Combine(settings.StorageFolder, series.StoragePath, c.Filename!);
+                    if (File.Exists(full))
+                    {
+                        try { File.Delete(full); }
+                        catch (Exception e) { _logger.LogWarning(e, "Unable to delete file {full} for re-download", full); }
+                    }
+                    c.Filename = null;
+                    c.DownloadDate = null;
+                    c.ShouldDownload = true;
+                    _db.Touch(sp, a => a.Chapters);
+                    cleared = true;
+                }
+            }
+            if (cleared)
+            {
+                await _db.SaveChangesAsync(token).ConfigureAwait(false);
+                await _stateService.SyncToRensaioJsonAsync(series.Id, token).ConfigureAwait(false);
+            }
+
+            // Build a single targeted download, bypassing the bulk "already downloaded" filters.
+            List<ChapterDownload> chaps = series.ToDownloads(target, new List<ParsedChapter> { match }, series.StoragePath);
+            await _downloadCommand.QueueChapterDownloadsAsync(target, chaps, token).ConfigureAwait(false);
+
+            _logger.LogInformation("Queued re-download of chapter {Chapter} for series {Series} from {Provider}",
+                chapterNumber, series.Title, target.Provider);
+            return new RedownloadResult(RedownloadOutcome.Queued, target.Provider, chaps.Count);
         }
        // Private helper methods
         private async Task<Models.Database.SeriesEntity?> FindExistingSeriesAsync(AugmentedResponseDto ProviderSeriesDetails,
@@ -856,6 +1022,31 @@ namespace RensaioBackend.Services.Series
             public List<ParsedChapter> Chapters { get; set; } = [];
         }
 
+    }
+
+    /// <summary>Outcome of a single-chapter (re-)download request.</summary>
+    public enum RedownloadOutcome
+    {
+        Queued,
+        Paused,
+        SeriesNotFound,
+        NoSourceAvailable,
+        ChapterNotFound
+    }
+
+    /// <summary>Result of <see cref="SeriesCommandService.RedownloadChapterAsync"/>.</summary>
+    public class RedownloadResult
+    {
+        public RedownloadResult(RedownloadOutcome outcome, string? sourceProviderName = null, int queued = 0)
+        {
+            Outcome = outcome;
+            SourceProviderName = sourceProviderName;
+            Queued = queued;
+        }
+
+        public RedownloadOutcome Outcome { get; }
+        public string? SourceProviderName { get; }
+        public int Queued { get; }
     }
 }
 

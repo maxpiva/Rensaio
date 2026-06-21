@@ -475,6 +475,28 @@ export interface ProviderExtendedInfo {
   matchId: string;
 }
 
+/**
+ * A selectable source for (re-)downloading a chapter.
+ */
+export interface ChapterSource {
+  id: string;
+  name: string;
+}
+
+/**
+ * A single chapter in the unified, series-level chapter list. Chapters are merged across every
+ * source so the UI can tell, per chapter, whether it is downloaded (and from which source) or
+ * genuinely missing — independent of which provider happens to hold the file.
+ */
+export interface ChapterDetail {
+  number?: number;
+  name: string;
+  downloaded: boolean;
+  sourceProviderId?: string;
+  sourceProviderName?: string;
+  availableProviders: ChapterSource[];
+}
+
 export interface DownloadInfoList {
   totalCount: number;
   downloads: DownloadInfo[];

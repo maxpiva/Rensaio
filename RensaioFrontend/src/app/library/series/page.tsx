@@ -2,7 +2,8 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, Suspense } from "react";
-import { useSeriesById, useDeleteSeries, useUpdateSeries, useVerifyIntegrity, useCleanupSeries } from "@/lib/api/hooks/useSeries";
+import { useSeriesById, useDeleteSeries, useUpdateSeries, useVerifyIntegrity, useCleanupSeries, useRefreshSeries } from "@/lib/api/hooks/useSeries";
+import { useToast } from "@/hooks/use-toast";
 import { seriesService } from "@/lib/api/services/seriesService";
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { usePermission } from "@/hooks/use-permission";
 import { DownloadsPanel } from "@/components/comp/series/detail/downloads-panel";
 import { SeriesHero } from "@/components/comp/series/detail/series-hero";
 import { SourcesSection } from "@/components/comp/series/detail/sources-section";
+import { ChaptersSection } from "@/components/comp/series/detail/chapters-section";
 import { SeriesRibbon } from "@/components/comp/series/detail/series-ribbon";
 
 
@@ -57,6 +59,8 @@ function SeriesPageContent() {
   const updateSeriesMutation = useUpdateSeries();
   const verifyIntegrity = useVerifyIntegrity();
   const cleanupSeries = useCleanupSeries();
+  const refreshSeries = useRefreshSeries();
+  const { toast } = useToast();
   
   // Provider switch state management
   const [providerSwitches, setProviderSwitches] = useState<Record<string, { useTitle: boolean; useCover: boolean; useStorage: boolean }>>({});
@@ -830,6 +834,29 @@ function SeriesPageContent() {
     }
   };
 
+  // Handler for refresh metadata button click
+  const handleRefreshClick = async () => {
+    if (!seriesId) return;
+
+    try {
+      const result = await refreshSeries.mutateAsync(seriesId);
+      toast({
+        variant: "success",
+        title: "Refresh queued",
+        description: result.queued > 0
+          ? `Checking ${result.queued} source${result.queued === 1 ? '' : 's'} for new metadata & chapters.`
+          : "No active sources to refresh.",
+      });
+    } catch (error) {
+      console.error('Failed to refresh series:', error);
+      toast({
+        variant: "destructive",
+        title: "Refresh failed",
+        description: "Could not queue the series refresh. Please try again.",
+      });
+    }
+  };
+
   // Handler for verify success dialog close
   const handleVerifyDialogClose = async () => {
     setShowVerifyDialog(false);
@@ -1110,8 +1137,10 @@ function SeriesPageContent() {
         canDeleteSeries={canDelete}
         canManageDownloads={canManageDownloads}
         verifyPending={verifyIntegrity.isPending}
+        refreshPending={refreshSeries.isPending}
         onPauseToggle={handlePausedDownloadsToggle}
         onVerify={handleVerifyIntegrityClick}
+        onRefresh={handleRefreshClick}
         onDelete={handleDeleteSeriesClick}
       />
 
@@ -1134,6 +1163,13 @@ function SeriesPageContent() {
           onEnableDisable={handleDisabledChange}
           onDelete={handleDeleteProvider}
           canEdit={canEdit}
+        />
+
+        {/* Chapters — unified, series-level list with per-chapter re-download */}
+        <ChaptersSection
+          seriesId={series.id}
+          paused={pausedDownloads}
+          canManage={canManageDownloads}
         />
 
         {/* Downloads panel */}

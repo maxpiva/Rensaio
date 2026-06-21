@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pause, Play, CheckCircle2, Check, Trash2, FolderOpen, Copy } from "lucide-react";
+import { Pause, Play, CheckCircle2, Check, Trash2, FolderOpen, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SeriesStatus, type SeriesExtendedInfo } from "@/lib/api/types";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
@@ -125,8 +125,10 @@ export interface SeriesHeroProps {
   canDeleteSeries: boolean;
   canManageDownloads: boolean;
   verifyPending: boolean;
+  refreshPending: boolean;
   onPauseToggle: () => void;
   onVerify: () => void;
+  onRefresh: () => void;
   onDelete: () => void;
 }
 
@@ -140,8 +142,10 @@ export function SeriesHero({
   canDeleteSeries,
   canManageDownloads,
   verifyPending,
+  refreshPending,
   onPauseToggle,
   onVerify,
+  onRefresh,
   onDelete,
 }: SeriesHeroProps) {
   const [expanded, setExpanded] = useState(false);
@@ -296,6 +300,19 @@ export function SeriesHero({
                     <CheckCircle2 className="h-4 w-4 sm:mr-2" />
                   )}
                   <span className="hidden sm:inline">Verify</span>
+                </Button>
+              )}
+
+              {canEditSeries && (
+                <Button
+                  variant="outline"
+                  onClick={onRefresh}
+                  disabled={refreshPending}
+                  title="Refresh metadata & check for new chapters"
+                  className="px-0 w-9 sm:w-auto sm:px-4"
+                >
+                  <RefreshCw className={`h-4 w-4 sm:mr-2 ${refreshPending ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
               )}
 

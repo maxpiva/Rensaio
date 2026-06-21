@@ -47,6 +47,24 @@ namespace RensaioBackend.Services.Series
                 return new SeriesExtendedDto();
             return s.ToSeriesExtendedInfo(settings);
         }
+
+        /// <summary>
+        /// Gets the unified, series-level chapter list (merged across every source). For each
+        /// chapter it reports whether a file is on disk and which source holds it, versus genuinely
+        /// missing, plus the sources available for (re-)download. DB-only — no provider network call.
+        /// </summary>
+        /// <param name="seriesId">The unique identifier of the series.</param>
+        /// <param name="token">Cancellation token.</param>
+        public async Task<List<ChapterDetailDto>> GetSeriesChaptersAsync(Guid seriesId, CancellationToken token = default)
+        {
+            Models.Database.SeriesEntity? s = await _db.Series
+                .Include(a => a.Sources)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == seriesId, token).ConfigureAwait(false);
+            if (s == null)
+                return new List<ChapterDetailDto>();
+            return s.ToChapterDetailList();
+        }
         /*
         /// <summary>
         /// Gets the thumbnail for a series (moved from SeriesResourceService)

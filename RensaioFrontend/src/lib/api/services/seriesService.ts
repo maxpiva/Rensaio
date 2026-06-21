@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client';
-import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type SearchSource, type SeriesIntegrityResult } from '@/lib/api/types';
+import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type SearchSource, type SeriesIntegrityResult, type ChapterDetail } from '@/lib/api/types';
 
 export const seriesService = {
   /**
@@ -120,6 +120,44 @@ export const seriesService = {
     return apiClient.patch<{ releaseCadenceDays: number | null; isUserSet: boolean }>(
       `/api/serie/${seriesId}/cadence`,
       { cadenceDays } as any
+    );
+  },
+
+  /**
+   * Trigger an immediate metadata + new-chapter refresh for a single series.
+   * Returns the number of providers queued for refresh.
+   */
+  async refreshSeries(id: string): Promise<{ success: boolean; queued: number }> {
+    const params = new URLSearchParams({ id });
+    return apiClient.post<{ success: boolean; queued: number }>(`/api/serie/refresh?${params.toString()}`, {});
+  },
+
+  /**
+   * Get the unified, series-level chapter list (merged across every source). Each chapter reports
+   * whether it is downloaded (and from which source) or genuinely missing, plus the sources
+   * available for (re-)download.
+   */
+  async getSeriesChapters(seriesId: string): Promise<ChapterDetail[]> {
+    const params = new URLSearchParams({ seriesId });
+    return apiClient.get<ChapterDetail[]>(`/api/serie/chapters?${params.toString()}`);
+  },
+
+  /**
+   * Re-download (or download) a single chapter. Omit `providerId` for the priority default source
+   * (storage → current holder → any available); pass it to force a specific source.
+   */
+  async redownloadChapter(
+    seriesId: string,
+    chapterNumber: number,
+    providerId?: string
+  ): Promise<{ success: boolean; queued: number; sourceProviderName?: string }> {
+    const params = new URLSearchParams({ seriesId, chapter: chapterNumber.toString() });
+    if (providerId) {
+      params.append('providerId', providerId);
+    }
+    return apiClient.post<{ success: boolean; queued: number; sourceProviderName?: string }>(
+      `/api/serie/chapter/redownload?${params.toString()}`,
+      {}
     );
   },
 };

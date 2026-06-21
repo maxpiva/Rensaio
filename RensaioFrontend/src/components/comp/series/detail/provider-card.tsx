@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Power, PowerOff, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, Power, PowerOff, Search, Trash2 } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { Button } from "@/components/ui/button";
 import {
@@ -298,6 +298,16 @@ export const ProviderCard = ({
               <span className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-destructive">
                 <AlertTriangle className="h-3 w-3" />
                 Uninstalled
+              </span>
+            )}
+
+            {useStorage && !isUnknown && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary"
+                title="Permanent source — its files are kept as the series' storage copy"
+              >
+                <Archive className="h-3 w-3" />
+                Permanent
               </span>
             )}
           </div>

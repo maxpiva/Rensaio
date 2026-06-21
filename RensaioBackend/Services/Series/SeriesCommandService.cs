@@ -567,7 +567,14 @@ namespace RensaioBackend.Services.Series
             await _stateService.SyncToRensaioJsonAsync(series.Id, token).ConfigureAwait(false);
 
             List<ChapterDownload> chaps = series.GenerateDownloadsFromChapterData(serie, chapterData);
-            return await _downloadCommand.QueueChapterDownloadsAsync(serie, chaps, token).ConfigureAwait(false);
+
+            // Respect the series pause flag — don't queue downloads when paused
+            if (!series.PauseDownloads)
+            {
+                return await _downloadCommand.QueueChapterDownloadsAsync(serie, chaps, token).ConfigureAwait(false);
+            }
+
+            return JobResult.Success;
         }
        // Private helper methods
         private async Task<Models.Database.SeriesEntity?> FindExistingSeriesAsync(AugmentedResponseDto ProviderSeriesDetails,

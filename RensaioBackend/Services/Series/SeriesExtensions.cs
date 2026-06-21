@@ -377,7 +377,7 @@ public static class SeriesExtensions
     }
 
 
-    public static SeriesInfoDto ToSeriesInfo(this DbSeriesEntity series)
+    public static SeriesInfoDto ToSeriesInfo(this DbSeriesEntity series, SettingsDto settings)
     {
         var info = new SeriesInfoDto
         {
@@ -393,7 +393,8 @@ public static class SeriesExtensions
             IsActive = series.Sources.Any(a => !a.IsDisabled && !a.IsUninstalled && !a.IsUnknown),
             PausedDownloads = series.PauseDownloads,
             ChapterCount = series.ChapterCount,
-            StoragePath = series.StoragePath
+            StoragePath = series.StoragePath,
+            Category = ModelExtensions.CategoryFromPath(series.StoragePath, settings)
         };
 
         if (series.Sources != null && series.Sources.Count > 0)

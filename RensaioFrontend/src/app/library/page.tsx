@@ -18,17 +18,20 @@ import {
 import CompHeader from "@/components/comp/layout/header";
 import CompSidebar from "@/components/comp/layout/sidebar";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { SeriesStatus, type SeriesInfo } from "@/lib/api/types";
+import { SeriesStatus, type SeriesInfo, type Settings } from "@/lib/api/types";
 import { useAuth } from "@/contexts/auth-context";
 import { useLibrary } from "@/lib/api/hooks/useSeries";
+import { useSettings } from "@/lib/api/hooks/useSettings";
 
 export default function RootPage() {
   const { canManage } = useAuth();
+  const { data: settings } = useSettings();
   // Session storage keys
   const SESSION_KEYS = {
     tab: "ren_tab",
     genre: "ren_genre",
     provider: "ren_provider",
+    category: "ren_category",
     orderBy: "ren_orderBy",
     cardWidth: "ren_cardWidth",
   };
@@ -43,6 +46,7 @@ export default function RootPage() {
   const [tab, setTabState] = useState<string>(getSessionValue(SESSION_KEYS.tab, "all")!);
   const [selectedGenre, setSelectedGenreState] = useState<string | null>(getSessionValue(SESSION_KEYS.genre, null));
   const [selectedProvider, setSelectedProviderState] = useState<string | null>(getSessionValue(SESSION_KEYS.provider, null));
+  const [selectedCategory, setSelectedCategoryState] = useState<string | null>(getSessionValue(SESSION_KEYS.category, null));
   const [orderBy, setOrderByState] = useState<string>(getSessionValue(SESSION_KEYS.orderBy, "title")!);
   const [cardWidth, setCardWidthState] = useState<string>(getSessionValue(SESSION_KEYS.cardWidth, "w-45")!);
 
@@ -50,6 +54,7 @@ export default function RootPage() {
   const setTab = (v: string) => { setTabState(v); sessionStorage.setItem(SESSION_KEYS.tab, v); };
   const setSelectedGenre = (v: string | null) => { setSelectedGenreState(v); sessionStorage.setItem(SESSION_KEYS.genre, v ?? ""); };
   const setSelectedProvider = (v: string | null) => { setSelectedProviderState(v); sessionStorage.setItem(SESSION_KEYS.provider, v ?? ""); };
+  const setSelectedCategory = (v: string | null) => { setSelectedCategoryState(v); sessionStorage.setItem(SESSION_KEYS.category, v ?? ""); };
   const setOrderBy = (v: string) => { setOrderByState(v); sessionStorage.setItem(SESSION_KEYS.orderBy, v); };
   const setCardWidth = (v: string) => { setCardWidthState(v); sessionStorage.setItem(SESSION_KEYS.cardWidth, v); };
 
@@ -109,6 +114,14 @@ export default function RootPage() {
     return Array.from(providerSet).sort((a, b) => a.localeCompare(b));
   }, [deduplicatedLibrary]);
 
+  // Determine if categories filter should be shown
+  const showCategoriesFilter = settings?.categorizedFolders === true;
+  // Categories come from settings, sorted alphabetically
+  const categories = useMemo(() => {
+    if (!settings?.categories) return [];
+    return [...settings.categories].sort((a, b) => a.localeCompare(b));
+  }, [settings]);
+
   // Sorting logic for ListSeries - memoized for performance
   const sortFn = useCallback((a: SeriesInfo, b: SeriesInfo) => {
     if (orderBy === "lastChange") {
@@ -123,7 +136,7 @@ export default function RootPage() {
   const filterFn = useCallback((series: SeriesInfo) => {
     const matchesTab =
       tab === "completed"
-        ? series.status === SeriesStatus.COMPLETED || series.status === SeriesStatus.PUBLISHING_FINISHED 
+        ? series.status === SeriesStatus.COMPLETED || series.status === SeriesStatus.PUBLISHING_FINISHED
         : tab === "active"
         ? series.status !== SeriesStatus.COMPLETED && series.status !== SeriesStatus.PUBLISHING_FINISHED && series.isActive && !series.pausedDownloads
         : tab === "paused"
@@ -133,17 +146,19 @@ export default function RootPage() {
         : true;
     const matchesGenre = selectedGenre ? series.genre?.includes(selectedGenre) : true;
     const matchesProvider = selectedProvider ? series.providers?.some((p) => p.provider === selectedProvider) : true;
-    return matchesTab && matchesGenre && matchesProvider;
-  }, [tab, selectedGenre, selectedProvider]);
+    const matchesCategory = selectedCategory ? series.category === selectedCategory : true;
+    return matchesTab && matchesGenre && matchesProvider && matchesCategory;
+  }, [tab, selectedGenre, selectedProvider, selectedCategory]);
 
-  // Count for each tab (with genre and provider filter applied) - memoized for performance
+  // Count for each tab (with genre, provider, and category filter applied) - memoized for performance
   const { allCount, activeCount, pausedCount, unassignedCount, completedCount } = useMemo(() => {
     if (!deduplicatedLibrary) return { allCount: 0, activeCount: 0, pausedCount: 0, unassignedCount: 0, completedCount: 0 };
     
-    // Base filter function for genre and provider
-    const baseFilter = (series: SeriesInfo) => 
+    // Base filter function for genre, provider, and category
+    const baseFilter = (series: SeriesInfo) =>
       (!selectedGenre || series.genre?.includes(selectedGenre)) &&
-      (!selectedProvider || series.providers?.some((p) => p.provider === selectedProvider));
+      (!selectedProvider || series.providers?.some((p) => p.provider === selectedProvider)) &&
+      (!selectedCategory || series.category === selectedCategory);
     
     const baseFiltered = deduplicatedLibrary.filter(baseFilter);
     
@@ -162,7 +177,7 @@ export default function RootPage() {
         series.status === SeriesStatus.PUBLISHING_FINISHED
       ).length,
     };
-  }, [deduplicatedLibrary, selectedGenre, selectedProvider]);
+  }, [deduplicatedLibrary, selectedGenre, selectedProvider, selectedCategory]);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -197,7 +212,29 @@ export default function RootPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                 
+                  
+                  {/* Categories Filter - only shown when categorizedFolders is enabled in settings */}
+                  {showCategoriesFilter && (
+                    <div className="w-28 sm:w-40">
+                      <Select
+                        value={selectedCategory ?? "__ALL__"}
+                        onValueChange={(value) => setSelectedCategory(value === "__ALL__" ? null : value)}
+                      >
+                        <SelectTrigger className="w-full !pr-2 caret-transparent h-8 sm:h-10 text-xs sm:text-sm">
+                          <SelectValue placeholder="All Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__ALL__">All Categories</SelectItem>
+                          {categories.filter((category) => category).map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="w-28 sm:w-40">
                     <Select
                       value={selectedGenre ?? "__ALL__"}

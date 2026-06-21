@@ -413,6 +413,7 @@ export interface BaseSeriesInfo {
   startFromChapter?: number;
   /// Release cadence in days (absolute value, always positive). Null = not yet determined.
   releaseCadenceDays?: number;
+  category?: string;
 }
 
 export interface SeriesInfo extends BaseSeriesInfo {

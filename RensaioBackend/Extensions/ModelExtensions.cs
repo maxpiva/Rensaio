@@ -1,3 +1,8 @@
+using Mihon.ExtensionsBridge.Core.Extensions;
+using Mihon.ExtensionsBridge.Models;
+using Mihon.ExtensionsBridge.Models.Abstractions;
+using Mihon.ExtensionsBridge.Models.Extensions;
+using RensaioBackend.Migration.Models;
 using RensaioBackend.Models;
 using RensaioBackend.Models.Abstractions;
 using RensaioBackend.Models.Database;
@@ -6,10 +11,6 @@ using RensaioBackend.Models.Enums;
 using RensaioBackend.Services.Downloads;
 using RensaioBackend.Services.Helpers;
 using RensaioBackend.Utils;
-using Mihon.ExtensionsBridge.Core.Extensions;
-using Mihon.ExtensionsBridge.Models;
-using Mihon.ExtensionsBridge.Models.Abstractions;
-using Mihon.ExtensionsBridge.Models.Extensions;
 using System.Runtime;
 using System.Text.Json;
 
@@ -262,6 +263,21 @@ namespace RensaioBackend.Extensions
         {
             return m.Genre?.Split(',').Select(a => a.Trim()).Where(a => !string.IsNullOrWhiteSpace(a)).ToList() ?? [];
         }
+
+        public static string? CategoryFromPath(string path, SettingsDto settings)
+        {
+            var categories = settings?.Categories ?? [];
+            if (categories.Length == 0)
+                return null;
+            path = path.Replace('\\', '/');
+            foreach (var category in categories)
+            {
+                string b1 = category + "/";
+                if (path.StartsWith(b1, true, System.Globalization.CultureInfo.InvariantCulture))
+                    return category;
+            }
+            return null;
+        }
         public static SeriesExtendedDto ToSeriesExtendedInfo(this SeriesEntity s, SettingsDto settings)
         {
             var info = new SeriesExtendedDto
@@ -290,7 +306,8 @@ namespace RensaioBackend.Extensions
                     .Where(c => !c.IsDeleted && !string.IsNullOrEmpty(c.Filename))
                     .Select(c => c.Number).Distinct()
                     .FormatDecimalRanges(),
-                Providers = new List<ProviderExtendedDto>()
+                Providers = new List<ProviderExtendedDto>(),
+                Category = CategoryFromPath(s.StoragePath, settings)
             };
             SmallProviderDto? lastChangeProvider = null;
             DateTime dt = DateTime.MinValue;

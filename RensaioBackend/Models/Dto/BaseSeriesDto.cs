@@ -64,4 +64,7 @@ public class BaseSeriesDto : IThumb
     /// </summary>
     [JsonPropertyName("releaseCadenceDays")]
     public int? ReleaseCadenceDays { get; set; }
+
+    [JsonPropertyName("category")]
+    public string? Category { get; set; }
 }

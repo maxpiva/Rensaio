@@ -298,7 +298,6 @@ public partial class App : Application
 
     private void ConsoleItem_Click(object? sender, EventArgs e)
     {
-        Console.WriteLine($"ConsoleItem_Click invoked on {RuntimeInformation.OSDescription}");
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             ToggleConsoleVisibility();

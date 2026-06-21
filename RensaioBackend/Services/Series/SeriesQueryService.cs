@@ -79,7 +79,7 @@ namespace RensaioBackend.Services.Series
         {
             List<Models.Database.SeriesEntity> series = await _db.Series
                 .Include(s => s.Sources).AsNoTracking().ToListAsync(token);
-            return series.Select(a => a.ToSeriesInfo()).ToList();
+            return series.Select(a => a.ToSeriesInfo(_settings.DirectSettings)).ToList();
         }
 
         /// <summary>

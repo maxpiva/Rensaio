@@ -13,7 +13,7 @@ import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-s
 import { Badge } from "@/components/ui/badge";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { Database, ExternalLink } from "lucide-react";
+import { Database, ExternalLink, PauseCircle } from "lucide-react";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 // Color array for the last change ring (31 colors from green to blue)
@@ -179,14 +179,20 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
               />
                                           {/* Provider Badge - Top Left */}
                             <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow">
-                              <Badge 
-                                variant="secondary" 
+                              <Badge
+                                variant="secondary"
                                 className="bg-black/70"
                               >
                                 {series.lastChangeProvider.provider}
                               </Badge>
                             </div>
               <div className={`absolute bottom-0 left-0 w-full bg-black/60 text-white font-semibold px-2 py-1 rounded-b-md flex items-center justify-center ${textSize}`}>
+                {/* Paused icon - flush on top of title bar, right-aligned */}
+                {series.pausedDownloads && (
+                  <div className={`absolute right-1 z-10 ${textSize === 'text-[0.4rem]' ? '-top-3' : textSize === 'text-xs' ? '-top-4' : textSize === 'text-base' ? '-top-6' : textSize === 'text-lg' ? '-top-7' : '-top-5'}`}>
+                    <PauseCircle className={`${textSize === 'text-[0.4rem]' ? 'h-3 w-3' : textSize === 'text-xs' ? 'h-4 w-4' : textSize === 'text-base' ? 'h-6 w-6' : textSize === 'text-lg' ? 'h-7 w-7' : 'h-5 w-5'} text-white drop-shadow-lg`} fill="rgba(0,0,0,0.6)" />
+                  </div>
+                )}
                 {series.title}
               </div>
             </div>

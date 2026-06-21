@@ -3,8 +3,6 @@
 // All rendering happens on the client for static export compatibility
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Sparkles, ExternalLink } from "lucide-react";
 import { AddSeries } from "@/components/comp/series/add-series";
 import { ListSeries } from "@/components/comp/series/list-series";
 import {
@@ -23,10 +21,6 @@ import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { usePermission } from "@/hooks/use-permission";
 import { useQueryClient } from "@tanstack/react-query";
 import { getResponsiveCardDefault } from "@/lib/utils/responsive-card-default";
-import {
-  SpotlightHero,
-  type SpotlightItem,
-} from "@/components/comp/series/spotlight-hero";
 
 // Session storage keys for the library page.
 const SESSION_KEYS = {
@@ -45,35 +39,10 @@ function getSessionValue(key: string, fallback: string | null): string | null {
   return value !== null && value !== "" ? value : fallback;
 }
 
-// Tiny relative-time helper — no external dependency. Mirrors the one used
-// by the series-detail hero.
-function formatRelative(dateString: string | null | undefined): string {
-  if (!dateString) return "never";
-  const normalized =
-    dateString.includes("Z") ||
-    dateString.includes("+") ||
-    dateString.includes("-", 10)
-      ? dateString
-      : dateString + "Z";
-  const diff = Date.now() - new Date(normalized).getTime();
-  if (Number.isNaN(diff)) return "never";
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
-
 export default function RootPage() {
   const queryClient = useQueryClient();
   const canBrowseSources = usePermission('canBrowseSources');
   const { data: settings } = useSettings();
-  const router = useRouter();
 
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["series", "library"] });
@@ -94,7 +63,7 @@ export default function RootPage() {
   const setOrderBy = (v: string) => { setOrderByState(v); sessionStorage.setItem(SESSION_KEYS.orderBy, v); };
   const setCardWidth = (v: string) => { setCardWidthState(v); sessionStorage.setItem(SESSION_KEYS.cardWidth, v); };
 
-  const { data: library, isLoading: isLibraryLoading } = useLibrary();
+  const { data: library } = useLibrary();
 
   // Debug and deduplicate library data to prevent duplicate keys
   const deduplicatedLibrary = useMemo(() => {
@@ -122,34 +91,6 @@ export default function RootPage() {
 
     return unique;
   }, [library]);
-
-  // Spotlight pool: 5 most-recently-changed series, falling back to the
-  // first N from the (assumed insertion-ordered) library when too few have
-  // a `lastChangeUTC`. Drives the cinematic hero at the top of the page.
-  const spotlightItems = useMemo<SpotlightItem[]>(() => {
-    if (!deduplicatedLibrary || deduplicatedLibrary.length === 0) return [];
-    const withChange = deduplicatedLibrary.filter((s) => !!s.lastChangeUTC);
-    const sorted = [...deduplicatedLibrary].sort((a, b) => {
-      const ta = a.lastChangeUTC ? new Date(a.lastChangeUTC).getTime() : 0;
-      const tb = b.lastChangeUTC ? new Date(b.lastChangeUTC).getTime() : 0;
-      return tb - ta;
-    });
-    const pool = withChange.length >= 7
-      ? sorted.slice(0, 7)
-      : sorted.slice(0, Math.min(7, sorted.length));
-    return pool.map((s): SpotlightItem => ({
-      id: s.id,
-      title: s.title,
-      author: s.author,
-      description: s.description,
-      thumbnailUrl: s.thumbnailUrl,
-      status: s.status,
-      genres: s.genre,
-      trackedChapters: s.chapterCount,
-      activeSources: s.providers?.length ?? 0,
-      lastDownload: formatRelative(s.lastChangeUTC),
-    }));
-  }, [deduplicatedLibrary]);
 
   const cardWidthOptions = [
     { value: "w-20", label: "XS", text: "text-[0.4rem]" },
@@ -397,27 +338,6 @@ export default function RootPage() {
       </RibbonSlot>
 
       <PullToRefresh onRefresh={handleRefresh}>
-        {isLibraryLoading && !deduplicatedLibrary ? (
-          <div
-            aria-hidden
-            className="mb-6 h-[420px] w-full animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]"
-          />
-        ) : spotlightItems.length > 0 ? (
-          <div className="mb-6 sm:mb-8">
-            <SpotlightHero
-              variant="library"
-              items={spotlightItems}
-              eyebrow="SPOTLIGHT · From your library"
-              eyebrowIcon={Sparkles}
-              ctaLabel="Open series"
-              ctaIcon={ExternalLink}
-              onCtaClick={(item) =>
-                router.push(`/library/series?id=${item.id}`)
-              }
-            />
-          </div>
-        ) : null}
-
         <div className="flex flex-wrap gap-2 sm:gap-4">
           <ListSeries
             filterFn={filterFn}

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { seriesService } from '@/lib/api/services/seriesService';
-import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type SearchSource, type SeriesIntegrityResult, type ChapterDetail } from '@/lib/api/types';
+import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type LatestGenre, type SearchSource, type SeriesIntegrityResult, type ChapterDetail } from '@/lib/api/types';
 
 /**
  * Hook to get available search sources (for search and filtering)
@@ -92,21 +92,42 @@ export const useSetProviderMatch = () => {
  * @param count Number of items to return
  * @param sourceId Optional source ID filter
  * @param keyword Optional keyword filter
+ * @param genres Optional tag/genre filter; a row must carry every supplied tag (AND semantics)
  * @param enabled Whether the query should be enabled
  */
 export const useLatest = (
-  start: number, 
-  count: number, 
-  sourceId?: string, 
-  keyword?: string, 
+  start: number,
+  count: number,
+  sourceId?: string,
+  keyword?: string,
+  genres?: string[],
   enabled = true
 ) => {
+  // Normalize the genre filter into a stable cache-key fragment so identical
+  // selections (order/case/whitespace aside) share a cache entry.
+  const genreKey = (genres ?? [])
+    .map((g) => g.trim().toLowerCase())
+    .filter((g) => g.length > 0)
+    .sort();
+
   return useQuery<LatestSeriesInfo[]>({
-    queryKey: ['series', 'latest', start, count, sourceId, keyword],
-    queryFn: () => seriesService.getLatest(start, count, sourceId, keyword),
+    queryKey: ['series', 'latest', start, count, sourceId, keyword, genreKey],
+    queryFn: () => seriesService.getLatest(start, count, sourceId, keyword, genres),
     enabled,
     staleTime: 2 * 60 * 1000, // 2 minutes - latest content changes frequently
     refetchInterval: 5 * 60 * 1000, // Auto-refetch every 5 minutes for fresh content
+  });
+};
+
+/**
+ * Hook to get the distinct tags/genres available in the cached "Latest" cloud
+ * catalogue, each with its occurrence count. Backing data for the browse tag filter.
+ */
+export const useLatestGenres = () => {
+  return useQuery<LatestGenre[]>({
+    queryKey: ['series', 'latest', 'genres'],
+    queryFn: () => seriesService.getLatestGenres(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

@@ -633,6 +633,15 @@ export interface LatestSeriesInfo {
   seriesId?: string; // Guid from backend represented as string
 }
 
+/**
+ * A distinct tag/genre available in the cached "Latest" cloud catalogue, with the
+ * number of series that carry it. Used to populate the browse-screen tag filter.
+ */
+export interface LatestGenre {
+  name: string;
+  count: number;
+}
+
 export enum ArchiveResult {
   Fine = 'Fine',
   NotAnArchive = 'NotAnArchive',

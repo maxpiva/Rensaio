@@ -1281,11 +1281,12 @@
   gap: 8px;
   background: hsl(var(--primary));
   color: white;
-  padding: 10px 18px;
+  padding: 9px 18px;
   border-radius: 8px;
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: -0.005em;
+  /* Align with the app-wide Button (text-sm / font-medium) so the wizard CTAs
+     don't read as a different type system from the rest of the UI. */
+  font-weight: 500;
+  font-size: 0.875rem;
   transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 180ms ease, box-shadow 220ms ease;
   box-shadow: 0 10px 30px -10px hsla(346.8 77.2% 49.8% / 0.7), inset 0 1px 0 hsla(0 0% 100% / 0.12);
   white-space: nowrap;
@@ -1307,7 +1308,7 @@
   padding: 8px 14px;
   border-radius: 8px;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: 0.875rem;
   border: 1px solid hsla(var(--as-border-strong));
   transition: all 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
   cursor: pointer;
@@ -1315,6 +1316,28 @@
 .cmd-card .btn-ghost:hover,
 .cta-row .btn-ghost:hover {
   background: hsla(0 0% 100% / 0.08);
+}
+
+/* Resume-downloads beacon — a soft pulsing ring used on the series page to
+   draw the user's eye to the "Resume Downloads" action when downloads are
+   paused. A glow pulse (rather than a hard opacity blink) keeps it attention
+   grabbing without being harsh or an accessibility hazard. */
+@keyframes resume-beacon {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(48 96% 53% / 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 7px hsl(48 96% 53% / 0);
+  }
+}
+.resume-beacon {
+  animation: resume-beacon 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .resume-beacon {
+    animation: none;
+  }
 }
 
 /* Desktop keyboard hint footer */

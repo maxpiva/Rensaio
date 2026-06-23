@@ -276,20 +276,32 @@ export function SeriesHero({
               </div>
             )}
 
+            {/* Resume callout — when downloads are paused, the resume action
+                gets its own separated, beacon-pulsing area so the user's eye
+                lands here first and they're nudged to take action. */}
+            {canManageDownloads && pausedDownloads && (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2.5">
+                <span className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-300">
+                  <Pause className="h-4 w-4 shrink-0 fill-current" />
+                  Downloads are paused for this series.
+                </span>
+                <Button
+                  onClick={onPauseToggle}
+                  className="resume-beacon ml-auto rounded-full bg-yellow-500 font-semibold text-black hover:bg-yellow-400 focus-visible:ring-yellow-400"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Resume Downloads
+                </Button>
+              </div>
+            )}
+
             {/* Action toolbar */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              {canManageDownloads && (
-                pausedDownloads ? (
-                  <Button variant="secondary" onClick={onPauseToggle} className="px-0 w-9 sm:w-auto sm:px-4">
-                    <Play className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Resume Downloads</span>
-                  </Button>
-                ) : (
-                  <Button variant="default" onClick={onPauseToggle} className="px-0 w-9 sm:w-auto sm:px-4">
-                    <Pause className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Pause Downloads</span>
-                  </Button>
-                )
+              {canManageDownloads && !pausedDownloads && (
+                <Button variant="default" onClick={onPauseToggle} className="px-0 w-9 sm:w-auto sm:px-4">
+                  <Pause className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Pause Downloads</span>
+                </Button>
               )}
 
               {canEditSeries && (

@@ -13,7 +13,7 @@ import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-s
 import { Badge } from "@/components/ui/badge";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { AlertTriangle, Database, ExternalLink, PauseCircle } from "lucide-react";
+import { AlertTriangle, Database, ExternalLink, Pause } from "lucide-react";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 
@@ -219,11 +219,16 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
 
               {/* Status bar — 2px strip across the top edge, color-coded by
                   series.status. Lets the user spot ongoing / completed /
-                  hiatus / disabled at a glance without opening the card. */}
-              <div
-                className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(series.status).color}`}
-                aria-hidden
-              />
+                  hiatus / disabled at a glance without opening the card.
+                  Hidden while sorting by Last Change, where it would clash with
+                  the age-graded card border (the green "ongoing" strip made the
+                  Last Change colour grading look corrupted). */}
+              {!showRing && (
+                <div
+                  className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(series.status).color}`}
+                  aria-hidden
+                />
+              )}
 
               {/* Provider Badge - Top Left */}
               <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow z-10">
@@ -248,13 +253,15 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
               )}
 
               {/* Paused indicator — bottom-left, just above the title strip,
-                  when downloads for this series are paused. */}
+                  when downloads for this series are paused. Solid amber badge
+                  (matches the "Paused" status filter) reads far better against
+                  the cover art than the old muted-grey circle. */}
               {series.pausedDownloads && !series.hasUnknown && (
                 <div
-                  className="absolute bottom-7 left-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-muted/95 text-muted-foreground shadow ring-2 ring-background"
+                  className="absolute bottom-7 left-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-black shadow ring-2 ring-background"
                   title="Downloads paused"
                 >
-                  <PauseCircle className="h-2.5 w-2.5" />
+                  <Pause className="h-2.5 w-2.5 fill-current" />
                 </div>
               )}
 

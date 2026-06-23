@@ -31,6 +31,7 @@ import { useSettings } from "@/lib/api/hooks/useSettings";
 import { useImportWizard } from "@/components/providers/import-wizard-provider";
 import { EditUserDialog } from "@/components/comp/users/user-dialog";
 import { UserTrackerRequester } from "@/components/comp/scrobbler/user-tracker-requester";
+import { ExternalLinks } from "@/components/comp/layout/external-links";
 import { UserLevel } from "@/lib/api/types";
 
 const LEVEL_LABEL: Record<UserLevel, string> = {
@@ -81,7 +82,7 @@ function themeLabel(theme: string | undefined) {
  * desktop-only (`hidden lg:flex`), so this is the sole theme control on mobile.
  */
 export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
-  const { user, logout, canAdmin, refreshAuth } = useAuth();
+  const { user, logout, canManage, canAdmin, canOwner, refreshAuth } = useAuth();
   const { startWizard } = useImportWizard();
   const { data: settings } = useSettings();
   const { theme, setTheme } = useTheme();
@@ -233,25 +234,31 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
             </DropdownMenuItem>
           )}
 
-          <DropdownMenuItem asChild>
-            <Link
-              href="/settings"
+          {/* Settings — Owner only (Admins and below have no access). */}
+          {canOwner && (
+            <DropdownMenuItem asChild>
+              <Link
+                href="/settings"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+          )}
+
+          {/* Import Series — Manager+ (Users have no access). */}
+          {canManage && (
+            <DropdownMenuItem
+              onClick={() => startWizard()}
               className="flex items-center gap-2 cursor-pointer"
             >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </DropdownMenuItem>
+              <Download className="h-4 w-4" />
+              Import Series
+            </DropdownMenuItem>
+          )}
 
-          <DropdownMenuItem
-            onClick={() => startWizard()}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Download className="h-4 w-4" />
-            Import Series
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
+          {(canOwner || canManage) && <DropdownMenuSeparator />}
 
           {/* Theme cycle — keep the menu open so the user can cycle in place */}
           <DropdownMenuItem
@@ -267,11 +274,16 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
 
           <DropdownMenuItem
             onClick={handleLogout}
-            className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer"
+            className="flex items-center gap-2 cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
             Sign out
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          {/* Project links — restored from the old sidebar footer. */}
+          <ExternalLinks className="px-2 py-1" />
         </DropdownMenuContent>
       </DropdownMenu>
 

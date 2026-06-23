@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SectionList, SectionPills } from "@/components/comp/layout/section-pills";
 import { UserAvatarDropdown } from "@/components/comp/layout/user-menu";
+import { DownloadStatus } from "@/components/comp/layout/download-status";
+import { ExternalLinks } from "@/components/comp/layout/external-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -162,6 +164,13 @@ export function CommandBar() {
               <span className="text-sm font-semibold">Rensaiō</span>
             </div>
             <SectionList onNavigate={() => setSheetOpen(false)} />
+
+            {/* Drawer footer — download status + project links, restored from
+                the old sidebar bottom group. */}
+            <div className="mt-2 space-y-3 border-t px-3 pt-3">
+              <DownloadStatus variant="drawer" />
+              <ExternalLinks />
+            </div>
           </SheetContent>
         </Sheet>
 
@@ -281,6 +290,12 @@ export function CommandBar() {
               )}
             </Button>
           )}
+        </div>
+
+        {/* Download status badges (desktop) — active / queued / failed counts,
+            restored from the old sidebar. Links to the queue. */}
+        <div className="hidden lg:flex items-center shrink-0">
+          <DownloadStatus variant="bar" />
         </div>
 
         {/* Theme toggle (desktop) */}

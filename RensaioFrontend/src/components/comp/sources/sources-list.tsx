@@ -140,26 +140,19 @@ export function SourcesList({
       .map((lang) => ({ value: lang, label: lang.toUpperCase() }));
   }, [extensions]);
 
-  // ── Installed extensions — filtered by NSFW + language only ─────────────────
-  // NOTE: installed list is NOT filtered by search term (per original behavior)
+  // ── Installed extensions — sorted only, never filtered ──────────────────────
+  // The toolbar filters (search, NSFW, language) apply only to the Available
+  // list. Filtering already-installed sources is confusing and can hide a
+  // source the user is trying to find/uninstall, so the Installed list always
+  // shows everything that's installed (just ordered by the sort control).
   const filteredInstalledExtensions = useMemo(() => {
-    let list = extensions.filter((ext) => ext.isInstaled);
-    if (hideNsfw) {
-      list = list.filter((ext) => !isExtensionNsfw(ext));
-    }
-    if (selectedLanguages.length > 0) {
-      list = list.filter((ext) =>
-        getExtensionLanguages(ext).some((lang) => selectedLanguages.includes(lang))
-      );
-    }
-    // Sort
-    list = [...list].sort((a, b) =>
+    const list = extensions.filter((ext) => ext.isInstaled);
+    return [...list].sort((a, b) =>
       sort === 'name-asc'
         ? a.name.localeCompare(b.name)
         : b.name.localeCompare(a.name)
     );
-    return list;
-  }, [extensions, hideNsfw, selectedLanguages, sort]);
+  }, [extensions, sort]);
 
   // ── Available extensions — filtered by search + NSFW + language ─────────────
   const filteredAvailableExtensions = useMemo(() => {

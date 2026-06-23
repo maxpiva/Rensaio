@@ -12,6 +12,13 @@
 	<RuntimeIdentifiers>linux-arm64;linux-x64;win-x64;win-arm64;osx-arm64;</RuntimeIdentifiers>
 	<RestoreSources>$(RestoreSources);$(ProjectDir)../packages;https://api.nuget.org/v3/index.json</RestoreSources>
   </PropertyGroup>
+	<PropertyGroup Condition="!$(DefineConstants.Contains('ImageMagick'))">
+		<!-- Temporary read Unofficial.Experimental.NetVips.Native packages from directory instead nuget.org -->
+		<!-- Resolve the local package source relative to this project so it works whether built via
+		     the solution ($(SolutionDir)) or the project directly (CI runs `dotnet publish` on the csproj,
+		     where $(SolutionDir) is undefined). The packages/ folder lives at the repo root. -->
+		<RestoreSources>$(RestoreSources);$(MSBuildThisFileDirectory)../packages;https://api.nuget.org/v3/index.json</RestoreSources>
+   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Migration\NewFolder\**" />
     <Compile Remove="scripts\**" />

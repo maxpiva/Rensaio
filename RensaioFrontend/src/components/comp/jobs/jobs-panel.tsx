@@ -4,10 +4,9 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, AlertCircle, Loader2, Download, FileText } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, FileText } from 'lucide-react';
 import { useUpdateAllSeries } from '@/lib/api/hooks/useSeries';
 import { useSignalRProgress } from '@/lib/api/hooks/useSetupWizard';
-import { useImportWizard } from '@/components/providers/import-wizard-provider';
 import { JobType } from '@/lib/api/types';
 
 interface JobProgressProps {
@@ -68,7 +67,6 @@ function JobProgress({
 export function JobsPanel() {
   const [isUpdateAllSeriesRunning, setIsUpdateAllSeriesRunning] = useState(false);
   const updateAllSeriesMutation = useUpdateAllSeries();
-  const { startWizard } = useImportWizard();
 
   const handleUpdateAllSeriesComplete = useCallback(() => {
     setIsUpdateAllSeriesRunning(false);
@@ -84,10 +82,6 @@ export function JobsPanel() {
     onComplete: handleUpdateAllSeriesComplete,
     onError: handleUpdateAllSeriesError,
   });
-
-  const handleImportSeries = () => {
-    startWizard();
-  };
 
   const handleUpdateAllSeries = async () => {
     try {
@@ -116,23 +110,6 @@ export function JobsPanel() {
       </CardHeader>
       <CardContent className="flex-1 p-3 space-y-4">
         <div className="space-y-4">
-          {/* Import Series Button */}
-          <div className="space-y-2">
-            <Button 
-              size="sm"
-              className="gap-1"
-              onClick={handleImportSeries}
-            >
-              <Download className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Import Series
-              </span>
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Import Additional Series, or fix existing ones. This is an interactive process, and will open a wizard.
-            </p>
-          </div>
-
           {/* Update All Series Button */}
           <div className="space-y-2">
             <Button 

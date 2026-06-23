@@ -81,8 +81,13 @@ namespace RensaioBackend.Services.Search
                     {
                         var source = await _mihon.SourceFromProviderIdAsync(ls.MihonProviderId!, token).ConfigureAwait(false);
                         Manga m = ls.ToManga()!;
-                        var fullData = await source.GetDetailsAsync(m, token).ConfigureAwait(false);
-                        var chapterData = await source.GetChaptersAsync(m, token).ConfigureAwait(false);
+                        // Bound each source call so a stuck provider can't freeze the import.
+                        var fullData = await SourceTimeout
+                            .RunAsync(c => source.GetDetailsAsync(m, c), ct)
+                            .ConfigureAwait(false);
+                        var chapterData = await SourceTimeout
+                            .RunAsync(c => source.GetChaptersAsync(m, c), ct)
+                            .ConfigureAwait(false);
                         if (fullData != null && chapterData != null && chapterData.Count > 0)
                         {
                             // Set default scanlator if not provided
@@ -90,9 +95,17 @@ namespace RensaioBackend.Services.Search
                             {
                                 if (string.IsNullOrEmpty(a.Scanlator))
                                     a.Scanlator = ls.Provider;
-                            });                                
+                            });
                             seriesDetailsMap.TryAdd(ls.MihonId!, (fullData, chapterData));
                         }
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw; // the job itself was cancelled
+                    }
+                    catch (TimeoutException)
+                    {
+                        _logger.LogWarning("Fetching details for {Title} from {Provider} timed out after {Seconds}s; skipping.", ls.Title, ls.Provider, SourceTimeout.DefaultTimeout.TotalSeconds);
                     }
                     catch (HttpRequestException r)
                     {

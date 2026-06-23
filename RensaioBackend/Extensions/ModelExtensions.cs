@@ -378,6 +378,73 @@ namespace RensaioBackend.Extensions
 
             return info;
         }
+
+        /// <summary>
+        /// Builds the unified, series-level chapter list by merging every source's chapter rows by
+        /// number. For each chapter it reports whether a file is on disk (and which source holds it,
+        /// preferring the storage source) versus genuinely missing, plus the remote-capable sources
+        /// that know the chapter (for the re-download picker). DB-only — no provider network call;
+        /// "missing" reflects chapters Rensaiō knows about that are not on disk, not a live upstream
+        /// diff. Intentionally-skipped chapters (below a provider's cutoff, ShouldDownload == false
+        /// and never downloaded) are omitted so they don't inflate the missing count.
+        /// </summary>
+        public static List<ChapterDetailDto> ToChapterDetailList(this SeriesEntity s)
+        {
+            ArgumentNullException.ThrowIfNull(s);
+            List<SeriesProviderEntity> sources = s.Sources?.ToList() ?? new List<SeriesProviderEntity>();
+
+            // Sources we can actually fetch from — drives the re-download picker.
+            List<SeriesProviderEntity> remoteCapable = sources
+                .Where(p => !p.IsUnknown && !p.IsLocal && !p.IsDisabled && !p.IsUninstalled
+                    && !string.IsNullOrEmpty(p.MihonProviderId))
+                .ToList();
+
+            var result = new List<ChapterDetailDto>();
+            var groups = sources
+                .SelectMany(p => p.Chapters
+                    .Where(c => !c.IsDeleted && c.Number != null)
+                    .Select(c => (Provider: p, Chapter: c)))
+                .GroupBy(t => t.Chapter.Number);
+
+            foreach (var g in groups)
+            {
+                var rows = g.ToList();
+                var downloadedRows = rows.Where(r => !string.IsNullOrEmpty(r.Chapter.Filename)).ToList();
+                bool downloaded = downloadedRows.Count > 0;
+
+                // A not-downloaded chapter only counts as "missing" if a source still wants it.
+                // Rows below a provider's cutoff carry ShouldDownload == false and are skipped.
+                bool wanted = rows.Any(r => r.Chapter.ShouldDownload);
+                if (!downloaded && !wanted)
+                    continue;
+
+                // Holder of the on-disk file: prefer the storage source.
+                var holder = downloadedRows
+                    .OrderBy(r => r.Provider.IsStorage ? 0 : 1)
+                    .FirstOrDefault();
+
+                string name = rows
+                    .Select(r => r.Chapter.Name)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? string.Empty;
+
+                List<ChapterSourceDto> available = remoteCapable
+                    .Where(p => p.Chapters.Any(c => !c.IsDeleted && c.Number == g.Key))
+                    .Select(p => new ChapterSourceDto { Id = p.Id, Name = p.Provider })
+                    .ToList();
+
+                result.Add(new ChapterDetailDto
+                {
+                    Number = g.Key,
+                    Name = name,
+                    Downloaded = downloaded,
+                    SourceProviderId = holder.Provider?.Id,
+                    SourceProviderName = holder.Provider?.Provider,
+                    AvailableProviders = available
+                });
+            }
+
+            return result.OrderByDescending(c => c.Number).ToList();
+        }
     }
 
 

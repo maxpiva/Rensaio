@@ -584,7 +584,7 @@ public class McpToolService
         string? sourceId = args.TryGetProperty("sourceId", out var srcEl) ? srcEl.GetString() : null;
         string? keyword = args.TryGetProperty("keyword", out var kwEl) ? kwEl.GetString() : null;
 
-        var latest = await _seriesQuery.GetLatestAsync(start, count, sourceId, keyword, token);
+        var latest = await _seriesQuery.GetLatestAsync(start, count, sourceId, keyword, token: token);
         return new { success = true, count = latest.Count, data = latest };
     }
 

@@ -238,6 +238,7 @@ export interface ImportInfo {
 }
 
 export interface SmallSeries {
+  id?: string;
   mihonId?: string;
   mihonProviderId?: string;
   bridgeItemInfo?: string;
@@ -277,6 +278,23 @@ export interface ProgressState {
   percentage: number;
   message: string;
   errorMessage?: string;
+}
+
+export interface ImportJobStatus {
+  isRunning: boolean;
+  isQueued: boolean;
+  isActive: boolean;
+  hasCompleted: boolean;
+  hasFailed: boolean;
+}
+
+export type SetupJobStatusValue = 'Running' | 'Waiting' | 'Completed' | 'Failed' | null;
+
+export interface SetupJobsStatus {
+  scanLocalFiles: SetupJobStatusValue;
+  installAdditionalExtensions: SetupJobStatusValue;
+  searchProviders: SetupJobStatusValue;
+  importSeries: SetupJobStatusValue;
 }
 
 export enum JobType {
@@ -457,6 +475,28 @@ export interface ProviderExtendedInfo {
   matchId: string;
 }
 
+/**
+ * A selectable source for (re-)downloading a chapter.
+ */
+export interface ChapterSource {
+  id: string;
+  name: string;
+}
+
+/**
+ * A single chapter in the unified, series-level chapter list. Chapters are merged across every
+ * source so the UI can tell, per chapter, whether it is downloaded (and from which source) or
+ * genuinely missing — independent of which provider happens to hold the file.
+ */
+export interface ChapterDetail {
+  number?: number;
+  name: string;
+  downloaded: boolean;
+  sourceProviderId?: string;
+  sourceProviderName?: string;
+  availableProviders: ChapterSource[];
+}
+
 export interface DownloadInfoList {
   totalCount: number;
   downloads: DownloadInfo[];
@@ -591,6 +631,15 @@ export interface LatestSeriesInfo {
   status: SeriesStatus;
   inLibrary: InLibraryStatus;
   seriesId?: string; // Guid from backend represented as string
+}
+
+/**
+ * A distinct tag/genre available in the cached "Latest" cloud catalogue, with the
+ * number of series that carry it. Used to populate the browse-screen tag filter.
+ */
+export interface LatestGenre {
+  name: string;
+  count: number;
 }
 
 export enum ArchiveResult {

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client';
-import type { ImportInfo, LinkedSeries, SetupOperationResponse, ImportTotals } from '../types';
+import type { ImportInfo, LinkedSeries, SetupOperationResponse, ImportTotals, ImportJobStatus, SetupJobsStatus } from '../types';
 
 export const setupWizardService = {
   /**
@@ -35,6 +35,22 @@ export const setupWizardService = {
    */
   async importSeries(disableDownloads: boolean = false): Promise<SetupOperationResponse> {
     return await apiClient.post<SetupOperationResponse>(`/api/setup/import?disableDownloads=${disableDownloads}`);
+  },
+
+  /**
+   * Get the current status of the series import job.
+   * Used to resume progress after a reload instead of restarting the import.
+   */
+  async getImportStatus(): Promise<ImportJobStatus> {
+    return await apiClient.get<ImportJobStatus>('/api/setup/import/status');
+  },
+
+  /**
+   * Get the latest status of every setup-wizard job (scan, install, search, import).
+   * Used to resume the wizard's long-running steps after a reload.
+   */
+  async getSetupStatus(): Promise<SetupJobsStatus> {
+    return await apiClient.get<SetupJobsStatus>('/api/setup/status');
   },
 
   /**

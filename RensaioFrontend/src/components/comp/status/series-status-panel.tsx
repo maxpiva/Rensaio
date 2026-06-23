@@ -6,10 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, ExternalLink } from 'lucide-react';
 import { type SeriesHealth } from '@/lib/api/types';
 import { AlertBadge } from '@/components/comp/status/alert-badge';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { formatThumbnailUrl } from '@/lib/utils/thumbnail';
 import { seriesService } from '@/lib/api/services/seriesService';
 
@@ -17,6 +14,28 @@ interface SeriesStatusPanelProps {
   series: SeriesHealth[];
   onClearAlert: (targetType: number, targetId: string) => void;
   canAdmin: boolean;
+}
+
+/** Small translucent meta pill (provider tags, days-without-release). */
+function MetaPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+/** Glass dismiss action — replaces the old shadcn outline Button. */
+function DismissButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-white/[0.07] hover:text-foreground"
+    >
+      Dismiss
+    </button>
+  );
 }
 
 export function SeriesStatusPanel({ series, onClearAlert, canAdmin }: SeriesStatusPanelProps) {
@@ -28,9 +47,9 @@ export function SeriesStatusPanel({ series, onClearAlert, canAdmin }: SeriesStat
 
   if (series.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
-        <p className="text-lg font-medium">All series are healthy</p>
+      <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.02] py-12 text-muted-foreground">
+        <CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
+        <p className="text-lg font-medium text-foreground">All series are healthy</p>
         <p className="text-sm">No series alerts at this time</p>
       </div>
     );
@@ -62,117 +81,103 @@ export function SeriesStatusPanel({ series, onClearAlert, canAdmin }: SeriesStat
     }
   };
 
+  const levelAccent = (level: number) =>
+    level === 2
+      ? "border-red-500/25 hover:border-red-500/40"
+      : "border-amber-500/25 hover:border-amber-500/40";
+
   return (
     <div className="space-y-2">
       {sorted.map((s) => {
-        const currentInput = cadenceInputs[s.id] ?? '';
-        const currentValue = currentInput !== ''
-          ? parseInt(currentInput, 10)
-          : s.releaseCadenceDays;
-        const hasValidInput = currentInput === ''
-          ? false
-          : !isNaN(parseInt(currentInput, 10)) && parseInt(currentInput, 10) > 0;
+        const input = cadenceInputs[s.id] ?? '';
+        const parsed = parseInt(input, 10);
+        const hasValidInput = input !== '' && !isNaN(parsed) && parsed > 0;
         const isSaving = savingCadence[s.id] ?? false;
 
         return (
-        <Card key={s.id} className={s.level === 2 ? "border-red-300" : "border-yellow-300"}>
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center gap-3">
-              {/* Thumbnail on the left */}
-              <div className="relative flex-shrink-0">
-                <Image
-                  src={formatThumbnailUrl(s.thumbnailUrl)}
-                  alt={s.title}
-                  width={48}
-                  height={64}
-                  className="rounded-md object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/rensaio.png';
-                  }}
-                />
-              </div>
+        <div
+          key={s.id}
+          className={`rounded-xl border bg-white/[0.02] px-4 py-3 transition-colors ${levelAccent(s.level)}`}
+        >
+          <div className="flex items-center gap-3">
+            {/* Thumbnail on the left */}
+            <div className="relative flex-shrink-0">
+              <Image
+                src={formatThumbnailUrl(s.thumbnailUrl)}
+                alt={s.title}
+                width={48}
+                height={64}
+                className="rounded-md object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/rensaio.png';
+                }}
+              />
+            </div>
 
-              {/* Content area */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  {/* Status icon in front of title */}
-                  <AlertBadge level={s.level} />
-                  {/* Title with link icon at the end */}
-                  <span
-                    className="text-sm font-medium truncate cursor-pointer hover:text-primary transition-colors flex items-center gap-1"
-                    onClick={() => handleSeriesClick(s.id)}
-                    title={`View ${s.title} details`}
-                  >
-                    {s.title}
-                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground hover:text-primary" />
-                  </span>
+            {/* Content area */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                {/* Status icon in front of title */}
+                <AlertBadge level={s.level} />
+                {/* Title with link icon at the end */}
+                <span
+                  className="flex items-center gap-1 truncate text-sm font-medium transition-colors cursor-pointer hover:text-primary"
+                  onClick={() => handleSeriesClick(s.id)}
+                  title={`View ${s.title} details`}
+                >
+                  {s.title}
+                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground hover:text-primary" />
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{s.message}</p>
+              {s.providers.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {s.providers.map((p) => (
+                    <MetaPill key={p.providerId}>
+                      {p.providerName} ({p.language})
+                    </MetaPill>
+                  ))}
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{s.message}</p>
-                {s.providers.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {s.providers.map((p) => (
-                      <Badge key={p.providerId} variant="secondary" className="text-xs">
-                        {p.providerName} ({p.language})
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
-              {/* Actions on the right — two groups: cadence edit (top) + dismiss (bottom) */}
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                {/* Cadence edit group: label + input + save button */}
-                {canAdmin && (
+            {/* Actions on the right — cadence edit (admin) + dismiss */}
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              {/* Cadence edit: label + input + save (admin only) */}
+              {canAdmin && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">Cadence:</span>
+                  <span className="whitespace-nowrap text-[11px] text-muted-foreground">Cadence:</span>
                   <Input
                     type="number"
                     min="1"
                     step="1"
                     placeholder={s.releaseCadenceDays?.toString() ?? 'auto'}
                     value={cadenceInputs[s.id] ?? ''}
-                    onChange={(e) => setCadenceInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
-                    className="h-7 w-16 text-xs text-right font-mono"
+                    onChange={(e) => setCadenceInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        void handleSaveCadence(s.id);
-                      }
+                      if (e.key === 'Enter') void handleSaveCadence(s.id);
                     }}
+                    className="h-7 w-16 text-right font-mono text-xs"
                   />
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-7 text-xs"
+                  <button
+                    type="button"
                     disabled={!hasValidInput || isSaving}
                     onClick={() => void handleSaveCadence(s.id)}
+                    className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-white/[0.07] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {isSaving ? '...' : 'Save'}
-                  </Button>
+                    {isSaving ? '…' : 'Save'}
+                  </button>
                 </div>
-                )}
-                {/* Dismiss button + days badge */}
-                <div className="flex items-center gap-2">
-                  {s.daysWithoutRelease != null && (
-                    <Badge variant="outline" className="text-xs">
-                      {s.daysWithoutRelease}d
-                    </Badge>
-                  )}
-                  {canAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => onClearAlert(0, s.id)}
-                  >
-                    Dismiss
-                  </Button>
-                  )}
-                </div>
+              )}
+              {/* Days badge + dismiss */}
+              <div className="flex items-center gap-2">
+                {s.daysWithoutRelease != null && <MetaPill>{s.daysWithoutRelease}d</MetaPill>}
+                {canAdmin && <DismissButton onClick={() => onClearAlert(0, s.id)} />}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
         );
       })}
     </div>

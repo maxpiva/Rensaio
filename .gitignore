@@ -310,6 +310,10 @@ next-env.d.ts
 RensaioBackend/runtime/rensaio.schedule.db-wal
 /RensaioBackend/wwwroot.sha256
 /RensaioBackend/wwwroot.zip
+
+# Kaizoku-branded build output (generated, not source)
+/KaizokuFrontend/
+/KaizokuBackend/
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/AndroidCompat/lib
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/.gradle
 /Mihon.ExtensionsBridge.Net/Android.Compatibility.Layer/build/reports/problems

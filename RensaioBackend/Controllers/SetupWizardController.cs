@@ -51,6 +51,25 @@ namespace RensaioBackend.Controllers
         }
 
         /// <summary>
+        /// Whether a job of the given type is currently running or queued. Used to make the
+        /// wizard's enqueue endpoints idempotent so a page reload doesn't restart work.
+        /// </summary>
+        private Task<bool> IsSetupJobActiveAsync(JobType jobType, CancellationToken token) =>
+            _db.Queues.AnyAsync(q => q.JobType == jobType &&
+                (q.Status == QueueStatus.Running || q.Status == QueueStatus.Waiting), token);
+
+        private async Task<string?> GetLatestJobStatusAsync(JobType jobType, CancellationToken token)
+        {
+            var status = await _db.Queues
+                .Where(q => q.JobType == jobType)
+                .OrderByDescending(q => q.EnqueuedDate)
+                .Select(q => (QueueStatus?)q.Status)
+                .FirstOrDefaultAsync(token)
+                .ConfigureAwait(false);
+            return status?.ToString();
+        }
+
+        /// <summary>
         /// Scan local files for series
         /// </summary>
         [HttpPost("scan")]
@@ -61,6 +80,9 @@ namespace RensaioBackend.Controllers
         {
             try
             {
+                if (await IsSetupJobActiveAsync(JobType.ScanLocalFiles, token).ConfigureAwait(false))
+                    return Ok(new { success = true, message = "Scan already in progress", alreadyRunning = true });
+
                 SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
                 await _jobManagementService.EnqueueJobAsync(JobType.ScanLocalFiles, settings.StorageFolder, Priority.High, null, null, null, "Default", token).ConfigureAwait(false);
                 return Ok(new { success = true, message = "Scan Scheduled" });
@@ -82,6 +104,9 @@ namespace RensaioBackend.Controllers
         {
             try
             {
+                if (await IsSetupJobActiveAsync(JobType.InstallAdditionalExtensions, token).ConfigureAwait(false))
+                    return Ok(new { success = true, message = "Extension installation already in progress", alreadyRunning = true });
+
                 await _jobManagementService.EnqueueJobAsync(JobType.InstallAdditionalExtensions, default(object), Priority.High, null, null, null, "Default", token).ConfigureAwait(false);
                 return Ok(new { success = true, message = "Extension installation completed" });
             }
@@ -102,6 +127,9 @@ namespace RensaioBackend.Controllers
         {
             try
             {
+                if (await IsSetupJobActiveAsync(JobType.SearchProviders, token).ConfigureAwait(false))
+                    return Ok(new { success = true, message = "Search already in progress", alreadyRunning = true });
+
                 await _jobManagementService.EnqueueJobAsync<string?>(JobType.SearchProviders, null, Priority.High, null, null, null, "Default", token).ConfigureAwait(false);
                 return Ok(new { success = true, message = "Search Series Scheduled" });
             }
@@ -213,6 +241,19 @@ namespace RensaioBackend.Controllers
         {
             try
             {
+                // Idempotency guard: if an import is already running or queued, don't enqueue another one.
+                // This prevents a page reload (which re-mounts the wizard's final step) from restarting
+                // a long-running import from scratch.
+                bool alreadyActive = await _db.Queues
+                    .AnyAsync(q => q.JobType == JobType.ImportSeries &&
+                                   (q.Status == QueueStatus.Running || q.Status == QueueStatus.Waiting), token)
+                    .ConfigureAwait(false);
+
+                if (alreadyActive)
+                {
+                    return Ok(new { success = true, message = "Import Series already in progress", alreadyRunning = true });
+                }
+
                 await _jobManagementService.EnqueueJobAsync<bool>(JobType.ImportSeries, disableDownloads, Priority.High, null, null, null,"Default", token).ConfigureAwait(false);
                 return Ok(new { success = true, message = "Import Series Scheduled" });
             }
@@ -220,6 +261,74 @@ namespace RensaioBackend.Controllers
             {
                 _logger.LogError(ex, "Error scheduling Import Series");
                 return StatusCode(500, new { error = $"An error occurred during scheduling: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// GET /api/setup/import/status - Reports the current state of the series import job.
+        /// Lets the frontend reconnect to an in-progress import after a page reload instead of
+        /// restarting it, and lets a background progress indicator resume after a disconnect.
+        /// </summary>
+        [HttpGet("import/status")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> GetImportStatusAsync(CancellationToken token = default)
+        {
+            try
+            {
+                var latest = await _db.Queues
+                    .Where(q => q.JobType == JobType.ImportSeries)
+                    .OrderByDescending(q => q.EnqueuedDate)
+                    .Select(q => new { q.Status })
+                    .FirstOrDefaultAsync(token)
+                    .ConfigureAwait(false);
+
+                bool isRunning = latest?.Status == QueueStatus.Running;
+                bool isQueued = latest?.Status == QueueStatus.Waiting;
+                bool hasCompleted = latest?.Status == QueueStatus.Completed;
+                bool hasFailed = latest?.Status == QueueStatus.Failed;
+
+                return Ok(new
+                {
+                    isRunning,
+                    isQueued,
+                    isActive = isRunning || isQueued,
+                    hasCompleted,
+                    hasFailed
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving import status");
+                return StatusCode(500, new { error = $"An error occurred retrieving import status: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// GET /api/setup/status - Reports the latest status of every setup-wizard job
+        /// (scan, install sources, search, import). Lets the wizard's long-running steps
+        /// reconnect to work already in progress after a page reload instead of restarting it.
+        /// Each value is "Running", "Waiting", "Completed", "Failed", or null if never run.
+        /// </summary>
+        [HttpGet("status")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> GetSetupStatusAsync(CancellationToken token = default)
+        {
+            try
+            {
+                return Ok(new
+                {
+                    scanLocalFiles = await GetLatestJobStatusAsync(JobType.ScanLocalFiles, token).ConfigureAwait(false),
+                    installAdditionalExtensions = await GetLatestJobStatusAsync(JobType.InstallAdditionalExtensions, token).ConfigureAwait(false),
+                    searchProviders = await GetLatestJobStatusAsync(JobType.SearchProviders, token).ConfigureAwait(false),
+                    importSeries = await GetLatestJobStatusAsync(JobType.ImportSeries, token).ConfigureAwait(false),
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving setup status");
+                return StatusCode(500, new { error = $"An error occurred retrieving setup status: {ex.Message}" });
             }
         }
 

@@ -1,29 +1,30 @@
 "use client";
 
+import { Plug } from "lucide-react";
 import React from 'react';
+
+import { RibbonSlot } from "@/components/comp/layout/ribbon";
+import { SourcesList } from "@/components/comp/sources/sources-list";
 import { useSearch } from "@/contexts/search-context";
-import { ProviderManager } from "@/components/comp/provider-manager";
 
 export default function ProvidersPage() {
-  const { searchTerm, setSearchTerm, clearSearch } = useSearch();
+  const { searchTerm, clearSearch } = useSearch();
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-muted-foreground mb-4">Manage your installed and available sources. Use the search above to filter available sources.</p>
-      </div>
-      <ProviderManager
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        clearSearch={clearSearch}
-        isCompact={true}
-        showSearch={false}
-        showNsfwIndicator={true}
-        installedGridCols="grid-cols-1 sm:grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3"
-        availableGridCols="grid-cols-1 sm:grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3"
-        installedTitle="Installed"
-        availableTitle="Available"
-      />
+      <RibbonSlot>
+        <div className="flex w-full items-center gap-2">
+          <Plug className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h2 className="truncate text-sm font-semibold text-foreground">
+            Sources
+          </h2>
+          <span className="hidden sm:inline truncate text-xs text-muted-foreground">
+            · Install, enable, and health-check Mihon extensions
+          </span>
+        </div>
+      </RibbonSlot>
+
+      <SourcesList searchTerm={searchTerm} clearSearch={clearSearch} />
     </div>
   );
 }

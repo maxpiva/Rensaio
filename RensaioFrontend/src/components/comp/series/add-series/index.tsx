@@ -9,27 +9,19 @@ import { AddSeriesSteps } from "@/components/comp/series/add-series/steps";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { usePermission } from "@/hooks/use-permission";
 
 export const AddSeriesButton = forwardRef<HTMLButtonElement, ButtonProps>(
   (props, ref) => {
+    const canAdd = usePermission('canAddSeries');
+    const label = canAdd ? "Add Series" : "Request Series";
     return (
       <Button size="sm" className="h-full gap-1" ref={ref} {...props}>
         <PlusCircle className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          Add Series
+          {label}
         </span>
       </Button>
     );
@@ -44,7 +36,6 @@ export interface AddSeriesState {
   fullSeries: FullSeries[];
   originalAugmentedResponse?: AugmentedResponse; // Store the original response for final submission
   storagePath?: string; // User-edited storage path
-  startChapter?: number; // User-facing "Start Chapter" - chapters before this will be skipped
 }
 
 export interface AddSeriesProps {
@@ -58,77 +49,48 @@ export interface AddSeriesProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-export function AddSeries({ 
-  title, 
-  existingSources, 
-  seriesId, 
+export function AddSeries({
+  title,
+  existingSources,
+  seriesId,
   triggerButton,
   open: controlledOpen,
-  onOpenChange 
+  onOpenChange,
 }: AddSeriesProps = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-  
+
   // Use controlled or internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onOpenChange || setInternalOpen;
-    // Determine if this is Add Sources mode
+
+  // Determine mode booleans
   const isAddSourcesMode = !!(title && existingSources && seriesId);
-  
-  // Dialog/Drawer content
-  const dialogTitle = isAddSourcesMode ? `Add New Sources to '${title}'` : "Add new series";
-  const dialogDescription = isAddSourcesMode 
-    ? "Search and add new sources to your Series."
-    : "Search for and add new series to your library.";
-  
+
   const triggerElement = triggerButton || <AddSeriesButton />;
-  if (isDesktop) {
-    return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {triggerElement}
-        </DialogTrigger>
-        <DialogContent
-          className="w-[95vw] max-w-4xl max-h-[90dvh] overflow-y-auto"
-          onInteractOutside={(e) => {
-            e.preventDefault();
-          }}
-        >          <DialogHeader>
-            <DialogTitle>{dialogTitle}</DialogTitle>
-            <DialogDescription>
-              {dialogDescription}            </DialogDescription>
-          </DialogHeader>
-          <AddSeriesSteps
-            onFinish={() => setOpen(false)}
-            title={title}
-            existingSources={existingSources}
-            seriesId={seriesId}
-            isAddSourcesMode={isAddSourcesMode}
-          />
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen} noBodyStyles>
-      <DrawerTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         {triggerElement}
-      </DrawerTrigger>
-      <DrawerContent className="max-h-[90dvh]">
-        <DrawerHeader className="text-left pb-2">
-          <DrawerTitle>{dialogTitle}</DrawerTitle>
-        </DrawerHeader>
-        <div className="mb-4 px-3 overflow-y-auto">
-          <AddSeriesSteps
-            onFinish={() => setOpen(false)}
-            title={title}
-            existingSources={existingSources}
-            seriesId={seriesId}
-            isAddSourcesMode={isAddSourcesMode}
-          />
-        </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogTrigger>
+      <DialogContent
+        className="bg-transparent border-0 shadow-none p-0 max-h-none overflow-visible w-[calc(100vw-24px)] sm:w-[min(980px,calc(100vw-48px))] max-w-none top-[8vh] sm:top-[10vh] translate-y-0 [&>button]:hidden"
+        onInteractOutside={(e) => {
+          // Allow tap-outside dismiss on mobile; prevent on desktop
+          if (!window.matchMedia("(max-width: 640px)").matches) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <AddSeriesSteps
+          onFinish={() => setOpen(false)}
+          onOpenChange={setOpen}
+          title={title}
+          existingSources={existingSources}
+          seriesId={seriesId}
+          isAddSourcesMode={isAddSourcesMode}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -119,14 +119,18 @@ namespace RensaioBackend.Services.Search
                 new ParallelOptions { MaxDegreeOfParallelism = maxConcurrency, CancellationToken = token },
                 async (source, ct) =>
                 {
-                    //Try to match 3 times, for providers that are slow or have temporary issues
-                    int retries = 3;
-                    do
+                    // Try up to a few times for providers that are slow or have temporary issues.
+                    // Each attempt is bounded by SourceTimeout so a single stuck provider can't hang
+                    // the whole import; a timed-out or cancelled provider is not retried.
+                    const int maxAttempts = 3;
+                    for (int attempt = 1; attempt <= maxAttempts; attempt++)
                     {
                         try
                         {
                             var src = await _mihon.SourceFromProviderIdAsync(source.ps.MihonProviderId).ConfigureAwait(false);
-                            var searchResult = await src.SearchAsync(1, source.keyword, ct).ConfigureAwait(false);
+                            var searchResult = await SourceTimeout
+                                .RunAsync(c => src.SearchAsync(1, source.keyword, c), ct)
+                                .ConfigureAwait(false);
                             if (searchResult != null && searchResult.Mangas.Count > 0)
                             {
                                 // Remove duplicates within the same source
@@ -139,8 +143,17 @@ namespace RensaioBackend.Services.Search
 
                                 searchResult.Mangas = uniqueSeries;
                                 results.Add((source.keyword, source.ps, searchResult));
-                                break;
                             }
+                            break; // success or empty result – done with this provider
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw; // the job itself was cancelled
+                        }
+                        catch (TimeoutException)
+                        {
+                            _logger.LogWarning("Search for provider {Name} timed out after {Seconds}s; skipping.", source.ps.Name, SourceTimeout.DefaultTimeout.TotalSeconds);
+                            break; // a stuck provider won't recover by retrying
                         }
                         catch (HttpRequestException r)
                         {
@@ -149,10 +162,9 @@ namespace RensaioBackend.Services.Search
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "Error searching provider {Name}: {Message}", source.ps.Name, ex.Message);
+                            break; // unexpected error – don't spin
                         }
-
-                        retries++;
-                    } while (retries < 3);
+                    }
 
                 }).ConfigureAwait(false);
 
@@ -223,7 +235,9 @@ namespace RensaioBackend.Services.Search
                         try
                         {
                             var src = await _mihon.SourceFromProviderIdAsync(providerId).ConfigureAwait(false);
-                            var searchResult = await src.SearchAsync(1, keyword, ct).ConfigureAwait(false);
+                            var searchResult = await SourceTimeout
+                                .RunAsync(c => src.SearchAsync(1, keyword, c), ct)
+                                .ConfigureAwait(false);
                             if (searchResult != null && searchResult.Mangas.Count > 0)
                             {
                                 // Remove duplicates within the same source
@@ -237,6 +251,14 @@ namespace RensaioBackend.Services.Search
                                 searchResult.Mangas = uniqueSeries;
                                 results.Add((providerId, src.Language, searchResult));
                             }
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw; // the job itself was cancelled
+                        }
+                        catch (TimeoutException)
+                        {
+                            _logger.LogWarning("Search for provider {Name} timed out after {Seconds}s; skipping.", sourceDict[providerId].Name, SourceTimeout.DefaultTimeout.TotalSeconds);
                         }
                         catch (HttpRequestException r)
                         {

@@ -14,6 +14,7 @@ import Image from 'next/image';
 import { type LatestSeriesInfo, InLibraryStatus } from '@/lib/api/types';
 import { AddSeries } from '@/components/comp/series/add-series';
 import ReactCountryFlag from "react-country-flag";
+import { usePermission } from '@/hooks/use-permission';
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-series-step";
 import { LastChapterBadge } from "@/components/ui/last-chapter-badge";
@@ -21,8 +22,14 @@ import { SeriesStatus } from "@/lib/api/types";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { useRouter } from 'next/navigation';
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
-import { useAuth } from '@/contexts/auth-context';
 import { CloudLatestDetailsModal } from '@/components/comp/series/cloud-latest-details-modal';
+
+// Eagerly load only the first row of covers to protect LCP. The grid is
+// responsive (columns recomputed on resize), so we use a safe upper bound
+// of 12 that comfortably covers the widest realistic first row. Everything
+// beyond this lazy-loads via next/image viewport intersection logic. Kept
+// in sync with FIRST_ROW_PRIORITY_COUNT in list-series for consistency.
+const FIRST_ROW_PRIORITY_COUNT = 12;
 
 // Color array for the fetch date ring (31 colors from green to blue)
 const FETCH_DATE_COLORS = [
@@ -69,13 +76,14 @@ interface CloudLatestCardProps {
   item: LatestSeriesInfo;
   cardWidth: string;
   textSize: string;
+  priority?: boolean;
 }
 
-const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, textSize }) => {
+const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, textSize, priority = false }) => {
   const [showAddSeries, setShowAddSeries] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const router = useRouter();
-  const { canManage } = useAuth();
+  const canAddSeries = usePermission('canAddSeries');
 
   // Handle card click - open details modal for items not in library, navigate for library items
   const handleCardClick = () => {
@@ -127,20 +135,30 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
             >
 
               <Image
-                priority
+                {...(priority ? { priority: true } : { loading: "lazy" as const })}
+                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
                 src={formatThumbnailUrl(item.thumbnailUrl)}
                 alt={item.title}
                 fill
                 className="rounded-md object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  if (target.src !== window.location.origin + '/rensaio.png') {
-                    target.src = '/rensaio.png';
+                  if (target.src !== window.location.origin + '/kaizoku.net.png') {
+                    target.src = '/kaizoku.net.png';
                   }
                 }}
               />
-                            {/* Provider Badge - Top Left */}
-              <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow">
+
+              {/* Status bar — 2px strip across the top edge, color-coded by
+                  item.status. Same language as the Library cards so the two
+                  surfaces feel cohesive. */}
+              <div
+                className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(item.status).color}`}
+                aria-hidden
+              />
+
+              {/* Provider Badge - Top Left */}
+              <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow z-10">
                 <Badge 
                   variant="secondary" 
                   className="bg-black/70"
@@ -242,8 +260,8 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
            
             </div>
             
-            {/* Add Series Button - Bottom Right Absolute - Manager+ only */}
-            {canManage && item.inLibrary === InLibraryStatus.NotInLibrary && (
+            {/* Add Series Button — only if not in library */}
+            {item.inLibrary === InLibraryStatus.NotInLibrary && canAddSeries && (
               <Button
                 size="sm"
                 className="absolute bottom-3 right-3 h-8 w-8 p-0"
@@ -251,6 +269,7 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
                   e.stopPropagation();
                   setShowAddSeries(true);
                 }}
+                title="Add to library"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -274,8 +293,7 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
         open={showDetailsModal}
         onOpenChange={setShowDetailsModal}
         item={item}
-        onAddSeries={() => setShowAddSeries(true)}
-        canManage={canManage}
+        onAddSeries={canAddSeries ? () => setShowAddSeries(true) : undefined}
       />
     </>
   );
@@ -369,11 +387,16 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading latest series...</span>
-        </div>
+      <div className="flex flex-wrap gap-4" style={{ justifyContent: "space-evenly" }}>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div
+            key={i}
+            className={`relative ${cardWidth} rounded-md overflow-hidden`}
+            style={{ aspectRatio: "4/6" }}
+          >
+            <div className="w-full h-full skeleton-shimmer rounded-md" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -402,11 +425,16 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
           ref={gridRef}
         >
           {items.map((item, index) => (
-            <CloudLatestCard 
-              key={`${item.id}-${index}`} 
-              item={item} 
+            <CloudLatestCard
+              key={`${item.mihonId}-${index}`}
+              item={item}
               cardWidth={cardWidth}
               textSize={textSize}
+              // Eagerly load only the first row of covers to protect LCP. The
+              // grid is responsive (columns recomputed on resize), so we use a
+              // safe upper bound that covers the widest realistic first row.
+              // All other tiles lazy-load via next/image viewport detection.
+              priority={index < FIRST_ROW_PRIORITY_COUNT}
             />
           ))}
           

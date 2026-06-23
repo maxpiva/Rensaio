@@ -13,9 +13,17 @@ import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-s
 import { Badge } from "@/components/ui/badge";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { Database, ExternalLink, PauseCircle } from "lucide-react";
+import { AlertTriangle, Database, ExternalLink, Pause } from "lucide-react";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+
+// Eagerly load only the first row of covers to protect LCP. The grid is
+// responsive (columns recomputed on resize), so we use a safe upper bound
+// of 12 that comfortably covers the widest realistic first row. Everything
+// beyond this lazy-loads via the browser's viewport intersection logic in
+// next/image.
+export const FIRST_ROW_PRIORITY_COUNT = 12;
+
 // Color array for the last change ring (31 colors from green to blue)
 const LAST_CHANGE_COLORS = [
   "00FF00", "22FF00", "44FF00", "66FF00", "88FF00", "AAFF00", "CCFF00", "FFFF00",
@@ -25,18 +33,18 @@ const LAST_CHANGE_COLORS = [
 ];
 
 // Function to get the ring color based on days since last change
-function getLastChangeRingColor(lastChangeUTC?: string): string | null {
-  if (!lastChangeUTC) return null;
+function getLastChangeRingColor(lastChangeUTC?: string | null): string | undefined {
+  if (!lastChangeUTC) return undefined;
 
   const now = new Date();
   const lastChange = new Date(lastChangeUTC);
   const diffTime = now.getTime() - lastChange.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  // Return color index based on days (0-30), or null if over 31 days
-  if (diffDays < 0 || diffDays > 31) return null;
+  // Return color index based on days (0-30), or undefined if over 31 days
+  if (diffDays < 0 || diffDays > 31) return undefined;
   const colorIndex = Math.min(diffDays, 30);
-  return LAST_CHANGE_COLORS[colorIndex] || null;
+  return LAST_CHANGE_COLORS[colorIndex] || undefined;
 }
 export interface ListSeriesProps {
   filterFn?: (series: SeriesInfo) => boolean;
@@ -118,20 +126,50 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
   const remainder = columns > 1 ? items.length % columns : 0;
   const dummyCount = remainder === 0 ? 0 : columns - remainder;
 
+  // Empty / no-results state — rendered outside the grid so it isn't capped by
+  // `.grid-auto-fit > *` (max-width: 17rem) and can center on the page.
+  if (!isLoading && (filteredLibrary === undefined || filteredLibrary.length === 0)) {
+    return (
+      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 py-16 text-center">
+        <div className="rounded-full bg-muted p-5">
+          <svg className="h-10 w-10 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-base font-medium text-foreground">
+            {debouncedSearchTerm.trim() ? `No results for "${debouncedSearchTerm}"` : "No series found"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {debouncedSearchTerm.trim() ? "Try a different search term." : "Add some manga to get started."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider delayDuration={2000}>
       <div className="flex flex-wrap gap-4 grid-auto-fit" ref={gridRef}>
         {isLoading ? (
-          <div>Loading...</div>
-        ) : filteredLibrary === undefined || filteredLibrary?.length === 0 ? (
-          <div>
-            {debouncedSearchTerm.trim() ? `No series found matching "${debouncedSearchTerm}"` : 'No series found'}
-          </div>
+          <>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className={`relative ${cardWidth} rounded-md overflow-hidden`}
+                style={{ aspectRatio: "4/6" }}
+              >
+                <div className="w-full h-full skeleton-shimmer rounded-md" />
+              </div>
+            ))}
+          </>
         ) : (
           <>
-            {items.map((series: SeriesInfo) => {
+            {items.map((series: SeriesInfo, index: number) => {
         const ringColor = getLastChangeRingColor(series.lastChangeUTC);
-        const showRing = orderBy === "lastChange" && ringColor; return (
+        const showRing = orderBy === "lastChange" && ringColor;
+        const isPriority = index < FIRST_ROW_PRIORITY_COUNT;
+        return (
           <div
             key={series.id}
             className={`relative ${cardWidth} rounded-md shadow group transition-all duration-200`} style={{
@@ -165,34 +203,69 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
                 } : {})
               }}
             ><Image
-                priority
+                {...(isPriority ? { priority: true } : { loading: "lazy" as const })}
+                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
                 src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
                 alt={series.title}
                 fill
                 className="rounded-md object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  if (target.src !== window.location.origin + '/rensaio.png') {
-                    target.src = '/rensaio.png';
+                  if (target.src !== window.location.origin + '/kaizoku.net.png') {
+                    target.src = '/kaizoku.net.png';
                   }
                 }}
               />
-                                          {/* Provider Badge - Top Left */}
-                            <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow">
-                              <Badge
-                                variant="secondary"
-                                className="bg-black/70"
-                              >
-                                {series.lastChangeProvider.provider}
-                              </Badge>
-                            </div>
+
+              {/* Status bar — 2px strip across the top edge, color-coded by
+                  series.status. Lets the user spot ongoing / completed /
+                  hiatus / disabled at a glance without opening the card.
+                  Hidden while sorting by Last Change, where it would clash with
+                  the age-graded card border (the green "ongoing" strip made the
+                  Last Change colour grading look corrupted). */}
+              {!showRing && (
+                <div
+                  className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(series.status).color}`}
+                  aria-hidden
+                />
+              )}
+
+              {/* Provider Badge - Top Left */}
+              <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow z-10">
+                <Badge
+                  variant="secondary"
+                  className="bg-black/70"
+                >
+                  {series.lastChangeProvider.provider}
+                </Badge>
+              </div>
+
+              {/* Attention dot — bottom-left of cover when this series has
+                  unassigned providers that need a manual match. Matches the
+                  "Unassigned" status-filter language. */}
+              {series.hasUnknown && (
+                <div
+                  className="absolute bottom-7 left-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500/95 text-amber-50 shadow ring-2 ring-background"
+                  title="Has unassigned providers"
+                >
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                </div>
+              )}
+
+              {/* Paused indicator — bottom-left, just above the title strip,
+                  when downloads for this series are paused. Solid amber badge
+                  (matches the "Paused" status filter) reads far better against
+                  the cover art than the old muted-grey circle. */}
+              {series.pausedDownloads && !series.hasUnknown && (
+                <div
+                  className="absolute bottom-7 left-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-black shadow ring-2 ring-background"
+                  title="Downloads paused"
+                >
+                  <Pause className="h-2.5 w-2.5 fill-current" />
+                </div>
+              )}
+
               <div className={`absolute bottom-0 left-0 w-full bg-black/60 text-white font-semibold px-2 py-1 rounded-b-md flex items-center justify-center ${textSize}`}>
-                {/* Paused icon - flush on top of title bar, right-aligned */}
-                {series.pausedDownloads && (
-                  <div className={`absolute right-1 z-10 ${textSize === 'text-[0.4rem]' ? '-top-3' : textSize === 'text-xs' ? '-top-4' : textSize === 'text-base' ? '-top-6' : textSize === 'text-lg' ? '-top-7' : '-top-5'}`}>
-                    <PauseCircle className={`${textSize === 'text-[0.4rem]' ? 'h-3 w-3' : textSize === 'text-xs' ? 'h-4 w-4' : textSize === 'text-base' ? 'h-6 w-6' : textSize === 'text-lg' ? 'h-7 w-7' : 'h-5 w-5'} text-white drop-shadow-lg`} fill="rgba(0,0,0,0.6)" />
-                  </div>
-                )}
                 {series.title}
               </div>
             </div>

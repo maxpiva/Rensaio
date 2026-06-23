@@ -1,625 +1,422 @@
 "use client";
 
-import React, { useMemo, memo } from 'react';
-import { useQueue, useRemoveFromQueue, useDownloadProgress } from '@/lib/api/hooks/useQueue';
-import { useCompletedDownloadsWithCount, useWaitingDownloadsWithCount, useFailedDownloadsWithCount, useManageErrorDownload } from '@/lib/api/hooks/useDownloads';
-import { useSettings } from '@/lib/api/hooks/useSettings';
+import React, { useMemo, memo, useCallback, useState } from 'react';
+import { useDownloadProgress, useRemoveFromQueue } from '@/lib/api/hooks/useQueue';
+import {
+  useCompletedDownloadsWithCount,
+  useWaitingDownloadsWithCount,
+  useFailedDownloadsWithCount,
+  useManageErrorDownload,
+} from '@/lib/api/hooks/useDownloads';
 import { useSearch } from '@/contexts/search-context';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Trash2, Download, AlertTriangle, CheckCircle, Clock, Smile, Calendar, ExternalLink, RotateCcw } from 'lucide-react';
-import { ProgressStatus, QueueStatus, type DownloadInfo, type DownloadInfoList, ErrorDownloadAction } from '@/lib/api/types';
-import Image from 'next/image';
-import type { QueueItem } from '@/lib/api/services/queueService';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  ErrorDownloadAction,
+} from '@/lib/api/types';
 import { JobsPanel } from '@/components/comp/jobs/jobs-panel';
-import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+import { RibbonSlot } from '@/components/comp/layout/ribbon';
+import { QueueRow, type QueueRowItem, type QueueRowCallbacks } from '@/components/comp/queue/queue-row';
+import {
+  normalizeUtcString,
+  formatRelativeTime,
+  getDateBucket,
+  BUCKET_LABELS,
+  type DateBucket,
+} from '@/components/comp/queue/utils';
 
-// Extended queue item interface that includes both static queue items and real-time downloads
-interface ExtendedQueueItem {
-  id: string;
-  seriesTitle: string;
-  chapterTitle: string;
-  thumbnailUrl?: string;
-  status: string;
-  progress?: number;
-  // Optional fields for real-time downloads
-  provider?: string;
-  scanlator?: string;
-  language?: string;
-  chapterNumber?: number;
-  pageCount?: number;
-  message?: string;
-  errorMessage?: string;
-  isRealTime?: boolean;
-  // Original queue item fields
-  mangaId?: number;
-  chapterIndex?: number;
-  retries: number;
-  url?: string; // DownloadInfo has url property
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const LIST_FETCH_LIMIT = 5000;
+const MAX_VISIBLE = 500;
+
+// Ordered bucket sequence for display
+const BUCKET_ORDER: DateBucket[] = ['today', 'yesterday', 'this-week', 'earlier'];
+
+// ---------------------------------------------------------------------------
+// Filter pill types
+// ---------------------------------------------------------------------------
+
+type FilterPill = 'all' | 'completed' | 'failed' | 'queued';
+
+const FILTER_LABELS: Record<FilterPill, string> = {
+  all: 'All',
+  completed: 'Completed',
+  failed: 'Failed',
+  queued: 'Queued',
+};
+
+// ---------------------------------------------------------------------------
+// Filter pill segmented control
+// ---------------------------------------------------------------------------
+
+interface FilterPillsProps {
+  value: FilterPill;
+  onChange: (v: FilterPill) => void;
 }
 
-// Download Card Component - Shared UI for all download panels
-const DownloadCard = memo(({ item }: { item: ExtendedQueueItem | DownloadInfo }) => {
-  // Helper function to normalize UTC date strings
-  const normalizeUtcString = (dateString: string) => {
-    return dateString.includes('Z') || dateString.includes('+') || dateString.includes('-', 10) 
-      ? dateString 
-      : dateString + 'Z';
-  };
-
-  // Check if this is a scheduled download in the future (only for DownloadInfo items)
-  const isScheduledForFuture = (() => {
-    if ('seriesTitle' in item) return false; // ExtendedQueueItem doesn't have scheduledDateUTC
-    
-    const scheduledDate = new Date(normalizeUtcString(item.scheduledDateUTC));
-    const currentTime = new Date();
-    return !item.downloadDateUTC && scheduledDate > currentTime;
-  })();
-
-  // Get scheduled date for display (only for DownloadInfo items)
-  const scheduledDate = (() => {
-    if ('seriesTitle' in item || !isScheduledForFuture) return null;
-    return new Date(normalizeUtcString(item.scheduledDateUTC));
-  })();
-
-  // Get download date for completed items (only for DownloadInfo items)
-  const downloadDate = (() => {
-    if ('seriesTitle' in item || !item.downloadDateUTC) return null;
-    return new Date(normalizeUtcString(item.downloadDateUTC));
-  })();
-
-  // Determine display data based on item type
-  const displayData = 'seriesTitle' in item ? {
-    seriesTitle: item.seriesTitle,
-    chapterTitle: item.chapterTitle,
-    thumbnailUrl: item.thumbnailUrl,
-    status: item.status,
-    retries: item.retries,
-    progress: item.progress,
-    provider: item.provider,
-    scanlator: item.scanlator,
-    chapterNumber: item.chapterNumber,
-    errorMessage: item.errorMessage,
-    url: item.url, // DownloadInfo has url property
-  } : {
-    seriesTitle: item.title,
-    chapterTitle: item.chapterTitle || `Chapter ${item.chapter}`,
-    thumbnailUrl: item.thumbnailUrl, // DownloadInfo has thumbnailUrl property
-    status: item.status === QueueStatus.WAITING ? 'waiting' :
-            item.status === QueueStatus.RUNNING ? 'downloading' :
-            item.status === QueueStatus.COMPLETED ? 'completed' :
-            item.status === QueueStatus.FAILED ? 'error' : 'unknown',
-    progress: undefined,
-    provider: item.provider,
-    scanlator: item.scanlator,
-    chapterNumber: item.chapter,
-    retries: item.retries,
-    url: item.url,
-    errorMessage: undefined
-  };
-
-  const getStatusIcon = (status: string) => {
-    // Special case for future scheduled downloads
-    if (isScheduledForFuture) {
-      return <Calendar className="h-4 w-4 text-yellow-500" />;
-    }
-    
-    switch (status) {
-      case 'downloading':
-        return <Download className="h-4 w-4 text-blue-500 animate-pulse" />;
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      case 'waiting':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
+const FilterPills = memo(function FilterPills({ value, onChange }: FilterPillsProps) {
+  const pills: FilterPill[] = ['all', 'completed', 'failed', 'queued'];
   return (
-    <Card className="transition-all duration-200 flex-shrink-0">
-      <CardHeader className="pb-2 p-2">
-        <div className="flex items-start gap-3">
-          <Image
-            src={formatThumbnailUrl(displayData.thumbnailUrl)}
-            alt={displayData.seriesTitle}
-            width={60}
-            height={80}
-            className="rounded-md object-cover flex-shrink-0"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = '/rensaio.png';
-            }}
-          />
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-2 leading-tight">
-              {displayData.seriesTitle}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-              {displayData.chapterTitle}
-            </p>
-            <div className='flex items-center gap-2 mt-1'>
-              {(displayData.provider || displayData.scanlator) && (
-                displayData.url ? (
-                  <p
-                    className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer hover:bg-accent/80 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (displayData.url) {
-                        window.open(displayData.url, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
-                    title="Click to open the chapter in the source"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    {displayData.provider}
-                    {(displayData.provider !== displayData.scanlator && displayData.scanlator) ? ` • ${displayData.scanlator}` : ''}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {displayData.provider}
-                    {(displayData.provider !== displayData.scanlator && displayData.scanlator) ? ` • ${displayData.scanlator}` : ''}
-                  </p>
-                )
-              )}
-              {getStatusIcon(displayData.status)}
-              {isScheduledForFuture && scheduledDate && (
-              <div className="text-xs text-muted-foreground font-medium gap-1">
-                {scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-              )}
-              {displayData.status === 'completed' && downloadDate && (
-                <div className="text-xs text-muted-foreground font-medium">
-                  {downloadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
-              {displayData.status === 'downloading' && displayData.progress !== undefined && (
-                <span className="text-sm text-muted-foreground font-medium">{displayData.progress}%</span>
-              )}
-              {displayData.errorMessage && (
-                <p className="text-xs text-red-600 mt-2 bg-red-50 p-1 rounded">{displayData.errorMessage}</p>
-              )}
-              {displayData.retries> 0 && (
-                <div className="text-xs text-orange-600 font-medium ml-auto w-auto">
-                Retries: {displayData.retries}
-                </div>
-            )}
-            </div>
-            {/* Show scheduled time for future scheduled downloads */}
-            {displayData.status === 'downloading' && displayData.progress !== undefined && (
-              <Progress value={displayData.progress} className="mt-1 w-full h-2" />
-            )}
-          </div>
-        </div>
-      </CardHeader>
-    </Card>
-  );
-});
-
-DownloadCard.displayName = 'DownloadCard';
-
-// Error Download Card Component - Special card with Delete and Retry buttons
-const ErrorDownloadCard = memo(({ item }: { item: DownloadInfo }) => {
-  const manageErrorDownloadMutation = useManageErrorDownload();
-
-  // Helper function to normalize UTC date strings
-  const normalizeUtcString = (dateString: string) => {
-    return dateString.includes('Z') || dateString.includes('+') || dateString.includes('-', 10) 
-      ? dateString 
-      : dateString + 'Z';
-  };
-
-  // Get download date for completed items
-  const downloadDate = item.downloadDateUTC ? new Date(normalizeUtcString(item.downloadDateUTC)) : null;
-
-  const handleDelete = () => {
-    manageErrorDownloadMutation.mutate({ 
-      id: item.id, 
-      action: ErrorDownloadAction.Delete 
-    });
-  };
-
-  const handleRetry = () => {
-    manageErrorDownloadMutation.mutate({ 
-      id: item.id, 
-      action: ErrorDownloadAction.Retry 
-    });
-  };
-
-  return (
-    <Card className="transition-all duration-200 flex-shrink-0 relative">
-      {/* Action buttons positioned at top right */}
-      <div className="absolute top-2 right-2 z-10 flex gap-1">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleRetry}
-          disabled={manageErrorDownloadMutation.isPending}
-          className="h-6 w-6 p-0"
-          title="Retry download"
-        >
-          <RotateCcw className="h-3 w-3" />
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleDelete}
-          disabled={manageErrorDownloadMutation.isPending}
-          className="h-6 w-6 p-0 hover:bg-red-50 hover:border-red-300"
-          title="Delete download"
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-
-      <CardHeader className="pb-2 p-2"> {/* Add right padding for buttons */}
-        <div className="flex items-start gap-3">
-          <Image
-            src={formatThumbnailUrl(item.thumbnailUrl)}
-            alt={item.title}
-            width={60}
-            height={80}
-            className="rounded-md object-cover flex-shrink-0"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = '/rensaio.png';
-            }}
-          />
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-2 leading-tight">
-              {item.title}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-              {item.chapterTitle || `Chapter ${item.chapter}`}
-            </p>
-            <div className='flex items-center gap-2 mt-1'>
-              {(item.provider || item.scanlator) && (
-                item.url ? (
-                  <p
-                    className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer hover:bg-accent/80 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (item.url) {
-                        window.open(item.url, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
-                    title="Click to open the chapter in the source"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    {item.provider}
-                    {(item.provider !== item.scanlator && item.scanlator) ? ` • ${item.scanlator}` : ''}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {item.provider}
-                    {(item.provider !== item.scanlator && item.scanlator) ? ` • ${item.scanlator}` : ''}
-                  </p>
-                )
-              )}
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              {downloadDate && (
-                <div className="text-xs text-muted-foreground font-medium">
-                  {downloadDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
-              {item.retries > 0 && (
-                <div className="text-xs text-orange-600 font-medium ml-auto w-auto">
-                  Retries: {item.retries}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-    </Card>
-  );
-});
-
-ErrorDownloadCard.displayName = 'ErrorDownloadCard';
-
-// Active Downloads Panel - Existing functionality moved here
-const ActiveDownloadsPanel = memo(() => {
-  const { data: queueItems, isLoading } = useQueue();
-  const { downloads, downloadCount } = useDownloadProgress();
-  const { debouncedSearchTerm } = useSearch();
-
-  // Helper function to convert ProgressStatus to string
-  const getStatusFromProgressStatus = (status: ProgressStatus): string => {
-    switch (status) {
-      case ProgressStatus.Started:
-      case ProgressStatus.InProgress:
-        return 'downloading';
-      case ProgressStatus.Completed:
-        return 'completed';
-      case ProgressStatus.Failed:
-        return 'error';
-      default:
-        return 'queued';
-    }
-  };
-
-  // Combine static queue items with real-time downloads
-  const allItems = useMemo(() => {
-    const staticItems: ExtendedQueueItem[] = (queueItems || []).map(item => ({
-      ...item,
-      retries: 0, // Static queue items don't have retries
-      isRealTime: false
-    }));
-    
-    const realTimeDownloads: ExtendedQueueItem[] = downloads.map(download => ({
-      id: download.id,
-      seriesTitle: download.cardInfo.title,
-      chapterTitle: download.cardInfo.chapterName,
-      thumbnailUrl: download.cardInfo.thumbnailUrl,
-      status: getStatusFromProgressStatus(download.status),
-      progress: Math.round(download.percentage),
-      provider: download.cardInfo.provider,
-      scanlator: download.cardInfo.scanlator,
-      language: download.cardInfo.language,
-      chapterNumber: download.cardInfo.chapterNumber,
-      pageCount: download.cardInfo.pageCount,
-      message: download.message,
-      errorMessage: download.errorMessage,
-      retries: 0, // Real-time downloads don't have retries exposed
-      isRealTime: true
-    }));
-
-    return [...realTimeDownloads, ...staticItems];
-  }, [queueItems, downloads]);
-
-  return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="p-3 pb-0 flex-shrink-0">
-        <CardTitle className="text-md items-center flex">
-          Active Downloads
-          {downloadCount > 0 && (
-            <Badge variant="secondary" className="ml-2 text-xs">{downloadCount}</Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        ) : allItems.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <Download className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No active downloads</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-            {allItems.map((item) => (
-              <DownloadCard key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
-
-ActiveDownloadsPanel.displayName = 'ActiveDownloadsPanel';
-
-// Completed Downloads Panel
-const CompletedDownloadsPanel = memo(() => {
-  const { data: settings } = useSettings();
-  const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
-  
-  const { data: completedDownloadsData, isLoading } = useCompletedDownloadsWithCount(
-    limit, 
-    debouncedSearchTerm.trim() || undefined, // Pass search term to server
-    {
-      refetchInterval: 5000, // Poll every 5 seconds
-      refetchIntervalInBackground: true,
-      staleTime: 2000,
-    }
-  );
-
-  const memoizedDownloads = useMemo(() => completedDownloadsData?.downloads || [], [completedDownloadsData?.downloads]);
-  const totalCount = completedDownloadsData?.totalCount || 0;
-
-  return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="p-3 pb-0 flex-shrink-0">
-        <CardTitle className="text-md items-center flex">
-          Latest Downloads
-          <Badge variant="secondary"  className="ml-2 text-xs">
-            {memoizedDownloads.length}
-          </Badge>
-          {totalCount > memoizedDownloads.length && (
-            <>&nbsp;&nbsp;
-              <span className="text-sm text-muted-foreground">of</span><Badge variant="secondary" className="ml-2 text-xs">{totalCount}</Badge>
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto p-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        ) : memoizedDownloads.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No completed downloads</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-            {memoizedDownloads.map((download) => (
-              <DownloadCard key={`${download.title}-${download.chapter}-${download.provider}-${download.scheduledDateUTC}`} item={download} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
-
-CompletedDownloadsPanel.displayName = 'CompletedDownloadsPanel';
-
-// Scheduled Downloads Panel
-const ScheduledDownloadsPanel = memo(() => {
-  const { data: settings } = useSettings();
-  const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
-  
-  const { data: scheduledDownloadsData, isLoading } = useWaitingDownloadsWithCount(
-    limit,
-    debouncedSearchTerm.trim() || undefined, // Pass search term to server
-    {
-      refetchInterval: 5000, // Poll every 5 seconds
-      refetchIntervalInBackground: true,
-      staleTime: 2000,
-    }
-  );
-
-  const memoizedDownloads = useMemo(() => scheduledDownloadsData?.downloads || [], [scheduledDownloadsData?.downloads]);
-  const totalCount = scheduledDownloadsData?.totalCount || 0;
-
-  return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="p-3 pb-0 flex-shrink-0">
-        <CardTitle className="text-md items-center flex">
-          Scheduled Downloads
-          <Badge variant="secondary"  className="ml-2 text-xs">
-            {memoizedDownloads.length}
-          </Badge>
-          {totalCount > memoizedDownloads.length && (
-            <>&nbsp;&nbsp;
-              <span className="text-sm text-muted-foreground">of</span><Badge variant="secondary" className="ml-2 text-xs">{totalCount}</Badge>
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto p-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        ) : memoizedDownloads.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No scheduled downloads</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-            {memoizedDownloads.map((download) => (
-              <DownloadCard key={`${download.title}-${download.chapter}-${download.provider}-${download.scheduledDateUTC}`} item={download} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
-
-ScheduledDownloadsPanel.displayName = 'ScheduledDownloadsPanel';
-
-// Error Downloads Panel
-const ErrorDownloadsPanel = memo(() => {
-  const { data: settings } = useSettings();
-  const { debouncedSearchTerm } = useSearch();
-  const limit = settings?.numberOfSimultaneousDownloads || 10;
-  
-  const { data: errorDownloadsData, isLoading } = useFailedDownloadsWithCount(
-    limit,
-    debouncedSearchTerm.trim() || undefined, // Pass search term to server
-    {
-      refetchInterval: 30000, // Poll every 30 seconds
-      refetchIntervalInBackground: true,
-      staleTime: 15000,
-    }
-  );
-
-  const memoizedDownloads = useMemo(() => errorDownloadsData?.downloads || [], [errorDownloadsData?.downloads]);
-  const totalCount = errorDownloadsData?.totalCount || 0;
-
-  return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="p-3 pb-0 flex-shrink-0">
-        <CardTitle className="text-md items-center flex">
-          Error Downloads
-          <Badge variant="secondary"  className="ml-2 text-xs">
-            {memoizedDownloads.length}
-          </Badge>
-          {totalCount > memoizedDownloads.length && (
-            <>&nbsp;&nbsp;
-              <span className="text-sm text-muted-foreground">of</span><Badge variant="secondary" className="ml-2 text-xs">{totalCount}</Badge>
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto p-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        ) : memoizedDownloads.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <Smile className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No failed downloads</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-            {memoizedDownloads.map((download) => (
-              <ErrorDownloadCard key={`${download.title}-${download.chapter}-${download.provider}-${download.scheduledDateUTC}`} item={download} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
-
-ErrorDownloadsPanel.displayName = 'ErrorDownloadsPanel';
-
-export default function Queue() {
-  const { downloads, downloadCount } = useDownloadProgress();
-  const { debouncedSearchTerm } = useSearch();
-
-  return (
-    <div className="flex flex-col p-2">
-      {/* Five horizontal panels, each taking exactly 16% of the available height with 20% space remaining */}
-      <div className="flex-1 flex flex-col gap-3 min-h-0">
-        {/* Panel 1: Active Downloads - 16% height */}
-        <div className="h-71.5 min-h-0">
-          <ActiveDownloadsPanel />
-        </div>
-
-        {/* Panel 2: Completed Downloads - 16% height */}
-        <div className="h-71.5 min-h-0">
-          <CompletedDownloadsPanel />
-        </div>
-
-        {/* Panel 3: Scheduled Downloads - 16% height */}
-        <div className="h-71.5 min-h-0">
-          <ScheduledDownloadsPanel />
-        </div>
-
-        {/* Panel 4: Error Downloads - 16% height */}
-        <div className="h-71.5 min-h-0">
-          <ErrorDownloadsPanel />
-        </div>
-
-        {/* Panel 5: Jobs - 16% height */}
-        <div className="min-h-0">
-          <JobsPanel />
-        </div>
-      </div>
+    <div className="inline-flex items-center gap-0.5 rounded-full px-0.5 py-0.5 border border-white/[0.06] bg-white/[0.015]">
+      {pills.map((pill) => {
+        const isActive = value === pill;
+        return (
+          <button
+            key={pill}
+            type="button"
+            onClick={() => onChange(pill)}
+            className={`rounded-full px-3.5 py-[5px] text-[12.5px] font-medium transition-colors duration-[120ms] ${
+              isActive
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {FILTER_LABELS[pill]}
+          </button>
+        );
+      })}
     </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Section group renderer
+// ---------------------------------------------------------------------------
+
+interface SectionGroupProps {
+  label: string;
+  items: QueueRowItem[];
+  callbacks: QueueRowCallbacks;
+}
+
+const SectionGroup = memo(function SectionGroup({ label, items, callbacks }: SectionGroupProps) {
+  if (items.length === 0) return null;
+  return (
+    <section className="mb-10">
+      <div className="px-1 pb-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="rounded-lg overflow-hidden">
+        {items.map((item) => (
+          <QueueRow
+            key={item.id}
+            item={item}
+            callbacks={callbacks}
+          />
+        ))}
+      </div>
+    </section>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function QueuePage() {
+  const { debouncedSearchTerm } = useSearch();
+  const search = debouncedSearchTerm.trim().toLowerCase();
+
+  // --- Data hooks ---
+  const { downloads: activeDownloads, downloadCount } = useDownloadProgress();
+  const { data: waitingData, isLoading: waitingLoading } = useWaitingDownloadsWithCount(
+    LIST_FETCH_LIMIT,
+    search || undefined,
+    { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 },
+  );
+  const { data: completedData, isLoading: completedLoading } = useCompletedDownloadsWithCount(
+    LIST_FETCH_LIMIT,
+    search || undefined,
+    { refetchInterval: 5000, refetchIntervalInBackground: true, staleTime: 2000 },
+  );
+  const { data: failedData, isLoading: failedLoading } = useFailedDownloadsWithCount(
+    LIST_FETCH_LIMIT,
+    search || undefined,
+    { refetchInterval: 30000, refetchIntervalInBackground: true, staleTime: 15000 },
+  );
+
+  const isLoading = waitingLoading || completedLoading || failedLoading;
+
+  // --- Mutations ---
+  const removeFromQueue = useRemoveFromQueue();
+  const manageErrorDownload = useManageErrorDownload();
+
+  // --- Dialog state ---
+  const [jobsOpen, setJobsOpen] = useState(false);
+
+  // --- Filter pill ---
+  const [filter, setFilter] = useState<FilterPill>('all');
+
+  // --- Action callbacks ---
+  const handleRetry = useCallback(
+    (id: string) => { manageErrorDownload.mutate({ id, action: ErrorDownloadAction.Retry }); },
+    [manageErrorDownload],
+  );
+
+  const handleRemove = useCallback(
+    (id: string) => { removeFromQueue.mutate(id); },
+    [removeFromQueue],
+  );
+
+  const handleOpen = useCallback((url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const handleCancelQueued = useCallback(
+    (id: string) => { removeFromQueue.mutate(id); },
+    [removeFromQueue],
+  );
+
+  const callbacks: QueueRowCallbacks = useMemo(
+    () => ({
+      onRetry: handleRetry,
+      onRemove: handleRemove,
+      onOpen: handleOpen,
+      onCancel: handleCancelQueued,
+    }),
+    [handleRetry, handleRemove, handleOpen, handleCancelQueued],
+  );
+
+  // --- Raw data arrays ---
+  const waitingDownloads = useMemo(() => waitingData?.downloads ?? [], [waitingData]);
+  const completedDownloads = useMemo(() => completedData?.downloads ?? [], [completedData]);
+  const failedDownloads = useMemo(() => failedData?.downloads ?? [], [failedData]);
+
+  // --- Merge and build QueueRowItems ---
+  const allItems = useMemo<QueueRowItem[]>(() => {
+    const items: QueueRowItem[] = [];
+
+    // Active (SignalR) — always "today"
+    for (const d of activeDownloads) {
+      const chapterLabel = d.cardInfo.chapterName || (d.cardInfo.chapterNumber !== undefined ? `Ch. ${d.cardInfo.chapterNumber}` : '');
+      // Client-side search filter on active items (server doesn't filter them)
+      if (search) {
+        const titleMatch = d.cardInfo.title.toLowerCase().includes(search);
+        const chapterMatch = chapterLabel.toLowerCase().includes(search);
+        if (!titleMatch && !chapterMatch) continue;
+      }
+      items.push({
+        id: d.id,
+        status: 'downloading',
+        seriesTitle: d.cardInfo.title,
+        chapterLabel,
+        thumbnailUrl: d.cardInfo.thumbnailUrl,
+        provider: d.cardInfo.provider,
+        scanlator: d.cardInfo.scanlator,
+        url: d.cardInfo.url,
+        sortTime: 0,
+        displayTime: 'downloading',
+        hasRetry: false,
+        progress: typeof d.percentage === 'number' ? d.percentage : undefined,
+      });
+    }
+
+    // Waiting / queued
+    for (const d of waitingDownloads) {
+      const chapterLabel = d.chapterTitle || (d.chapter !== undefined ? `Ch. ${d.chapter}` : '');
+      let sortTime = 0;
+      if (d.scheduledDateUTC) {
+        const parsed = Date.parse(normalizeUtcString(d.scheduledDateUTC));
+        if (!Number.isNaN(parsed)) sortTime = 0; // queued items go to today
+      }
+      items.push({
+        id: d.id,
+        status: 'queued',
+        seriesTitle: d.title,
+        chapterLabel,
+        thumbnailUrl: d.thumbnailUrl,
+        provider: d.provider,
+        scanlator: d.scanlator,
+        url: d.url,
+        sortTime,
+        displayTime: 'queued',
+        hasRetry: false,
+        retries: d.retries,
+      });
+    }
+
+    // Completed
+    for (const d of completedDownloads) {
+      const chapterLabel = d.chapterTitle || (d.chapter !== undefined ? `Ch. ${d.chapter}` : '');
+      let sortTime = 0;
+      let displayTime = 'completed';
+      if (d.downloadDateUTC) {
+        const parsed = Date.parse(normalizeUtcString(d.downloadDateUTC));
+        if (!Number.isNaN(parsed)) {
+          sortTime = parsed;
+          displayTime = formatRelativeTime(new Date(parsed));
+        }
+      }
+      items.push({
+        id: d.id,
+        status: 'completed',
+        seriesTitle: d.title,
+        chapterLabel,
+        thumbnailUrl: d.thumbnailUrl,
+        provider: d.provider,
+        scanlator: d.scanlator,
+        url: d.url,
+        sortTime,
+        displayTime,
+        hasRetry: false,
+      });
+    }
+
+    // Failed
+    for (const d of failedDownloads) {
+      const chapterLabel = d.chapterTitle || (d.chapter !== undefined ? `Ch. ${d.chapter}` : '');
+      let sortTime = 0;
+      let displayTime = 'failed';
+      if (d.downloadDateUTC) {
+        const parsed = Date.parse(normalizeUtcString(d.downloadDateUTC));
+        if (!Number.isNaN(parsed)) {
+          sortTime = parsed;
+          displayTime = formatRelativeTime(new Date(parsed));
+        }
+      }
+      items.push({
+        id: d.id,
+        status: 'failed',
+        seriesTitle: d.title,
+        chapterLabel,
+        thumbnailUrl: d.thumbnailUrl,
+        provider: d.provider,
+        scanlator: d.scanlator,
+        url: d.url,
+        sortTime,
+        displayTime,
+        hasRetry: true,
+        retries: d.retries,
+      });
+    }
+
+    return items;
+  }, [activeDownloads, waitingDownloads, completedDownloads, failedDownloads, search]);
+
+  // --- Filter by pill ---
+  const filteredItems = useMemo(() => {
+    if (filter === 'all') return allItems;
+    if (filter === 'queued') return allItems.filter((i) => i.status === 'queued' || i.status === 'downloading');
+    return allItems.filter((i) => i.status === filter);
+  }, [allItems, filter]);
+
+  // --- Sort descending by sortTime (newest first; 0 = active/queued → always top) ---
+  const sortedItems = useMemo(() => {
+    const copy = [...filteredItems];
+    copy.sort((a, b) => {
+      // Items with sortTime=0 (active/queued) float to the top
+      if (a.sortTime === 0 && b.sortTime === 0) return 0;
+      if (a.sortTime === 0) return -1;
+      if (b.sortTime === 0) return 1;
+      return b.sortTime - a.sortTime;
+    });
+    return copy;
+  }, [filteredItems]);
+
+  // --- Cap to MAX_VISIBLE ---
+  const visibleItems = useMemo(() => sortedItems.slice(0, MAX_VISIBLE), [sortedItems]);
+  const totalAfterFilter = sortedItems.length;
+
+  // --- Bucket into groups ---
+  const buckets = useMemo(() => {
+    const groups: Record<DateBucket, QueueRowItem[]> = {
+      today: [],
+      yesterday: [],
+      'this-week': [],
+      earlier: [],
+    };
+    for (const item of visibleItems) {
+      const bucket = getDateBucket(item.sortTime);
+      groups[bucket].push(item);
+    }
+    return groups;
+  }, [visibleItems]);
+
+  // --- Total count for the header ---
+  const totalCount = allItems.length;
+
+  return (
+    <>
+      {/* Ribbon: filter pills */}
+      <RibbonSlot>
+        {/* mx-auto (not w-full justify-center): centered overflow in the
+            ribbon's scroll container would push the leftmost pills past the
+            scroll origin, making them unreachable on narrow screens. */}
+        <div className="mx-auto flex">
+          <FilterPills value={filter} onChange={setFilter} />
+        </div>
+      </RibbonSlot>
+
+      {/* Page content */}
+      <div className="mx-auto max-w-[1100px] py-6 sm:py-10">
+
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex items-baseline justify-between gap-4 flex-wrap">
+            <div className="flex items-baseline gap-3">
+              <h1 className="text-[22px] font-semibold tracking-tight">Queue</h1>
+              <span className="text-sm tabular-nums text-muted-foreground/70">
+                {totalCount}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <button
+                type="button"
+                className="px-2.5 py-1.5 rounded-md transition-colors hover:text-foreground hover:bg-white/[0.03]"
+                onClick={() => setJobsOpen(true)}
+              >
+                Jobs
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Body */}
+        {isLoading && downloadCount === 0 ? (
+          <div className="text-center text-xs text-muted-foreground py-16">Loading…</div>
+        ) : visibleItems.length === 0 ? (
+          <div className="text-center text-xs text-muted-foreground py-16">
+            {filter === 'all'
+              ? "That's everything from the last 7 days."
+              : `Nothing to show for "${FILTER_LABELS[filter]}".`}
+          </div>
+        ) : (
+          <>
+            {BUCKET_ORDER.map((bucket) => (
+              <SectionGroup
+                key={bucket}
+                label={BUCKET_LABELS[bucket]}
+                items={buckets[bucket]}
+                callbacks={callbacks}
+              />
+            ))}
+
+            {totalAfterFilter > MAX_VISIBLE && (
+              <div className="text-center text-xs text-muted-foreground py-4">
+                Showing {MAX_VISIBLE} of {totalAfterFilter}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <Dialog open={jobsOpen} onOpenChange={setJobsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Jobs</DialogTitle>
+          </DialogHeader>
+          <JobsPanel />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

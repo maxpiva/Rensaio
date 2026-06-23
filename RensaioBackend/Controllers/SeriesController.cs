@@ -132,6 +132,102 @@ namespace RensaioBackend.Controllers
         }
 
         /// <summary>
+        /// Triggers an immediate metadata + new-chapter refresh for a single series.
+        /// Re-fetches status, title, cover and description from each active provider.
+        /// Paused series refresh metadata but do not download.
+        /// </summary>
+        /// <param name="id">The unique identifier of the series.</param>
+        /// <param name="token">Cancellation token.</param>
+        [HttpPost("refresh")]
+        [RequireUserLevel(UserLevel.Manager)]
+        [ProducesResponseType(typeof(object), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult> RefreshSeriesAsync([FromQuery] Guid id, CancellationToken token = default)
+        {
+            try
+            {
+                if (id == Guid.Empty)
+                    return BadRequest("No series id provided");
+                int queued = await _commandService.RefreshSeriesMetadataAsync(id, token).ConfigureAwait(false);
+                return Ok(new { success = true, queued });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing series: {Message}", ex.Message);
+                return StatusCode(500, "Error refreshing series.");
+            }
+        }
+
+        /// <summary>
+        /// Gets the unified, series-level chapter list (merged across every source). Each chapter
+        /// reports whether it is downloaded and from which source, versus genuinely missing, plus the
+        /// sources available for (re-)download.
+        /// </summary>
+        /// <param name="seriesId">The unique identifier of the series.</param>
+        /// <param name="token">Cancellation token.</param>
+        [HttpGet("chapters")]
+        [ProducesResponseType(typeof(List<ChapterDetailDto>), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult<List<ChapterDetailDto>>> GetSeriesChaptersAsync([FromQuery] Guid seriesId, CancellationToken token = default)
+        {
+            try
+            {
+                if (seriesId == Guid.Empty)
+                    return BadRequest("No series id provided");
+                var result = await _queryService.GetSeriesChaptersAsync(seriesId, token).ConfigureAwait(false);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting series chapters: {Message}", ex.Message);
+                return StatusCode(500, "Error getting series chapters.");
+            }
+        }
+
+        /// <summary>
+        /// Re-downloads (or downloads) a single chapter, replacing any existing file. The source is
+        /// resolved by priority (storage → current holder → any available) unless an explicit
+        /// <paramref name="providerId"/> override is supplied. Blocked while the series is paused.
+        /// </summary>
+        /// <param name="seriesId">The series owning the chapter.</param>
+        /// <param name="chapter">The chapter number to (re-)download.</param>
+        /// <param name="providerId">Optional source to force; omit for the priority default.</param>
+        /// <param name="token">Cancellation token.</param>
+        [HttpPost("chapter/redownload")]
+        [RequireUserLevel(UserLevel.Manager)]
+        [ProducesResponseType(typeof(object), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(409)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult> RedownloadChapterAsync([FromQuery] Guid seriesId, [FromQuery] decimal chapter, [FromQuery] Guid? providerId = null, CancellationToken token = default)
+        {
+            try
+            {
+                if (seriesId == Guid.Empty)
+                    return BadRequest("No series id provided");
+
+                RedownloadResult result = await _commandService.RedownloadChapterAsync(seriesId, chapter, providerId, token).ConfigureAwait(false);
+                return result.Outcome switch
+                {
+                    RedownloadOutcome.Queued => Ok(new { success = true, queued = result.Queued, sourceProviderName = result.SourceProviderName }),
+                    RedownloadOutcome.Paused => StatusCode(409, new { success = false, error = "Series is paused" }),
+                    RedownloadOutcome.SeriesNotFound => NotFound(new { success = false, error = "Series not found" }),
+                    RedownloadOutcome.ChapterNotFound => NotFound(new { success = false, error = "Chapter not found at source" }),
+                    RedownloadOutcome.NoSourceAvailable => BadRequest(new { success = false, error = "No source available to download this chapter" }),
+                    _ => StatusCode(500, new { success = false, error = "Error re-downloading chapter" })
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error re-downloading chapter: {Message}", ex.Message);
+                return StatusCode(500, "Error re-downloading chapter.");
+            }
+        }
+
+        /// <summary>
         /// Gets the user's library of series.
         /// </summary>
         /// <param name="token">Cancellation token.</param>
@@ -159,11 +255,11 @@ namespace RensaioBackend.Controllers
         [HttpGet("latest")]
         [ProducesResponseType(typeof(List<LatestSeriesDto>), 200)]
         [ProducesResponseType(500)]
-        public async Task<ActionResult<List<LatestSeriesDto>>> GetLatestAsync([FromQuery] int start, [FromQuery] int count, [FromQuery] string? sourceId = null, [FromQuery] string? keyword = null, CancellationToken token = default)
+        public async Task<ActionResult<List<LatestSeriesDto>>> GetLatestAsync([FromQuery] int start, [FromQuery] int count, [FromQuery] string? sourceId = null, [FromQuery] string? keyword = null, [FromQuery(Name = "genre")] string[]? genre = null, CancellationToken token = default)
         {
             try
             {
-                var result = await _queryService.GetLatestAsync(start, count, sourceId, keyword, token).ConfigureAwait(false);
+                var result = await _queryService.GetLatestAsync(start, count, sourceId, keyword, genre, token).ConfigureAwait(false);
                 await _thumb.PopulateThumbsAsync(result, "/api/image/", token).ConfigureAwait(false);
                 return Ok(result);
             }
@@ -171,6 +267,29 @@ namespace RensaioBackend.Controllers
             {
                 _logger.LogError(ex, "Error getting latest cloud library: {Message}", ex.Message);
                 return StatusCode(500, $"Error getting latest cloud library.");
+            }
+        }
+
+        /// <summary>
+        /// Gets the distinct tags/genres present in the cached "Latest" cloud catalogue,
+        /// each with the number of series carrying it. Populates the browse-screen tag filter.
+        /// </summary>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Distinct genres with their occurrence counts.</returns>
+        [HttpGet("latest/genres")]
+        [ProducesResponseType(typeof(List<LatestGenreDto>), 200)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult<List<LatestGenreDto>>> GetLatestGenresAsync(CancellationToken token = default)
+        {
+            try
+            {
+                var result = await _queryService.GetLatestGenresAsync(token).ConfigureAwait(false);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting latest genres: {Message}", ex.Message);
+                return StatusCode(500, $"Error getting latest genres.");
             }
         }
 

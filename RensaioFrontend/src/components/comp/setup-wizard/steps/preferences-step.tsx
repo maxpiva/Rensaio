@@ -85,7 +85,7 @@ export function PreferencesStep({
         These settings can be changed later in the Settings page.
       </div>      <div 
         ref={containerRef}
-        className={`max-h-[60vh] overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
+        className={`max-h-[60vh] overflow-y-auto max-[768px]:max-h-none max-[768px]:overflow-visible ${hasScrollbar ? 'pr-2' : ''}`}
       >
         <SettingsManager
           sections={[

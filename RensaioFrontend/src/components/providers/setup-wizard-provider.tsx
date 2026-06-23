@@ -7,6 +7,7 @@ import type { Settings } from '@/lib/api/types';
 
 interface WizardState {
   isActive: boolean;
+  minimized: boolean;
   currentStep: number;
   completedSteps: number;
   stepData: Record<string, unknown>;
@@ -14,12 +15,19 @@ interface WizardState {
 
 interface SetupWizardContextType {
   isWizardActive: boolean;
+  /** True when there is a pending setup session that the user has temporarily hidden. */
+  isWizardMinimized: boolean;
   currentStep: number;
   totalSteps: number;
   isLoading: boolean;
   nextStep: () => Promise<void>;
   previousStep: () => void;
-  completeWizard: () => Promise<void>;  setStepData: (stepIndex: number, data: unknown) => void;
+  completeWizard: () => Promise<void>;
+  /** Hide the wizard without completing it (e.g. while a long import runs in the background). */
+  minimizeWizard: () => void;
+  /** Re-open a minimized wizard so the user can finish the remaining steps. */
+  reopenWizard: () => void;
+  setStepData: (stepIndex: number, data: unknown) => void;
   getStepData: (stepIndex: number) => unknown;
 }
 
@@ -35,8 +43,9 @@ export function SetupWizardProvider({ children }: { children: React.ReactNode })
   
   const [wizardState, setWizardState] = useState<WizardState>({
     isActive: false,
+    minimized: false,
     currentStep: 0,
-    completedSteps: 0,  
+    completedSteps: 0,
     stepData: {},
   });
   
@@ -173,6 +182,7 @@ export function SetupWizardProvider({ children }: { children: React.ReactNode })
           setWizardState(prev => ({
             ...prev,
             isActive: false,
+            minimized: false,
             currentStep: 0,
             completedSteps: 0,
             stepData: {},
@@ -191,6 +201,7 @@ export function SetupWizardProvider({ children }: { children: React.ReactNode })
           setWizardState(prev => ({
             ...prev,
             isActive: false,
+            minimized: false,
             currentStep: 0,
             completedSteps: 0,
             stepData: {},
@@ -216,14 +227,25 @@ export function SetupWizardProvider({ children }: { children: React.ReactNode })
   const getStepData = (stepIndex: number): unknown => {
     return wizardState.stepData[stepIndex];
   };
+  // First-time setup is mandatory and cannot be minimized or dismissed, so these are no-ops.
+  // They're kept only for interface compatibility with existing consumers.
+  const minimizeWizard = () => {};
+  const reopenWizard = () => {};
   const contextValue: SetupWizardContextType = {
+    // The wizard is modal and non-dismissable during first-time setup: it's shown whenever
+    // there is an active (incomplete) setup session and can never be minimized/hidden. A stale
+    // `minimized: true` left in localStorage by an older build is deliberately ignored here so
+    // the wizard always reappears until setup is actually completed (no limbo state).
     isWizardActive: wizardState.isActive,
+    isWizardMinimized: false,
     currentStep: wizardState.currentStep,
     totalSteps: TOTAL_STEPS,
     isLoading: settingsLoading,
     nextStep,
     previousStep,
     completeWizard,
+    minimizeWizard,
+    reopenWizard,
     setStepData,
     getStepData,
   };

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { seriesService } from '@/lib/api/services/seriesService';
-import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type SearchSource, type SeriesIntegrityResult } from '@/lib/api/types';
+import { type FullSeries, type SeriesInfo, type SeriesExtendedInfo, type ProviderMatch, type AugmentedResponse, type LatestSeriesInfo, type LatestGenre, type SearchSource, type SeriesIntegrityResult, type ChapterDetail } from '@/lib/api/types';
 
 /**
  * Hook to get available search sources (for search and filtering)
@@ -92,21 +92,42 @@ export const useSetProviderMatch = () => {
  * @param count Number of items to return
  * @param sourceId Optional source ID filter
  * @param keyword Optional keyword filter
+ * @param genres Optional tag/genre filter; a row must carry every supplied tag (AND semantics)
  * @param enabled Whether the query should be enabled
  */
 export const useLatest = (
-  start: number, 
-  count: number, 
-  sourceId?: string, 
-  keyword?: string, 
+  start: number,
+  count: number,
+  sourceId?: string,
+  keyword?: string,
+  genres?: string[],
   enabled = true
 ) => {
+  // Normalize the genre filter into a stable cache-key fragment so identical
+  // selections (order/case/whitespace aside) share a cache entry.
+  const genreKey = (genres ?? [])
+    .map((g) => g.trim().toLowerCase())
+    .filter((g) => g.length > 0)
+    .sort();
+
   return useQuery<LatestSeriesInfo[]>({
-    queryKey: ['series', 'latest', start, count, sourceId, keyword],
-    queryFn: () => seriesService.getLatest(start, count, sourceId, keyword),
+    queryKey: ['series', 'latest', start, count, sourceId, keyword, genreKey],
+    queryFn: () => seriesService.getLatest(start, count, sourceId, keyword, genres),
     enabled,
     staleTime: 2 * 60 * 1000, // 2 minutes - latest content changes frequently
     refetchInterval: 5 * 60 * 1000, // Auto-refetch every 5 minutes for fresh content
+  });
+};
+
+/**
+ * Hook to get the distinct tags/genres available in the cached "Latest" cloud
+ * catalogue, each with its occurrence count. Backing data for the browse tag filter.
+ */
+export const useLatestGenres = () => {
+  return useQuery<LatestGenre[]>({
+    queryKey: ['series', 'latest', 'genres'],
+    queryFn: () => seriesService.getLatestGenres(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -185,6 +206,54 @@ export const useSetSeriesCadence = () => {
       void queryClient.invalidateQueries({ queryKey: ['series', 'detail', seriesId] });
       void queryClient.invalidateQueries({ queryKey: ['series', 'library'] });
       void queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+};
+
+/**
+ * Hook to trigger an immediate metadata + new-chapter refresh for a single series
+ */
+export const useRefreshSeries = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => seriesService.refreshSeries(id),
+    onSuccess: (_, id) => {
+      // The refresh runs asynchronously on the backend; invalidate so the detail
+      // (and library tab counts) pick up new metadata/chapters once jobs complete.
+      void queryClient.invalidateQueries({ queryKey: ['series', 'detail', id] });
+      void queryClient.invalidateQueries({ queryKey: ['series', 'library'] });
+    },
+  });
+};
+
+/**
+ * Hook to get the unified, series-level chapter list (merged across every source).
+ * Lazy: pass `enabled` so it only fetches when the Chapters section is expanded.
+ */
+export const useSeriesChapters = (seriesId: string, enabled = true) => {
+  return useQuery<ChapterDetail[]>({
+    queryKey: ['series', 'chapters', seriesId],
+    queryFn: () => seriesService.getSeriesChapters(seriesId),
+    enabled: enabled && !!seriesId,
+    staleTime: 60 * 1000, // 1 minute
+  });
+};
+
+/**
+ * Hook to re-download (or download) a single chapter. Omit `providerId` for the priority default
+ * source; pass it to force a specific source. On success the chapters + detail queries are
+ * invalidated so attribution/missing state refreshes once the download job completes.
+ */
+export const useRedownloadChapter = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ seriesId, chapterNumber, providerId }: { seriesId: string; chapterNumber: number; providerId?: string }) =>
+      seriesService.redownloadChapter(seriesId, chapterNumber, providerId),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['series', 'chapters', variables.seriesId] });
+      void queryClient.invalidateQueries({ queryKey: ['series', 'detail', variables.seriesId] });
     },
   });
 };

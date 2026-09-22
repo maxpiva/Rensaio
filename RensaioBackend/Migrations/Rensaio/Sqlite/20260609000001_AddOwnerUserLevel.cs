@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <inheritdoc />
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(SqliteAppDbContext))]
     [Migration("20260609000001_AddOwnerUserLevel")]
     public partial class AddOwnerUserLevel : Microsoft.EntityFrameworkCore.Migrations.Migration
     {

@@ -76,10 +76,21 @@ namespace RensaioBackend
 
             await EnvironmentSetup.InitializeAsync(null);
 
+            // `RensaioBackend migrate-db --to postgres|sqlite` copies the library between
+            // providers and exits; it never starts the server.
+            if (args.Length > 0 && string.Equals(args[0], "migrate-db", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = await RensaioBackend.Data.MigrateDbCommand.RunAsync(args[1..], EnvironmentSetup.Configuration!);
+                return;
+            }
+
             var host = CreateHostBuilder(args).Build();
 
             try
             {
+                // A server database must be reachable and migrated before any hosted
+                // service touches it. Throws (and so exits non-zero) when it is not.
+                await RensaioBackend.Data.DatabaseStartup.PrepareAsync(host.Services);
                 await host.RunAsync();
             }
             catch (Exception ex)

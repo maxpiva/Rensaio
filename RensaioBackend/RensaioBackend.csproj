@@ -68,12 +68,17 @@
 
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RensaioBackend.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
 	<PackageReference Include="CliWrap" Version="3.10.2" />
 	<PackageReference Include="FastDeepCloner" Version="1.3.6" />
 	<PackageReference Include="FuzzySharp" Version="2.0.2" />
 
 	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.23" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.23" />
+	<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.23">
 		<PrivateAssets>all</PrivateAssets>
 	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

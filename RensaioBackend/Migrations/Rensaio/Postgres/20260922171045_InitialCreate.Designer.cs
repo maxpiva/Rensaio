@@ -2,76 +2,79 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RensaioBackend.Data;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Postgres
 {
-    [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(PostgresAppDbContext))]
+    [Migration("20260922171045_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.23");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.23")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("RensaioBackend.Models.Database.EnqueueEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("EnqueuedDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ExtraKey")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("FinishedDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("GroupKey")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("JobParameters")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("JobType")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Key")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.Property<string>("Queue")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("RetryCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("ScheduledDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("StartedDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.HasKey("Id");
@@ -102,39 +105,33 @@ namespace RensaioBackend.Migrations.Rensaio
             modelBuilder.Entity("RensaioBackend.Models.Database.EtagCacheEntity", b =>
                 {
                     b.Property<string>("Key")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Etag")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Extension")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("ExternalEtag")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("MihonProviderId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("NextUpdateUTC")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Url")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.HasKey("Key");
 
@@ -149,42 +146,42 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uuid")
                         .HasAnnotation("Relational:JsonPropertyName", "id");
 
                     b.Property<string>("AffectedSeriesJson")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "affectedSeriesJson");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("timestamp with time zone")
                         .HasAnnotation("Relational:JsonPropertyName", "createdAt");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasAnnotation("Relational:JsonPropertyName", "isActive");
 
                     b.Property<int>("Level")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "level");
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "message");
 
                     b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("timestamp with time zone")
                         .HasAnnotation("Relational:JsonPropertyName", "resolvedAt");
 
                     b.Property<Guid>("TargetId")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uuid")
                         .HasAnnotation("Relational:JsonPropertyName", "targetId");
 
                     b.Property<int>("TargetType")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "targetType");
 
                     b.HasKey("Id");
@@ -204,33 +201,31 @@ namespace RensaioBackend.Migrations.Rensaio
             modelBuilder.Entity("RensaioBackend.Models.Database.ImportEntity", b =>
                 {
                     b.Property<string>("Path")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("Action")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.Property<decimal?>("ContinueAfterChapter")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Info")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("Series")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.HasKey("Path");
 
@@ -244,45 +239,42 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("GroupKey")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("JobParameters")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("JobType")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Key")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("MinutePlace")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("NextExecution")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("PreviousExecution")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.Property<TimeSpan>("TimeBetweenJobs")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("interval");
 
                     b.HasKey("Id");
 
@@ -305,81 +297,70 @@ namespace RensaioBackend.Migrations.Rensaio
             modelBuilder.Entity("RensaioBackend.Models.Database.LatestSerieEntity", b =>
                 {
                     b.Property<string>("MihonId")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Artist")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Author")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("BridgeItemInfo")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<long?>("ChapterCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Chapters")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("Description")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("FetchDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Genre")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<int>("InLibrary")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Language")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("LatestChapter")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("LatestChapterTitle")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("MihonProviderId")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("SeriesId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("ThumbnailUrl")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("Url")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.HasKey("MihonId");
 
@@ -401,71 +382,68 @@ namespace RensaioBackend.Migrations.Rensaio
             modelBuilder.Entity("RensaioBackend.Models.Database.ProviderStorageEntity", b =>
                 {
                     b.Property<string>("MihonProviderId")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsBroken")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDead")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsNSFW")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsStorage")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasAnnotation("Relational:JsonPropertyName", "isStorage");
 
                     b.Property<string>("Language")
                         .IsRequired()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "language");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "provider");
 
                     b.Property<string>("Scanlator")
                         .IsRequired()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "scanlator");
 
                     b.Property<string>("SourcePackageName")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("SourceRepositoryId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("SourceRepositoryName")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("SourceSourceId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "status");
 
                     b.Property<bool>("SupportLatest")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ThumbnailUrl")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "thumbnailUrl");
 
                     b.Property<string>("Url")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "url");
 
                     b.HasKey("MihonProviderId");
@@ -479,76 +457,69 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("uuid")
                         .HasAnnotation("Relational:JsonPropertyName", "id");
 
                     b.Property<string>("Artist")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "artist");
 
                     b.Property<string>("Author")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "author");
 
                     b.Property<int>("ChapterCount")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "chapterCount");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "description");
 
                     b.Property<string>("Genre")
                         .IsRequired()
-                        .HasColumnType("TEXT")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "genre");
 
                     b.Property<DateTime?>("LastChapterDate")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("timestamp with time zone")
                         .HasAnnotation("Relational:JsonPropertyName", "lastChapterDate");
 
                     b.Property<bool>("PauseDownloads")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasAnnotation("Relational:JsonPropertyName", "pauseDownloads");
 
                     b.Property<int?>("ReleaseCadenceDays")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "releaseCadenceDays");
 
                     b.Property<decimal?>("StartFromChapter")
-                        .HasColumnType("TEXT")
+                        .HasColumnType("numeric")
                         .HasAnnotation("Relational:JsonPropertyName", "startFromChapter");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "status");
 
                     b.Property<string>("StoragePath")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "storagePath");
 
                     b.Property<string>("ThumbnailUrl")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "thumbnailUrl");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "title");
 
                     b.Property<string>("Type")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "type");
 
                     b.HasKey("Id");
@@ -560,53 +531,49 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AlternativeTitles")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("ExternalSeriesId")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("ExternalSeriesTitle")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("LinkedDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LinkedSitesIds")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<int>("MappingStatus")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("MetaData")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<int>("Provider")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("SeriesCoverUrl")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("SeriesId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("UserRole")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<Guid?>("UserUid")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -624,131 +591,119 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Artist")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Author")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("BridgeItemInfo")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<long?>("ChapterCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Chapters")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<int>("ConsecutiveErrorCount")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasDefaultValue(0);
 
                     b.Property<decimal?>("ContinueAfterChapter")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Description")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("FetchDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Genre")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsCover")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDisabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsLocal")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsNSFW")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
                     b.Property<bool>("IsStorage")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasAnnotation("Relational:JsonPropertyName", "isStorage");
 
                     b.Property<bool>("IsTitle")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsUninstalled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsUnknown")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Language")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "language");
 
                     b.Property<DateTime?>("LastErrorDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("LastKnownStatus")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("LastSeriesInfoRefreshDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastSuccessfulFetchDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("MihonId")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("MihonProviderId")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Provider")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "provider");
 
                     b.Property<string>("Scanlator")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "scanlator");
 
                     b.Property<Guid>("SeriesId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("integer")
                         .HasAnnotation("Relational:JsonPropertyName", "status");
 
                     b.Property<string>("ThumbnailUrl")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "thumbnailUrl");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Url")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY")
+                        .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "url");
 
                     b.HasKey("Id");
@@ -774,13 +729,11 @@ namespace RensaioBackend.Migrations.Rensaio
             modelBuilder.Entity("RensaioBackend.Models.Database.SettingEntity", b =>
                 {
                     b.Property<string>("Name")
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("Value")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.HasKey("Name");
 
@@ -791,52 +744,50 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<byte[]>("AvatarBlob")
-                        .HasColumnType("BLOB");
+                        .HasColumnType("bytea");
 
                     b.Property<string>("AvatarContentType")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
                     b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Level")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("OpdsPath")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<string>("PasswordHash")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("PasswordSetToken")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("RefreshTokenExpiresAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RefreshTokenHash")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("Salt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -855,26 +806,24 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Issuer")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Subject")
                         .IsRequired()
-                        .HasColumnType("TEXT")
-                        .UseCollation("BINARY");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -892,41 +841,41 @@ namespace RensaioBackend.Migrations.Rensaio
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AccessToken")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<bool>("AutoSync")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
                     b.Property<bool>("IsEnabled")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
                     b.Property<DateTime?>("LastDownloadAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastSyncAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastUploadAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Provider")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("RefreshToken")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("TokenExpiresAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 

@@ -62,6 +62,8 @@ export interface Settings {
   oidcButtonLabel: string;
   /** Server-computed: true when config/env supplies the OIDC basics, making the fields read-only. */
   oidcManagedByConfig?: boolean;
+  /** Server-computed: the database engine in use, "SQLite" or "PostgreSQL". */
+  database?: string;
   /** Server-computed: a secret is stored. GET never returns it; an empty PUT value keeps it. */
   oidcClientSecretSet?: boolean;
   /** Input-only: send true to remove the stored secret (switch to a public client). */

@@ -44,6 +44,12 @@ namespace RensaioBackend.Services.Daily
 
         public async Task CreateBackupAsync(CancellationToken token = default)
         {
+            if (!_db.Database.IsSqlite())
+            {
+                // VACUUM INTO is SQLite-only. A server database is backed up by the server.
+                _logger.LogInformation("Daily database backup skipped: the main database is not SQLite, back it up on the database server.");
+                return;
+            }
             string backupDirectory = Path.Combine(_configuration["runtimeDirectory"]!, "Backups");
             if (!Directory.Exists(backupDirectory))
             {

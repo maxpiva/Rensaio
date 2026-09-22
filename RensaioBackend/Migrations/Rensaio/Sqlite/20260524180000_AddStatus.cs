@@ -2,9 +2,9 @@ using RensaioBackend.Data;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace RensaioBackend.Migrations.Rensaio;
+namespace RensaioBackend.Migrations.Rensaio.Sqlite;
 
-[DbContext(typeof(AppDbContext))]
+[DbContext(typeof(SqliteAppDbContext))]
 [Migration("20260524180000_AddStatus")]
 public partial class AddStatus : Microsoft.EntityFrameworkCore.Migrations.Migration
 {

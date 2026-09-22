@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(SqliteAppDbContext))]
     [Migration("20260904200000_AddSeriesMappingMetadata")]
     public partial class AddSeriesMappingMetadata : Microsoft.EntityFrameworkCore.Migrations.Migration
     {

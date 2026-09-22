@@ -116,6 +116,18 @@ namespace RensaioBackend.Services.Series
         /// <param name="genres">Optional tag/genre filter; a row must carry every supplied tag (AND semantics)</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>List of latest series information</returns>
+        /// <summary>
+        /// Case-insensitive "title contains" on every provider. SQLite's LIKE ignores ASCII
+        /// case; PostgreSQL's does not, so it gets ILIKE.
+        /// </summary>
+        internal static IQueryable<LatestSerieEntity> WhereTitleContains(AppDbContext db, IQueryable<LatestSerieEntity> series, string keyword)
+        {
+            string pattern = $"%{keyword}%";
+            return db.Database.IsNpgsql()
+                ? series.Where(a => EF.Functions.ILike(a.Title, pattern))
+                : series.Where(a => EF.Functions.Like(a.Title, pattern));
+        }
+
         public async Task<List<LatestSeriesDto>> GetLatestAsync(int start, int count, string? mihonProviderId = null,
             string? keyword = null, IReadOnlyList<string>? genres = null, CancellationToken token = default)
         {
@@ -126,7 +138,7 @@ namespace RensaioBackend.Services.Series
             }
 
             if (!string.IsNullOrEmpty(keyword))
-                series = series.Where(a => EF.Functions.Like(a.Title, $"%{keyword}%"));
+                series = WhereTitleContains(_db, series, keyword);
 
             series = series.OrderByDescending(a => a.FetchDate);
 

@@ -1,0 +1,47 @@
+# Values override for charts/rensaio: run on an existing PostgreSQL server.
+#
+#   kubectl create secret generic rensaio-postgres -n rensaio \
+#     --from-literal=host=postgres.database.svc --from-literal=port=5432 \
+#     --from-literal=dbname=rensaio --from-literal=user=rensaio --from-literal=password=xxxxxxxx
+#   helm install rensaio ./charts/rensaio -n rensaio --create-namespace \
+#     -f examples/helm-values-postgres.yaml
+#
+# The /config volume is still required (thumbnails, extension data, contributor cache).
+
+controllers:
+  main:
+    containers:
+      main:
+        env:
+          PUID: "99"
+          PGID: "100"
+          UMASK: "022"
+          Database__Provider: postgres
+          Database__Host:
+            valueFrom:
+              secretKeyRef:
+                name: rensaio-postgres
+                key: host
+          Database__Port:
+            valueFrom:
+              secretKeyRef:
+                name: rensaio-postgres
+                key: port
+          Database__Name:
+            valueFrom:
+              secretKeyRef:
+                name: rensaio-postgres
+                key: dbname
+          Database__Username:
+            valueFrom:
+              secretKeyRef:
+                name: rensaio-postgres
+                key: user
+          Database__Password:
+            valueFrom:
+              secretKeyRef:
+                name: rensaio-postgres
+                key: password
+          # For a server that requires a verified TLS connection, mount the CA and add:
+          # PGSSLMODE: verify-full
+          # PGSSLROOTCERT: /etc/ssl/postgres/ca.crt

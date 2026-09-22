@@ -3,6 +3,7 @@ using RensaioBackend.Models.Database;
 using RensaioBackend.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mihon.ExtensionsBridge.Models.Extensions;
 using System.Text.Json.Serialization;
 using Chapter = RensaioBackend.Models.Chapter;
@@ -10,22 +11,20 @@ using RensaioBackend.Data.Converters;
 
 namespace RensaioBackend.Data
 {
-    //Only used to do migrations, repoint to your test database if you're dev.
-    public class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<AppDbContext>
-    {
-        public AppDbContext CreateDbContext(string[] args)
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite("Data Source=C:\\users\\mpiva\\appdata\\local\\rensaio\\rensaio.db")
-                .Options;
-            return new AppDbContext(options);
-        }
-    }
+    /// <summary>
+    /// The application database. Services depend on this type; the provider-specific
+    /// subclasses (<see cref="SqliteAppDbContext"/>, <see cref="PostgresAppDbContext"/>)
+    /// exist so EF Core can keep one migration set per provider and one model cache per
+    /// provider, while all entity configuration lives here.
+    /// </summary>
     public class AppDbContext : DbContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
-         
+        }
+
+        protected AppDbContext(DbContextOptions options) : base(options)
+        {
         }
         public DbSet<SeriesEntity> Series { get; set; }
         public DbSet<SettingEntity> Settings { get; set; }
@@ -68,18 +67,24 @@ namespace RensaioBackend.Data
             {
                 entity.HasKey(m => m.Id);
                 entity.Property(m => m.SeriesId).IsRequired(false); // nullable to support series-less/provider-scoped rows
-                entity.Property(m => m.Provider).IsRequired();
+                entity.Property(m => m.Provider).IsRequired().HasConversion<int>();
                 entity.Property(m => m.ExternalSeriesId).UseCollation("BINARY").IsRequired();
                 entity.Property(m => m.ExternalSeriesTitle).UseCollation("BINARY").IsRequired(false);
+                entity.Property(m => m.SeriesCoverUrl).UseCollation("BINARY").IsRequired(false);
                 entity.Property(m => m.MetaData).UseCollation("BINARY").IsRequired(false);
                 entity.Property(m => m.UserUid).IsRequired(false);
-                entity.Property(m => m.UserRole).IsRequired();
+                entity.Property(m => m.UserRole).IsRequired().HasConversion<int>();
                 entity.Property(m => m.UpdateDate).IsRequired();
+                entity.Property(m => m.MappingStatus).IsRequired();
+                entity.Property(m => m.LinkedDate).IsRequired(false);
                 // LinkedSitesIds: comma-separated "site:id" strings in a TEXT column
                 entity.Property(m => m.LinkedSitesIds).HasStringSplit();
                 // AlternativeTitles: JSON-encoded string[] in a TEXT column
                 entity.Property(m => m.AlternativeTitles).HasJsonConversion<List<string>>();
                 entity.HasIndex(m => new { m.SeriesId, m.Provider }).IsUnique().HasDatabaseName("IX_SeriesMapping_SeriesId_Provider");
+                // Non-unique: enables the mapping-conflict repair pass + ownership guard to find
+                // every series claiming a given (Provider, ExternalSeriesId) quickly.
+                entity.HasIndex(m => new { m.Provider, m.ExternalSeriesId }).HasDatabaseName("IX_SeriesMapping_Provider_ExternalSeriesId");
                 // Deleting a series cascades to its global mappings: a mapping linked to a
                 // removed local series is meaningless, and series-less/decision rows
                 // (SeriesId == null) are untouched by the cascade. Restores the ON DELETE
@@ -308,26 +313,40 @@ namespace RensaioBackend.Data
                 entity.HasIndex(c => new { c.UserId, c.Provider }).IsUnique().HasDatabaseName("IX_UserScrobblerConfig_UserId_Provider");
             });
 
-            modelBuilder.Entity<SeriesMappingEntity>(entity =>
-            {
-                entity.HasKey(m => m.Id);
-                entity.Property(m => m.SeriesId).IsRequired(false); // nullable to support series-less/provider-scoped rows
-                entity.Property(m => m.Provider).IsRequired().HasConversion<int>();
-                entity.Property(m => m.ExternalSeriesId).UseCollation("BINARY").IsRequired();
-                entity.Property(m => m.ExternalSeriesTitle).UseCollation("BINARY").IsRequired(false);
-                entity.Property(m => m.SeriesCoverUrl).UseCollation("BINARY").IsRequired(false);
-                entity.Property(m => m.MetaData).UseCollation("BINARY").IsRequired(false);
-                entity.Property(m => m.LinkedSitesIds).HasStringSplit();
-                entity.Property(m => m.AlternativeTitles).HasJsonConversion<List<string>>();
-                entity.Property(m => m.MappingStatus).HasColumnType("INTEGER").IsRequired();
-                entity.Property(m => m.LinkedDate).IsRequired(false);
-                entity.Property(m => m.UserRole).IsRequired().HasConversion<int>();
-                entity.Property(m => m.UpdateDate).IsRequired();
-                entity.HasIndex(m => new { m.SeriesId, m.Provider }).IsUnique().HasDatabaseName("IX_SeriesMapping_SeriesId_Provider");
-                // Non-unique: enables the mapping-conflict repair pass + ownership guard to find
-                // every series claiming a given (Provider, ExternalSeriesId) quickly.
-                entity.HasIndex(m => new { m.Provider, m.ExternalSeriesId }).HasDatabaseName("IX_SeriesMapping_Provider_ExternalSeriesId");
-            });
+            ApplyProviderConventions(modelBuilder);
         }
+
+        /// <summary>
+        /// The entity configuration above is written for SQLite. This is the single place
+        /// where the model is adjusted for any other provider, so the per-property
+        /// configuration never has to branch.
+        /// </summary>
+        private void ApplyProviderConventions(ModelBuilder modelBuilder)
+        {
+            if (Database.IsSqlite())
+                return;
+
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    // "BINARY" is SQLite's byte-order collation and is that provider's default
+                    // anyway; other providers have no collation by that name and are already
+                    // case-sensitive and byte-ordered without it.
+                    if (string.Equals(property.GetCollation(), "BINARY", StringComparison.Ordinal))
+                        property.SetCollation(null);
+
+                    // SQLite stores DateTime as text with no time-zone information, so values
+                    // read back are DateTimeKind.Unspecified. Providers with a real timestamp
+                    // type need every value to be UTC, both written and read.
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                        property.SetValueConverter(UtcDateTimeConverter);
+                }
+            }
+        }
+
+        private static readonly ValueConverter<DateTime, DateTime> UtcDateTimeConverter = new(
+            v => v.Kind == DateTimeKind.Utc ? v : (v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : DateTime.SpecifyKind(v, DateTimeKind.Utc)),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
     }
 }

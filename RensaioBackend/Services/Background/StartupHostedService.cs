@@ -180,7 +180,8 @@ namespace RensaioBackend.Services.Background
                 AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 await db.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
                 await BackfillMappingStatusAsync(db, cancellationToken).ConfigureAwait(false);
-                await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
+                if (db.Database.IsSqlite())
+                    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken).ConfigureAwait(false);
 
                 // Ensure the local contributor database exists and is migrated.
                 // Path is derived from DefaultConnection (sibling contributor.db).

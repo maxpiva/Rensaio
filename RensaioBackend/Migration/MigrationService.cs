@@ -61,7 +61,7 @@ public class MigrationService
     /// <c>__EFMigrationsHistory</c> table and inserts records for all known migrations so that
     /// <c>MigrateAsync</c> won't attempt to re-apply them on top of an already-complete schema.
     /// </summary>
-    private static async Task MarkAllMigrationsAsAppliedAsync(AppDbContext db, CancellationToken cancellationToken)
+    internal static async Task MarkAllMigrationsAsAppliedAsync(AppDbContext db, CancellationToken cancellationToken)
     {
         await db.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS \"__EFMigrationsHistory\" (\"MigrationId\" TEXT NOT NULL PRIMARY KEY, \"ProductVersion\" TEXT NOT NULL);",
@@ -128,19 +128,21 @@ public class MigrationService
     public async Task<bool> RunAsync(CancellationToken cancellationToken = default)
     {
 
-        string? newDatabasePath = _configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(newDatabasePath))
+        var databaseConfig = DatabaseConfig.Resolve(_configuration);
+        if (databaseConfig.Provider != DatabaseProvider.Sqlite)
         {
-            _logger.LogError("DefaultConnection string is not set in configuration; cannot determine database.");
+            // The Kaizoku v1 import and the file-based bootstrap below only apply to SQLite.
+            _logger.LogInformation("Database provider is {Provider}; skipping the SQLite bootstrap and Kaizoku v1 import.", databaseConfig.Provider);
             return false;
         }
-        if (!newDatabasePath.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+        string newDatabasePath = databaseConfig.SqlitePath!;
+
+        string migratedMarker = newDatabasePath + MigrateDbCommand.MarkerSuffix;
+        if (File.Exists(migratedMarker))
         {
-            _logger.LogError("DefaultConnection string is not in expected format 'Data Source=path'; cannot determine database.");
-            return false;
+            _logger.LogWarning("This SQLite database was copied to PostgreSQL ({Marker}) but Rensaio is running on SQLite. " +
+                "Set Database:Provider=postgres to use the copy, or delete the marker file to keep using SQLite.", migratedMarker);
         }
-        newDatabasePath = newDatabasePath.Substring("Data Source=".Length).Trim();
-        newDatabasePath = Path.GetFullPath(newDatabasePath);
 
         // A zero-byte file is not a database. Any component that opens a connection before
         // this service runs (e.g. a hosted service querying Settings) makes SQLite create an
@@ -155,11 +157,11 @@ public class MigrationService
         if (!File.Exists(newDatabasePath) || isEmptyFile)
         {
             _logger.LogInformation("No existing database found at {Path}. Assuming new installation.", newDatabasePath);
-            var newDbOptions2 = new DbContextOptionsBuilder<AppDbContext>()
+            var newDbOptions2 = new DbContextOptionsBuilder<SqliteAppDbContext>()
                 .UseSqlite($"Data Source={newDatabasePath}")
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.TrackAll)
                 .Options;
-            await using var targetDb2 = new AppDbContext(newDbOptions2);
+            await using var targetDb2 = new SqliteAppDbContext(newDbOptions2);
             await targetDb2.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
             // EnsureCreated builds the full schema from the model but does NOT create __EFMigrationsHistory.
             // When MigrateAsync runs later, it would try to apply all migrations (e.g. AddColumn IsNSFW)
@@ -193,13 +195,13 @@ public class MigrationService
             .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
             .Options;
 
-        var newDbOptions = new DbContextOptionsBuilder<AppDbContext>()
+        var newDbOptions = new DbContextOptionsBuilder<SqliteAppDbContext>()
             .UseSqlite($"Data Source={newDatabasePath}")
             .UseQueryTrackingBehavior(QueryTrackingBehavior.TrackAll)
             .Options;
 
         await using var legacyDb = new OldDbContext(oldDbOptions);
-        await using var targetDb = new AppDbContext(newDbOptions);
+        await using var targetDb = new SqliteAppDbContext(newDbOptions);
 
         if (File.Exists(newDatabasePath))
         {

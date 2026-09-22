@@ -1,0 +1,41 @@
+# Rensaiō on PostgreSQL. SQLite needs none of this; see the README.
+services:
+  rensaio:
+    container_name: rensaio
+    image: 'maxpiva/rensaio:latest'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - '/path/to/your/series:/series'
+      - '/path/to/your/config:/config'
+    environment:
+      - UMASK=022
+      - PGID=100
+      - PUID=99
+      - Database__Provider=postgres
+      - Database__Host=postgres
+      - Database__Port=5432
+      - Database__Name=rensaio
+      - Database__Username=rensaio
+      - Database__Password=change-me
+    ports:
+      - '9833:9833'
+
+  postgres:
+    container_name: rensaio-postgres
+    image: 'postgres:18'
+    volumes:
+      - '/path/to/your/postgres:/var/lib/postgresql'
+    environment:
+      - POSTGRES_DB=rensaio
+      - POSTGRES_USER=rensaio
+      - POSTGRES_PASSWORD=change-me
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rensaio -d rensaio']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# Moving an existing SQLite library into this database (run once, with rensaio stopped):
+#   docker compose run --rm rensaio migrate-db --to postgres

@@ -790,6 +790,11 @@ function StorageSection({
           </div>
         </div>
       )}
+
+      <div>
+        <Label>Database</Label>
+        <p className="text-muted-foreground mt-1 text-sm">{localSettings.database || "SQLite"}</p>
+      </div>
     </CardContent>
   );
 }

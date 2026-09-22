@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <summary>
     /// Adds the non-unique (Provider, ExternalSeriesId) index on SeriesMappings so the
     /// mapping-conflict repair pass and the ownership guard can find every series claiming
     /// a given external id quickly.
     /// </summary>
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(SqliteAppDbContext))]
     [Migration("20260916010000_AddSeriesMappingProviderExternalIndex")]
     public partial class AddSeriesMappingProviderExternalIndex : Microsoft.EntityFrameworkCore.Migrations.Migration
     {

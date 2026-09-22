@@ -24,6 +24,13 @@ public class SettingsDto : EditableSettingsDto
     public bool OidcManagedByConfig { get; set; }
 
     /// <summary>
+    /// The database engine in use: "SQLite" or "PostgreSQL". Shown read-only in
+    /// Settings. Server-computed, never persisted.
+    /// </summary>
+    [JsonPropertyName("database")]
+    public string Database { get; set; } = string.Empty;
+
+    /// <summary>
     /// True when a client secret is configured. The secret itself is never sent to
     /// clients; <see cref="SettingsController"/> blanks it. Server-computed, never persisted.
     /// </summary>

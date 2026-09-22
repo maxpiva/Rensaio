@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <inheritdoc />
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(SqliteAppDbContext))]
     [Migration("20260605000426_UserManagementSystem")]
     public partial class UserManagementSystem : Microsoft.EntityFrameworkCore.Migrations.Migration
     {

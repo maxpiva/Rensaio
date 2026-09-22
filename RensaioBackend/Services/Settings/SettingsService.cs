@@ -587,6 +587,7 @@ namespace RensaioBackend.Services.Settings
                 ContributionVerified = ed.ContributionVerified,
             };
             set.StorageFolder = _config["StorageFolder"] ?? string.Empty;
+            set.Database = DescribeDatabase();
             set.OidcManagedByConfig = Auth.Oidc.OidcOptions.IsManagedByConfig(_config);
             if (set.OidcManagedByConfig)
             {
@@ -626,6 +627,10 @@ namespace RensaioBackend.Services.Settings
             }
             return changed;
         }
+
+        /// <summary>"SQLite" or "PostgreSQL", for the read-only Settings line.</summary>
+        private string DescribeDatabase()
+            => _db.Database.IsSqlite() ? "SQLite" : _db.Database.IsNpgsql() ? "PostgreSQL" : (_db.Database.ProviderName ?? "Unknown");
 
         public async ValueTask<SettingsDto> GetSettingsAsync(CancellationToken token = default)
         {

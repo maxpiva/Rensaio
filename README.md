@@ -49,6 +49,7 @@ When you subscribe to a series, it will automatically download it. Whenever the 
   - [Docker Compose Example](#docker-compose-example)
   - [Unraid Template](#-unraid-template)
   - [Helm Chart](#-helm-chart)
+- [Database (SQLite or PostgreSQL)](#%EF%B8%8F-database-sqlite-or-postgresql)
 - [Single Sign-On (OpenID Connect)](#-single-sign-on-openid-connect)
 - [Desktop App](#-desktop-app)
 - [Build It Yourself](#-build-it-yourself)
@@ -169,7 +170,7 @@ Then use [IKVM](https://github.com/ikvmnet/ikvm) to run this on .NET.
 
 | Container Path | Description                      |
 |----------------|----------------------------------|
-| `/config`      | Stores application configuration |
+| `/config`      | Stores application configuration, the SQLite database, thumbnails and extension data |
 | `/series`      | Stores series                    |
 
 ### 🌐 Ports
@@ -275,6 +276,28 @@ Configure `PUID`/`PGID`/`UMASK`, image tag, PVC sizes/storage classes, and ingre
 helm install rensaio ./charts/rensaio -n rensaio --create-namespace \
   -f examples/helm-values.yaml
 ```
+
+---
+
+## 🗄️ Database (SQLite or PostgreSQL)
+
+**Rensaiō uses SQLite by default and needs no database setup.** Skip this unless you already run a PostgreSQL server and want Rensaiō on it: Kubernetes, network storage where SQLite locking is unreliable, or server-side backups.
+
+PostgreSQL is opt-in with five environment variables:
+
+```yaml
+environment:
+  - Database__Provider=postgres
+  - Database__Host=postgres
+  - Database__Port=5432
+  - Database__Name=rensaio
+  - Database__Username=rensaio
+  - Database__Password=xxxxxxxx
+```
+
+Rensaiō creates its tables on first start. An existing SQLite library moves over with one command (`migrate-db --to postgres`) and the SQLite file is left untouched, so going back is a config change. The `/config` volume is still required either way.
+
+Full guide, including moving a library, Kubernetes secrets, TLS, the Compose and Helm examples and troubleshooting: [`docs/database.md`](./docs/database.md).
 
 ---
 

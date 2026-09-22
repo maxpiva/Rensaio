@@ -1,0 +1,68 @@
+name: Backend tests
+
+on:
+  pull_request:
+    paths:
+      - 'RensaioBackend/**'
+      - 'RensaioBackend.Tests/**'
+      - '.config/dotnet-tools.json'
+      - '.github/workflows/backend-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'RensaioBackend/**'
+      - 'RensaioBackend.Tests/**'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  database:
+    name: Build, migrations and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      # The backend embeds the built frontend (wwwroot.zip + sha256). These checks
+      # never serve it, so an empty bundle is enough.
+      - name: Placeholder frontend bundle
+        run: |
+          python3 -c "import zipfile; zipfile.ZipFile('RensaioBackend/wwwroot.zip', 'w').close()"
+          sha256sum RensaioBackend/wwwroot.zip | awk '{print $1}' > RensaioBackend/wwwroot.sha256
+
+      - name: Restore
+        run: |
+          dotnet tool restore
+          dotnet restore RensaioBackend.Tests/RensaioBackend.Tests.csproj
+
+      # Errors only on the console: the codebase carries long-standing compiler
+      # warnings, and the problem matcher would post each one as an annotation.
+      - name: Build
+        run: dotnet build RensaioBackend.Tests/RensaioBackend.Tests.csproj -c Debug --no-restore -clp:ErrorsOnly
+
+      # A schema change must come with a migration for BOTH providers
+      # (add_migration.sh / add_migration.ps1). This is what catches a forgotten one.
+      - name: Migrations match the model (SQLite)
+        run: dotnet ef migrations has-pending-model-changes --project RensaioBackend/RensaioBackend.csproj --context SqliteAppDbContext --no-build
+
+      - name: Migrations match the model (PostgreSQL)
+        run: dotnet ef migrations has-pending-model-changes --project RensaioBackend/RensaioBackend.csproj --context PostgresAppDbContext --no-build
+
+      # The same specs run on SQLite and on PostgreSQL (Testcontainers; Docker is
+      # preinstalled on ubuntu-latest). Results land in the job summary.
+      - name: Test (SQLite and PostgreSQL)
+        run: dotnet test RensaioBackend.Tests/RensaioBackend.Tests.csproj -c Debug --no-build --logger GitHubActions --logger "console;verbosity=minimal"

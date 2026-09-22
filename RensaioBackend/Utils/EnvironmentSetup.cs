@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Razor.Runtime.TagHelpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Mihon.ExtensionsBridge.Core.Extensions;
+using RensaioBackend.Data;
 using RensaioBackend.Services;
 using Serilog;
 using Serilog.Core;
@@ -93,19 +94,15 @@ namespace RensaioBackend.Utils
         }
 
         /// <summary>
-        /// Derives the connection string for the local contributor database
-        /// (<c>contributor.db</c>) as a sibling of <c>rensaio.db</c> (the
-        /// <c>DefaultConnection</c> target). No separate configuration key is required.
+        /// Derives the path of the local contributor database (<c>contributor.db</c>).
+        /// It is always SQLite: a sibling of <c>rensaio.db</c> when the main database is
+        /// SQLite, otherwise a file in the data directory. No separate configuration key
+        /// is required.
         /// </summary>
         public static string ContributorDatabasePath(IConfiguration configuration)
         {
-            string defaultCs = configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
-            if (!defaultCs.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-                return System.IO.Path.Combine(Path, "contributor.db");
-            string dbPath = defaultCs.Substring("Data Source=".Length).Trim();
-            string dir = System.IO.Path.GetDirectoryName(dbPath) ?? string.Empty;
-            if (string.IsNullOrEmpty(dir))
-                dir = Path;
+            string? mainDbPath = DatabaseConfig.Resolve(configuration).SqlitePath;
+            string dir = mainDbPath is null ? Path : (System.IO.Path.GetDirectoryName(mainDbPath) ?? Path);
             return System.IO.Path.Combine(dir, "contributor.db");
         }
 
@@ -215,9 +212,11 @@ namespace RensaioBackend.Utils
                 }
 
                 var connectionStrings = destinationJson["ConnectionStrings"];
-                if (connectionStrings != null)
+                string currentDb = connectionStrings?["DefaultConnection"]?.ToString() ?? "";
+                // Only a SQLite connection string names a file we may need to rename or
+                // make absolute. Anything else is left exactly as the user wrote it.
+                if (connectionStrings != null && DatabaseConfig.IsSqliteConnectionString(currentDb))
                 {
-                    string currentDb = connectionStrings["DefaultConnection"]?.ToString() ?? "";
                     string destPath = currentDb.Substring("Data Source=".Length).Trim();
                     string dir = System.IO.Path.GetDirectoryName(destPath) ?? "";
                     if (dir.EndsWith("KaizokuNet", StringComparison.InvariantCultureIgnoreCase))

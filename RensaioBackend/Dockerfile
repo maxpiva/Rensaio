@@ -23,5 +23,5 @@ COPY ./bin/$TARGETPLATFORM/ .
 COPY ./scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 EXPOSE 9833
-ENTRYPOINT ["tini", "--"]
-CMD ["/app/entrypoint.sh"]
+ENTRYPOINT ["tini", "--", "/app/entrypoint.sh"]
+CMD []

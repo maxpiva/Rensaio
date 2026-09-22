@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <inheritdoc />
     public partial class AddUserExternalLogins : Microsoft.EntityFrameworkCore.Migrations.Migration

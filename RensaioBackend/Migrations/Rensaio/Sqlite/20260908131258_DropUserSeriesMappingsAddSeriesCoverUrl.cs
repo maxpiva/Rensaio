@@ -5,7 +5,7 @@ using System;
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <inheritdoc />
     // NOTE: [DbContext] / [Migration] attributes intentionally live in the

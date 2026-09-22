@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace RensaioBackend.Migrations.Rensaio
+namespace RensaioBackend.Migrations.Rensaio.Sqlite
 {
     /// <inheritdoc />
     public partial class RestoreSeriesMappingDeleteCascade : Microsoft.EntityFrameworkCore.Migrations.Migration

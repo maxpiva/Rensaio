@@ -15,6 +15,7 @@ using Mihon.ExtensionsBridge.Models.Abstractions;
 using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace RensaioBackend.Services.Settings
@@ -75,8 +76,11 @@ namespace RensaioBackend.Services.Settings
                         setting.Value = p.GetValue(editableSettings)?.ToString() ?? string.Empty;
                         break;
                     case "string[]":
-                        string[] array = (string[])p.GetValue(editableSettings)!;
-                        setting.Value = string.Join('|', array);
+                        string[] array = p.GetValue(editableSettings) as string[] ?? [];
+                        // Persist as JSON: entries such as ContributionSourceAllowlist's
+                        // "package|numericSourceId" contain '|' and would be corrupted by a
+                        // '|'-joined round-trip. Reads fall back to the legacy '|' format.
+                        setting.Value = JsonSerializer.Serialize(array);
                         break;
                     case "int32":
                         setting.Value = p.GetValue(editableSettings)?.ToString() ?? "0";
@@ -125,7 +129,7 @@ namespace RensaioBackend.Services.Settings
                     {
                         case "string[]":
                             string[] split = p.GetValue(defaultValues) as string[] ?? [];
-                            value = string.Join('|', split);
+                            value = JsonSerializer.Serialize(split);
                             break;
                         default:
                             // Use InvariantCulture for numeric types to avoid culture-specific decimal separators
@@ -184,8 +188,7 @@ namespace RensaioBackend.Services.Settings
                         p.SetValue(newEditableSettings, setting.Value);
                         break;
                     case "string[]":
-                        string[] split = setting.Value.Split('|');
-                        p.SetValue(newEditableSettings, split);
+                        p.SetValue(newEditableSettings, ParseStringArray(setting.Value));
                         break;
                     case "int32":
                         p.SetValue(newEditableSettings, int.TryParse(setting.Value, out int intValue) ? intValue : 0);
@@ -207,6 +210,29 @@ namespace RensaioBackend.Services.Settings
             }
             return (needSave, newEditableSettings);
         }
+
+        /// <summary>
+        /// Parses a persisted string-array setting. New values are stored as JSON arrays;
+        /// values from existing databases use the legacy '|'-joined format, so anything that
+        /// does not parse as a JSON array falls back to a '|' split.
+        /// </summary>
+        private static string[] ParseStringArray(string value)
+        {
+            if (value.TrimStart().StartsWith('['))
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<string[]>(value) ?? [];
+                }
+                catch (JsonException)
+                {
+                    // Not actually JSON (e.g. a legacy value that happens to start with '[');
+                    // fall through to the legacy format.
+                }
+            }
+            return value.Split('|');
+        }
+
         private static string JoinAndSortArray(string[] array)
         {
             return string.Join('|', array.OrderBy(a => a));
@@ -345,6 +371,14 @@ namespace RensaioBackend.Services.Settings
                 NumberOfSimultaneousDownloads = settings.NumberOfSimultaneousDownloads,
                 NumberOfSimultaneousDownloadsPerProvider = settings.NumberOfSimultaneousDownloadsPerProvider,
                 NumberOfSimultaneousSearches = settings.NumberOfSimultaneousSearches,
+                MaxDiscoverySearchExtensions = settings.MaxDiscoverySearchExtensions,
+                DiscoverySearchWorkersEnabled = settings.DiscoverySearchWorkersEnabled,
+                DiscoveryWorkerBatchSize = settings.DiscoveryWorkerBatchSize,
+                MaxDiscoveryWorkers = settings.MaxDiscoveryWorkers,
+                DiscoveryIncludeInSearch = settings.DiscoveryIncludeInSearch,
+                DiscoveryPrecacheEnabled = settings.DiscoveryPrecacheEnabled,
+                DiscoveryWarmPoolEnabled = settings.DiscoveryWarmPoolEnabled,
+                DiscoveryWorkerIdleTimeout = settings.DiscoveryWorkerIdleTimeout,
                 ChapterDownloadFailRetryTime = settings.ChapterDownloadFailRetryTime,
                 ChapterDownloadFailRetries = settings.ChapterDownloadFailRetries,
                 PerTitleUpdateSchedule = settings.PerTitleUpdateSchedule,
@@ -541,6 +575,14 @@ namespace RensaioBackend.Services.Settings
                 NumberOfSimultaneousDownloads = ed.NumberOfSimultaneousDownloads,
                 NumberOfSimultaneousDownloadsPerProvider = ed.NumberOfSimultaneousDownloadsPerProvider,
                 NumberOfSimultaneousSearches = ed.NumberOfSimultaneousSearches,
+                MaxDiscoverySearchExtensions = ed.MaxDiscoverySearchExtensions,
+                DiscoverySearchWorkersEnabled = ed.DiscoverySearchWorkersEnabled,
+                DiscoveryWorkerBatchSize = ed.DiscoveryWorkerBatchSize,
+                MaxDiscoveryWorkers = ed.MaxDiscoveryWorkers,
+                DiscoveryIncludeInSearch = ed.DiscoveryIncludeInSearch,
+                DiscoveryPrecacheEnabled = ed.DiscoveryPrecacheEnabled,
+                DiscoveryWarmPoolEnabled = ed.DiscoveryWarmPoolEnabled,
+                DiscoveryWorkerIdleTimeout = ed.DiscoveryWorkerIdleTimeout,
                 ChapterDownloadFailRetryTime = ed.ChapterDownloadFailRetryTime,
                 ChapterDownloadFailRetries = ed.ChapterDownloadFailRetries,
                 PerTitleUpdateSchedule = ed.PerTitleUpdateSchedule,

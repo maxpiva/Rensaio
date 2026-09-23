@@ -150,6 +150,13 @@ namespace RensaioBackend.Services
             services.TryAddScoped<Contributions.Abstractions.IGlobalMetadataRepository, Contributions.InMemoryGlobalMetadataRepository>();
             services.TryAddScoped<Contributions.InMemoryGlobalMetadataRepository>();
 
+            // Discovery ("search not-installed sources") — worker pool + sweep orchestrator.
+            services.TryAddScoped<DiscoverySearchService>();
+            services.TryAddSingleton<Search.Discovery.DiscoverySearchCoordinator>();
+            services.TryAddSingleton<Search.Discovery.DiscoveryWorkerPool>();
+            services.TryAddSingleton<Search.Discovery.DiscoverySourceHeaderRegistry>();
+            services.TryAddSingleton<Search.Discovery.InteractiveDiscoveryGate>();
+
             // Register HTTP clients
             services.AddHttpClient("Scrobbler_AniList", SetHttpClientHeaders);
             services.AddHttpClient("Scrobbler_MAL", SetHttpClientHeaders);

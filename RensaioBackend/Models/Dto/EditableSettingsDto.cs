@@ -78,6 +78,67 @@ public class EditableSettingsDto
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public NsfwVisibility NsfwVisibility { get; set; } = NsfwVisibility.HideByDefault;
 
+    // --- Discovery ("include not-installed sources in search") ---
+
+    /// <summary>
+    /// Upper bound on how many not-installed extensions a single discovery
+    /// ("search more sources") request will shadow-load and search. 0 = unlimited.
+    /// </summary>
+    [JsonPropertyName("maxDiscoverySearchExtensions")]
+    public int MaxDiscoverySearchExtensions { get; set; } = 0;
+
+    /// <summary>
+    /// When true (default), discovery searches classload and search not-installed extensions in
+    /// short-lived worker processes so their memory is returned to the OS afterwards and a crashing
+    /// extension cannot take down the backend. When false (or when a worker cannot be spawned),
+    /// the legacy in-process shadow-load path is used.
+    /// </summary>
+    [JsonPropertyName("discoverySearchWorkersEnabled")]
+    public bool DiscoverySearchWorkersEnabled { get; set; } = true;
+
+    /// <summary>
+    /// How many extensions a single discovery worker process handles before it exits and is
+    /// replaced (bounds per-worker memory growth, since loaded JARs cannot be unloaded).
+    /// </summary>
+    [JsonPropertyName("discoveryWorkerBatchSize")]
+    public int DiscoveryWorkerBatchSize { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of discovery worker processes running concurrently.
+    /// </summary>
+    [JsonPropertyName("maxDiscoveryWorkers")]
+    public int MaxDiscoveryWorkers { get; set; } = 2;
+
+    /// <summary>
+    /// When true (default), discovery workers stay resident between sweeps with their classloaded
+    /// extensions warm, so repeat searches skip the classload entirely. When false, every worker
+    /// exits after its batch (pre-warm-pool behavior).
+    /// </summary>
+    [JsonPropertyName("discoveryWarmPoolEnabled")]
+    public bool DiscoveryWarmPoolEnabled { get; set; } = true;
+
+    /// <summary>
+    /// How long an idle warm discovery worker stays resident before being recycled.
+    /// </summary>
+    [JsonPropertyName("discoveryWorkerIdleTimeout")]
+    public TimeSpan DiscoveryWorkerIdleTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Master toggle: when true (default), every search automatically also sweeps eligible
+    /// not-installed sources and streams those results into the same list. When false, search is
+    /// installed-sources only and no discovery affordance is shown.
+    /// </summary>
+    [JsonPropertyName("discoveryIncludeInSearch")]
+    public bool DiscoveryIncludeInSearch { get; set; } = true;
+
+    /// <summary>
+    /// When true (default), a low-priority background job pre-downloads and pre-converts the
+    /// artifacts of all eligible not-installed extensions so the first discovery search never pays
+    /// the cold download+dex2jar cost.
+    /// </summary>
+    [JsonPropertyName("discoveryPrecacheEnabled")]
+    public bool DiscoveryPrecacheEnabled { get; set; } = true;
+
     // --- Health Monitoring Thresholds ---
 
     [JsonPropertyName("releaseCadenceMultiplierYellow")]

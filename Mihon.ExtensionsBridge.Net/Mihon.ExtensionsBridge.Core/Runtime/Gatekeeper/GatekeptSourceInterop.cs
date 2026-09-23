@@ -54,6 +54,8 @@ namespace Mihon.ExtensionsBridge.Core.Runtime.Gatekeeper
         { await _gate.EnterAsync(token); try { return await EnsureActive().GetPopularAsync(page, token).ConfigureAwait(false); } finally { _gate.Exit(); } }
         public async Task<MangaList> SearchAsync(int page, string query, CancellationToken token = default)
         { await _gate.EnterAsync(token); try { return await EnsureActive().SearchAsync(page, query, token).ConfigureAwait(false); } finally { _gate.Exit(); } }
+        public Dictionary<string, string> GetImageRequestHeaders()
+        { return EnsureActive().GetImageRequestHeaders(); }
         public List<KeyPreference> GetPreferences()
         { return EnsureActive().GetPreferences(); }
         public void SetPreference(int position, string value)

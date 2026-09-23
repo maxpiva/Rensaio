@@ -3,6 +3,7 @@ set -e
 
 PUID=${PUID:-99}
 PGID=${PGID:-100}
+UMASK=${UMASK:-022}
 USERNAME=rensaio
 
 # Resolve group name from PGID if it already exists
@@ -45,6 +46,9 @@ fi
 
 # Add IKVM library directories to LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="${IKVM_LIB_PATH}:${LD_LIBRARY_PATH}"
+
+# Set file creation mask for application-created files
+umask "$UMASK"
 
 # Run the app as the correct user
 exec gosu "$user_name" xvfb-run --auto-servernum /app/RensaioBackend

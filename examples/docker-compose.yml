@@ -11,3 +11,7 @@ services:
       - PUID=99
     ports:
       - '9833:9833'
+    # Optional but recommended: cap the container. The .NET GC reads the cgroup limit
+    # and keeps its heap under 75% of it, so this bounds memory instead of just killing
+    # the process. Raise it for very large libraries.
+    mem_limit: 4g

@@ -10,6 +10,7 @@ The template uses host networking; see [Docker](docker.md) for what each volume,
   <Repository>maxpiva/rensaio:latest</Repository>
   <Registry>https://hub.docker.com/r/maxpiva/rensaio</Registry>
   <Network>host</Network>
+  <ExtraParams>--memory=4g</ExtraParams>
   <MyID>rensaio</MyID>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>

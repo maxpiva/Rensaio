@@ -3,6 +3,7 @@
   <Repository>maxpiva/rensaio:latest</Repository>
   <Registry>https://hub.docker.com/r/maxpiva/rensaio</Registry>
   <Network>host</Network>
+  <ExtraParams>--memory=4g</ExtraParams>
   <MyID>rensaio</MyID>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>

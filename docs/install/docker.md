@@ -63,6 +63,8 @@ services:
         - PUID=99
     ports:
         - '9833:9833'
+    # Optional but recommended: the .NET GC keeps its heap under 75% of this limit.
+    mem_limit: 4g
 ```
 
 ## Next steps

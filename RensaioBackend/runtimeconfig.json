@@ -1,6 +1,0 @@
-{
-  "configProperties": {
-    "GC.concurrent": true,
-    "GC.conserve-memory": 8
-  }
-}

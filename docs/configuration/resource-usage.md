@@ -2,6 +2,21 @@
 
 Be aware: **Rensaiō** can be **memory-intensive**, especially when managing large libraries or doing parallel searches and downloads.
 
+## Garbage collector and container memory limits
+
+The backend runs the .NET **workstation, concurrent** garbage collector with `System.GC.ConserveMemory=8` (see `RensaioBackend/runtimeconfig.template.json`). Server GC creates one heap per CPU core, so on a many-core host with no container limit it will hold 10+ GB of garbage before it bothers to collect. Workstation GC keeps one heap, collects early and hands memory back to the OS.
+
+Always give the container a memory limit. The GC reads the cgroup limit and keeps its managed heap under 75% of it, so a limit bounds memory instead of just killing the process once it is exceeded:
+
+| Platform | Setting |
+|----------|---------|
+| `docker run` | `--memory=4g` |
+| Docker Compose | `mem_limit: 4g` |
+| Unraid | Container settings → **Extra Parameters**: `--memory=4g` |
+| Kubernetes | `resources.limits.memory` (the Helm chart sets `2Gi`) |
+
+4 GB is plenty for large libraries. Raise it if the log shows `Out of memory` or the container keeps restarting. Advanced overrides through environment variables: `DOTNET_gcServer=1` switches back to server GC, and `DOTNET_GCHeapHardLimit=0x100000000` caps the managed heap at 4 GB regardless of the container limit.
+
 ## WebView/CEF renderer processes (`jcef_helper`)
 
 Extensions that need a browser context (anti-bot / Cloudflare bypass via the `WebViewFetchInterceptor`) spawn Chromium renderer processes (`jcef_helper --type=renderer`), each consuming roughly 80–200 MB. To keep long-running instances from accumulating orphaned helpers and exhausting memory, Rensaiō bounds and reaps them automatically:

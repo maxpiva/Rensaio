@@ -90,7 +90,7 @@ public class OpdsFeedService
 
 
 
-    private async void RenderFolder(StringBuilder sb, UserEntity user, string id, string title, string thumb, DateTime? date = null)
+    private async void RenderFolder(StringBuilder sb, UserEntity user, string id, string title, string thumb, DateTime? date = null, string linkType = OpdsLinks.NavigationFeedType)
     {
         List<string> ids = new List<string> { "rensaio", user.OpdsPath };
         List<string> paths = new List<string> { user.OpdsPath };
@@ -103,7 +103,7 @@ public class OpdsFeedService
         sb.AppendLine($@"  <entry>
     <id>{newId}</id>
     <title>{title}</title>
-    <link rel=""subsection"" href=""{path}""/>
+    {OpdsLinks.Subsection(path, linkType)}
   {thumb}
     <updated>{date?.ToString("yyyy-MM-ddTHH:mm:ssZ") ?? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")}</updated>
   </entry>");
@@ -121,7 +121,7 @@ public class OpdsFeedService
         sb.AppendLine($@"  <entry>
     <id>{newId}</id>
     <title>{title}</title>
-    <link rel=""subsection"" href=""{path}""/>
+    {OpdsLinks.Subsection(path, OpdsLinks.FeedType)}
   {thumb}");
         HashSet<string> renderedChapterIds = new HashSet<string>();
         HashSet<string> used = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
@@ -607,7 +607,7 @@ public class OpdsFeedService
         foreach (var lang in languages.OrderBy(l => l))
         {
             string thumbnailLinks = await BuildThumbnailLinkAsync(user.OpdsPath, series.ThumbnailUrl, token).ConfigureAwait(false);
-            RenderFolder(sb, user, $"series:{series.Id}:language:{lang}", $"{series.Title} [{lang}]", thumbnailLinks, series.LastChapterDate);
+            RenderFolder(sb, user, $"series:{series.Id}:language:{lang}", $"{series.Title} [{lang}]", thumbnailLinks, series.LastChapterDate, OpdsLinks.AcquisitionFeedType);
         }
         RenderFooter(sb);
         return sb.ToString();

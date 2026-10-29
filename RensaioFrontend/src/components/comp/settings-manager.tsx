@@ -1310,7 +1310,7 @@ function SecuritySection({
           <p className="text-xs text-muted-foreground">
             Group mapping, auto-registration, claim names and hiding the password form
             are configured in the <code className="font-mono">Oidc</code> section of
-            appsettings.json. See the README.
+            appsettings.json. See docs/configuration/sso-oidc.md.
           </p>
         </div>
       )}

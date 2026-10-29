@@ -1,4 +1,4 @@
-id # Hosting Guide: Rensaio Contribution DB on Cloudflare
+# Contribution DB deployment
 
 This guide walks through deploying the `RensaioContributionDB.CF` Cloudflare Worker from scratch.
 
@@ -31,7 +31,8 @@ npx wrangler d1 create rensaio-contribution-db
 ```
 
 **Output:**
-```
+
+```text
 ✅ Successfully created DB 'rensaio-contribution-db' in region WEUR
 
 [[d1_databases]]
@@ -40,7 +41,7 @@ database_name = "rensaio-contribution-db"
 database_id = "your-database-id-here"
 ```
 
-Copy the `database_id` value and paste it into [`wrangler.toml`](RensaioContributionDB.CF/wrangler.toml).
+Copy the `database_id` value and paste it into [`wrangler.toml`](../../RensaioContributionDB.CF/wrangler.toml).
 
 ---
 
@@ -50,13 +51,13 @@ Copy the `database_id` value and paste it into [`wrangler.toml`](RensaioContribu
 npx wrangler d1 migrations apply rensaio-contribution-db
 ```
 
-This runs [`migrations/0001_create_contribution_tables.sql`](RensaioContributionDB.CF/migrations/0001_create_contribution_tables.sql) which creates the four tables: `contributors`, `titles`, `sources`, and `metadata`.
+This runs [`migrations/0001_create_contribution_tables.sql`](../../RensaioContributionDB.CF/migrations/0001_create_contribution_tables.sql) which creates the four tables: `contributors`, `titles`, `sources`, and `metadata`.
 
 ---
 
 ## Step 4: Configure the Export Target
 
-Edit [`wrangler.toml`](RensaioContributionDB.CF/wrangler.toml):
+Edit [`wrangler.toml`](../../RensaioContributionDB.CF/wrangler.toml):
 
 ```toml
 [vars]
@@ -83,6 +84,7 @@ npx wrangler secret put AESKEY256IV
 `AESKEY256IV` is a base64 string of the AES-256 key (32 bytes) concatenated with the IV (16 bytes) — 48 bytes total, 64 base64 characters. It is used to **encrypt** the daily `metadata.bin` export (AES-256-CBC over the tagged+compressed protobuf stream). Consumers fetch it from `GET /key` to reverse the transform.
 
 Example generation (PowerShell):
+
 ```powershell
 $key = New-Object byte[] 32; $iv = New-Object byte[] 16
 [System.Security.Cryptography.RandomNumberGenerator]::Fill($key)
@@ -112,7 +114,7 @@ Generate UUIDs with `uuidgen` (or any UUID v4 generator). These UUIDs are the cr
 
 ## Step 6: Configure the Route (Optional Custom Domain)
 
-The route is already declared in [`wrangler.toml`](wrangler.toml):
+The route is already declared in [`wrangler.toml`](../../RensaioContributionDB.CF/wrangler.toml):
 
 ```toml
 routes = [
@@ -152,7 +154,7 @@ curl "https://contrib.rensaio.net/contributor?contributor=<contributor-uuid>"
 
 ### Validate Contributor
 
-```
+```http
 GET /contributor?contributor={UUID}
 ```
 
@@ -164,7 +166,7 @@ GET /contributor?contributor={UUID}
 
 ### Create Contributor (Admin Only, except first)
 
-```
+```http
 POST /contributor?admin={adminUUID}
 ```
 
@@ -187,7 +189,7 @@ POST /contributor?admin={adminUUID}
 
 ### Upload Contribution Batch
 
-```
+```http
 POST /upload?contributor={UUID}
 ```
 
@@ -229,6 +231,7 @@ POST /upload?contributor={UUID}
 | 404 | Contributor UUID not found |
 
 **Actions:** `add`, `remove`
+
 - `add` — **unconditional upsert** by identity key:
   - record missing → **insert**
   - record exists → **update** (values + ownership transfer to the caller)
@@ -240,9 +243,10 @@ POST /upload?contributor={UUID}
 
 Both require an active admin UUID via the `admin` query parameter:
 
-```
+```http
 POST /admin/clean?admin={adminUUID}
 ```
+
 Hard-deletes **all** rows from `sources`, `metadata` and `titles` (atomic batch). The `contributors` table is preserved so admin auth keeps working.
 
 ```json
@@ -257,9 +261,10 @@ Hard-deletes **all** rows from `sources`, `metadata` and `titles` (atomic batch)
 | 403 | Inactive or non-admin UUID |
 | 404 | Admin UUID not found |
 
-```
+```http
 POST /admin/export?admin={adminUUID}
 ```
+
 Runs the daily export pipeline on demand (scrub + archive orphan titles + push the three JSON files to GitHub).
 
 ```json
@@ -282,7 +287,7 @@ Runs the daily export pipeline on demand (scrub + archive orphan titles + push t
 
 ### Ban Contributor (Admin Only)
 
-```
+```http
 POST /admin/ban?admin={adminUUID}
 ```
 
@@ -318,19 +323,22 @@ The worker runs once per day at **06:00 UTC** (`[triggers] crons = ["0 6 * * *"]
 **Export format:** `contributor_id` is excluded. `sources.json` and `metadata.json` keep `title_id` as a compact reference to `titles.json` — `titles.json` is the single source of truth for title names (used by the server to dedup titles). Upload payloads still use `title` strings; the server resolves them to `title_id` on ingest.
 
 **Key names per file:**
+
 - `titles.json` → `{ id, title }`
 - `sources.json` → `{ title_id, id, data }`
 - `metadata.json` → `{ title_id, provider, provider_key, type }`
 
 **Source data obfuscation:** each source's `data` in `sources.json` is the result of:
-```
+
+```text
 BLOB (binary) → AES-256-CBC encrypt → base64
 ```
+
 Consumers fetch the key/IV from `GET /key` to reverse it: `base64 → AES-256-CBC decrypt → binary`.
 
 ### Get the Obfuscation Key
 
-```
+```http
 GET /key
 ```
 

@@ -37,7 +37,7 @@ public static class RpcExceptionUnwrapper
             RpcErrorKind.Canceled => envelope.ExceptionType == typeof(TaskCanceledException).FullName
                 ? new TaskCanceledException(humanMessage)
                 : new OperationCanceledException(humanMessage),
-            _ => new RemoteSourceException(envelope.ExceptionType, humanMessage),
+            _ => new RemoteSourceException(envelope.ExceptionType, humanMessage, envelope.Stack),
         };
     }
 }
@@ -49,14 +49,32 @@ public static class RpcExceptionUnwrapper
 /// </summary>
 public sealed class RemoteSourceException : Exception
 {
-    public RemoteSourceException(string? remoteTypeName, string message) : base(message)
-        => RemoteTypeName = remoteTypeName;
+    public RemoteSourceException(string? remoteTypeName, string message, string? remoteStack = null)
+        : base(message)
+    {
+        RemoteTypeName = remoteTypeName;
+        RemoteStack = remoteStack;
+    }
 
     /// <summary>Fully-qualified name of the original remote exception type.</summary>
     public string? RemoteTypeName { get; }
 
+    /// <summary>
+    /// Original exception <c>ToString()</c> (type + message + stack) captured on the RPC host,
+    /// where the extension actually ran. Null when the host did not supply it.
+    /// </summary>
+    public string? RemoteStack { get; }
+
     public override string ToString()
-        => string.IsNullOrWhiteSpace(RemoteTypeName)
+    {
+        // Prefer the host's own rendering: it preserves the TRUE origin stack. The local
+        // StackTrace of this reconstructed exception is useless (it is rebuilt at the gRPC
+        // boundary), so without this the log can only ever show the remote TYPE name.
+        if (!string.IsNullOrWhiteSpace(RemoteStack))
+            return RemoteStack;
+
+        return string.IsNullOrWhiteSpace(RemoteTypeName)
             ? base.ToString()
             : $"{RemoteTypeName}: {Message}";
+    }
 }

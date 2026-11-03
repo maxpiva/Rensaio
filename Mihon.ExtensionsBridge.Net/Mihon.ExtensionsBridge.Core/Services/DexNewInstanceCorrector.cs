@@ -1061,12 +1061,21 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     if (target == tin.desc || target == "java/lang/Object")
                         continue;
 
-                    // Legacy validated path: NEW java/lang/Object + ()V ctor rewrites directly.
+                    // Legacy path: NEW java/lang/Object + a no-arg ctor. Plan the FULL pass-through
+                    // chain to Object rather than synthesising only `target`'s ctor: when R8 also
+                    // stripped the intermediate superclasses' ()V ctors (e.g. `a extends c` where `c`
+                    // has no <init> at all), synthesising only `a.<init>` emitted
+                    // `a.<init> -> c.<init>()V` with no `c.<init>`, i.e. NoSuchMethodError: c.<init>()V.
                     if (tin.desc == "java/lang/Object" && min.desc == "()V")
                     {
+                        var objChain = PlanConstructorChain(byName, target, "()V", "java/lang/Object",
+                            assumeExternalSuperHasCtor: true);
+                        if (objChain == null)
+                            continue; // cannot prove a complete chain to a concrete ctor: leave untouched
                         claimed[k] = true;
                         min.owner = target;
-                        ctorNeeded.Add((target, "()V", null));
+                        foreach (var link in objChain)
+                            ctorNeeded.Add(link);
                         tin.desc = target;
                         n++;
                         break;
@@ -1127,26 +1136,27 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     return;
                 if (!byName.ContainsKey(expected))
                     return; // required type is not part of this JAR: cannot retype nor synthesise here
-                var news = new List<TypeInsnNode>();
+                // Strictly single-origin: the receiver/value must be produced by exactly one NEW. A
+                // SourceValue merged across branches carries several origins, and retyping those could
+                // rewrite a perfectly legal site; a single NEW consumed where a strict descendant is
+                // required is always illegal bytecode, so retyping it is provably safe.
+                TypeInsnNode? site = null;
                 foreach (var src in IterateInsns(sv.insns))
                 {
-                    if (src is TypeInsnNode t && t.getOpcode() == Opcodes.NEW)
-                        news.Add(t);
+                    if (src is TypeInsnNode t && t.getOpcode() == Opcodes.NEW && site == null)
+                        site = t;
                     else
-                        return; // any non-NEW contributor makes the site ambiguous
+                        return; // any non-NEW contributor, or a second NEW, makes the site ambiguous
                 }
-                foreach (var t in news)
-                {
-                    if (t.desc == expected)
-                        continue;
-                    // The required type must be a strict descendant of the emitted one; otherwise the
-                    // mismatch is not this shape and the site stays untouched.
-                    if (!IsAncestor(byName, expected, t.desc))
-                        continue;
-                    if (!required.TryGetValue(t, out var set))
-                        required[t] = set = new HashSet<string>(System.StringComparer.Ordinal);
-                    set.Add(expected);
-                }
+                if (site == null || site.desc == expected)
+                    return;
+                // The required type must be a strict descendant of the emitted one; otherwise the
+                // mismatch is not this shape and the site stays untouched.
+                if (!IsAncestor(byName, expected, site.desc))
+                    return;
+                if (!required.TryGetValue(site, out var set))
+                    required[site] = set = new HashSet<string>(System.StringComparer.Ordinal);
+                set.Add(expected);
             }
 
             for (int i = 0; i < insns.Length; i++)
@@ -1162,13 +1172,17 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     var f = (FieldInsnNode)insns[i];
                     if (op == Opcodes.PUTFIELD)
                     {
+                        // Stack layout for putfield is ..., objectref, value (value on top). Reading
+                        // these swapped retypes `NEW java/lang/Object` (the value) to the field's
+                        // OWNER type whenever the owner is a subclass of Object — which is every
+                        // typed object field and directly produced `NEW <abstract-owner>` here.
                         int valueSize = org.objectweb.asm.Type.getType(f.desc).getSize();
                         if (stack - 1 - valueSize < 0)
                             continue;
-                        // objectref must be assignable to the field's declaring class
-                        Require((SourceValue)fr.getStack(stack - 1), f.owner);
-                        // the stored value must be assignable to the field's descriptor
-                        Require((SourceValue)fr.getStack(stack - 1 - valueSize),
+                        // objectref (below the value) must be assignable to the field's declaring class
+                        Require((SourceValue)fr.getStack(stack - 1 - valueSize), f.owner);
+                        // the stored value (top of stack) must be assignable to the field's descriptor
+                        Require((SourceValue)fr.getStack(stack - 1),
                             InternalNameOf(org.objectweb.asm.Type.getType(f.desc)));
                     }
                     else
@@ -1181,7 +1195,12 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 {
                     var m = (MethodInsnNode)insns[i];
                     var args = org.objectweb.asm.Type.getArgumentTypes(m.desc);
-                    int argBase = stack - args.Length;
+                    // getStackSize() counts SLOTS, so category-2 args (long/double) occupy two; using
+                    // args.Length here would shift argBase and misread the receiver.
+                    int argSlots = 0;
+                    foreach (var a in args)
+                        argSlots += a.getSize();
+                    int argBase = stack - argSlots;
                     if (op != Opcodes.INVOKESTATIC)
                     {
                         if (argBase - 1 < 0)
@@ -1271,7 +1290,8 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// leaves the JAR before reaching <paramref name="provenOwner"/> (synthesis would be a guess).
         /// </summary>
         private static List<(string cls, string desc, string? superToCall)>? PlanConstructorChain(
-            Dictionary<string, ClassNode> byName, string target, string ctorDesc, string provenOwner)
+            Dictionary<string, ClassNode> byName, string target, string ctorDesc, string provenOwner,
+            bool assumeExternalSuperHasCtor = false)
         {
             var links = new List<(string cls, string desc, string? superToCall)>();
             string cur = target;
@@ -1280,7 +1300,14 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 if (cur == provenOwner)
                     return links;
                 if (!byName.TryGetValue(cur, out var node))
-                    return null; // left the JAR before reaching the proven ctor owner
+                {
+                    // Left the JAR. For the legacy NEW-Object path the direct super is frequently a
+                    // LIBRARY class (android/java) that genuinely has the no-arg ctor, and the last
+                    // planned link already calls it — so accept the boundary rather than dropping a
+                    // valid repair. Other paths must reach the proven owner inside the JAR, so a guess
+                    // there is still refused.
+                    return assumeExternalSuperHasCtor ? links : null;
+                }
                 if (HasConstructor(node, ctorDesc))
                     return links; // already constructible from here
                 string sup = node.superName ?? "java/lang/Object";

@@ -7,9 +7,16 @@ interface ConfigLogger {
 }
 
 internal object AndroidCompatLogBridgeProxy {
-    private const val BRIDGE_CLASS_NAME = "xyz.nulldev.androidcompat.logging.AndroidCompatLogBridge"
-    private const val FORWARDER_CLASS_NAME = "xyz.nulldev.androidcompat.logging.AndroidCompatLogForwarder"
-    private const val LEVEL_CLASS_NAME = "xyz.nulldev.androidcompat.logging.AndroidCompatLogLevel"
+    // These classes live in the AndroidCompat module under `extension.bridge.logging`. The constants
+    // previously named a package (`xyz.nulldev.androidcompat.logging`) that does not exist, so every
+    // reflective lookup silently returned null and ALL JVM-side log forwarding (including the
+    // renderThrowable that surfaces an ExceptionInInitializerError behind a
+    // `NoClassDefFoundError: Could not initialize class X`) was dropped to System.err. The names are
+    // host-internal (the logged classes ship in AndroidCompat, never inside extension plugin jars),
+    // so correcting them affects ALL extensions uniformly and no plugin bytecode depends on them.
+    private const val BRIDGE_CLASS_NAME = "extension.bridge.logging.AndroidCompatLogBridge"
+    private const val FORWARDER_CLASS_NAME = "extension.bridge.logging.AndroidCompatLogForwarder"
+    private const val LEVEL_CLASS_NAME = "extension.bridge.logging.AndroidCompatLogLevel"
 
     private val bridgeClass: Class<*>? = runCatching { Class.forName(BRIDGE_CLASS_NAME) }.getOrNull()
     private val forwarderClass: Class<*>? = runCatching { Class.forName(FORWARDER_CLASS_NAME) }.getOrNull()

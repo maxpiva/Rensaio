@@ -76,8 +76,18 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// verifier rejects it ("Unexpected type r1 where h1 was expected"). The new pass derives the
         /// required subtype from the consuming putfield/invoke/areturn and retypes the NEW, independent of
         /// the oracle's ordering.
+        /// Bumped to 1.5.4 for the putfield operand-order fix in the assignment-driven retype: the
+        /// objectref/value stack slots were read swapped, so a `putfield` whose field type is any
+        /// subclass of `java/lang/Object` retyped the stored `NEW java/lang/Object` to the field's
+        /// own (often ABSTRACT) owner type — producing `new <abstract>` and
+        /// `InstantiationError` (e.g. skymangas `a2`). Extensions converted with 1.5.3 are re-run.
+        /// Bumped to 1.5.5 for the transitive stripped-ctor synthesis: the legacy `NEW Object` path
+        /// synthesised only the requested class's ctor, so `a extends c` (with `c`'s ctor also
+        /// R8-stripped) emitted `a.<init> -> c.<init>()V` with no `c.<init>` —
+        /// `NoSuchMethodError: c.<init>()V` at `a.<clinit>`. It now plans the full pass-through
+        /// chain to `Object`, matching the general path. Extensions converted with 1.5.4 are re-run.
         /// </remarks>
-        public const string Version = "1.5.3";
+        public const string Version = "1.5.5";
 
         /// <summary>
         /// Classpath prefix used to redirect certain Android framework classes to compatibility replacements.

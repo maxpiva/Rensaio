@@ -1,4 +1,5 @@
 using Grpc.Core;
+using Microsoft.Extensions.Logging;
 using Mihon.ExtensionsBridge.Models.Abstractions;
 using Mihon.ExtensionsBridge.Models.Extensions;
 using Rensaio.RPC.Contracts;
@@ -21,17 +22,20 @@ public sealed class CatalogGrpcService : CatalogService.CatalogServiceBase
     private readonly SourceCallRunner _runner;
     private readonly RpcStartupToken _token;
     private readonly RpcReadiness _readiness;
+    private readonly ILogger<CatalogGrpcService> _logger;
 
     public CatalogGrpcService(
         SourceResolver resolver,
         SourceCallRunner runner,
         RpcStartupToken token,
-        RpcReadiness readiness)
+        RpcReadiness readiness,
+        ILogger<CatalogGrpcService> logger)
     {
         _resolver = resolver;
         _runner = runner;
         _token = token;
         _readiness = readiness;
+        _logger = logger;
     }
 
     public override async Task<JsonResult> GetDetails(SourceMangaRequest request, ServerCallContext context)
@@ -196,7 +200,7 @@ public sealed class CatalogGrpcService : CatalogService.CatalogServiceBase
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Mihon.ExtensionsBridge.Models;
@@ -56,7 +57,12 @@ public sealed class RpcSourceInterop : ISourceInterop
         }
         catch (Exception ex)
         {
-            throw RpcExceptionUnwrapper.Unwrap(ex);
+            // `throw <expr>` resets the stack trace to THIS line, which is why the original
+            // origin was invisible. Rethrow via ExceptionDispatchInfo so whatever trace the
+            // unwrapped exception carries (and the reconstructed RemoteSourceException's
+            // RemoteStack) is preserved rather than replaced by the guard frame.
+            ExceptionDispatchInfo.Capture(RpcExceptionUnwrapper.Unwrap(ex)).Throw();
+            throw; // unreachable; satisfies the compiler's definite-assignment analysis
         }
     }
 
@@ -68,7 +74,8 @@ public sealed class RpcSourceInterop : ISourceInterop
         }
         catch (Exception ex)
         {
-            throw RpcExceptionUnwrapper.Unwrap(ex);
+            ExceptionDispatchInfo.Capture(RpcExceptionUnwrapper.Unwrap(ex)).Throw();
+            throw; // unreachable
         }
     }
 
@@ -80,7 +87,7 @@ public sealed class RpcSourceInterop : ISourceInterop
         }
         catch (Exception ex)
         {
-            throw RpcExceptionUnwrapper.Unwrap(ex);
+            ExceptionDispatchInfo.Capture(RpcExceptionUnwrapper.Unwrap(ex)).Throw();
         }
     }
 
@@ -174,8 +181,10 @@ public sealed class RpcSourceInterop : ISourceInterop
         catch (Exception ex)
         {
             // Streaming failures (including the terminal status raised mid-stream) arrive as a
-            // bare RpcException; restore the original category for the caller.
-            throw RpcExceptionUnwrapper.Unwrap(ex);
+            // bare RpcException; restore the original category for the caller. Rethrow via
+            // ExceptionDispatchInfo so the reconstructed exception's own origin is preserved.
+            ExceptionDispatchInfo.Capture(RpcExceptionUnwrapper.Unwrap(ex)).Throw();
+            throw; // unreachable
         }
     }
 

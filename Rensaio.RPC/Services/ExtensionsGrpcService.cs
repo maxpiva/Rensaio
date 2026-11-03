@@ -54,7 +54,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -71,7 +71,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -96,7 +96,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -132,7 +132,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -164,7 +164,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -192,7 +192,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -227,7 +227,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -272,7 +272,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -289,7 +289,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 
@@ -320,7 +320,7 @@ public sealed class ExtensionsGrpcService : ExtensionsService.ExtensionsServiceB
         }
         catch (Exception ex)
         {
-            throw GrpcGuard.Map(ex);
+            throw GrpcGuard.Map(ex, _logger);
         }
     }
 

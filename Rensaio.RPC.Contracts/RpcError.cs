@@ -46,6 +46,16 @@ public sealed class RpcErrorEnvelope
     /// <summary>Original exception message.</summary>
     [JsonPropertyName("m")]
     public string? Message { get; set; }
+
+    /// <summary>
+    /// Original exception <c>ToString()</c> (type + message + stack trace) captured where the
+    /// extension actually ran. gRPC carries no CLR exception identity, so without this the backend
+    /// only ever sees the remote TYPE name and the stack is unrecoverable — which is exactly what
+    /// turned a real host-side failure into a bare "System.InvalidOperationException" with no
+    /// origin. Optional: older hosts omit it and the field stays null.
+    /// </summary>
+    [JsonPropertyName("st")]
+    public string? Stack { get; set; }
 }
 
 /// <summary>

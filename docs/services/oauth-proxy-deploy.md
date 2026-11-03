@@ -1,6 +1,6 @@
-# Hosting Guide: Rensaio OAuth Proxy on Cloudflare
+# OAuth proxy deployment
 
-This guide walks through deploying the [`RensaioOAuthProxy.CF`](RensaioOAuthProxy.CF/) Cloudflare Worker from scratch.
+This guide walks through deploying the [`RensaioOAuthProxy.CF`](../../RensaioOAuthProxy.CF/) Cloudflare Worker from scratch.
 
 ---
 
@@ -36,8 +36,9 @@ This grants Wrangler (the Cloudflare CLI) permission to deploy workers and manag
 npx wrangler d1 create rensaio-oauth-proxy
 ```
 
-**Output:**
-```
+Output:
+
+```text
 ✅ Successfully created DB 'rensaio-oauth-proxy' in region WEUR
 
 [[d1_databases]]
@@ -46,7 +47,7 @@ database_name = "rensaio-oauth-proxy"
 database_id = "your-database-id-here"
 ```
 
-Copy the `database_id` value and paste it into [`wrangler.toml`](RensaioOAuthProxy.CF/wrangler.toml):
+Copy the `database_id` value and paste it into [`wrangler.toml`](../../RensaioOAuthProxy.CF/wrangler.toml):
 
 ```toml
 [[d1_databases]]
@@ -63,7 +64,7 @@ database_id = "your-database-id-here"   # ← paste here
 npx wrangler d1 migrations apply rensaio-oauth-proxy
 ```
 
-This runs [`migrations/0001_create_sessions.sql`](RensaioOAuthProxy.CF/migrations/0001_create_sessions.sql) which creates the `oauth_sessions` table:
+This runs [`migrations/0001_create_sessions.sql`](../../RensaioOAuthProxy.CF/migrations/0001_create_sessions.sql) which creates the `oauth_sessions` table:
 
 ```sql
 CREATE TABLE oauth_sessions (
@@ -83,7 +84,7 @@ CREATE TABLE oauth_sessions (
 
 ### Client IDs (public — set in wrangler.toml)
 
-Edit [`wrangler.toml`](RensaioOAuthProxy.CF/wrangler.toml) and fill in your client IDs:
+Edit [`wrangler.toml`](../../RensaioOAuthProxy.CF/wrangler.toml) and fill in your client IDs:
 
 ```toml
 [vars]
@@ -101,9 +102,16 @@ npx wrangler secret put PROXY_ANILIST_CLIENT_SECRET
 
 npx wrangler secret put PROXY_MYANIMELIST_CLIENT_SECRET
 # Paste your MAL client secret, press Enter
+
+npx wrangler secret put PROXY_KITSU_CLIENT_SECRET
+# Paste your Kitsu client secret, press Enter
+
+npx wrangler secret put PROXY_MANGADEX_CLIENT_SECRET
+# Paste your MangaDex client secret, press Enter
 ```
 
 > **AniList dual-flow note:** AniList can run either:
+>
 > - **Authorization Code Grant** — set `PROXY_ANILIST_CLIENT_SECRET`. The proxy
 >   exchanges the code server-side and refresh tokens work (silent renewal).
 > - **Implicit Grant** (default when the secret is NOT set) — public client flow.
@@ -114,13 +122,6 @@ npx wrangler secret put PROXY_MYANIMELIST_CLIENT_SECRET
 > To force a specific flow regardless of secret presence, set a var:
 > `PROXY_ANILIST_FLOW = "code"` or `PROXY_ANILIST_FLOW = "implicit"`.
 
-npx wrangler secret put PROXY_KITSU_CLIENT_SECRET
-# Paste your Kitsu client secret, press Enter
-
-npx wrangler secret put PROXY_MANGADEX_CLIENT_SECRET
-# Paste your MangaDex client secret, press Enter
-```
-
 Secrets are encrypted at rest and injected as environment variables at runtime. They are never visible in `wrangler.toml` or your source code.
 
 ---
@@ -130,7 +131,7 @@ Secrets are encrypted at rest and injected as environment variables at runtime. 
 If you have a domain (e.g., `auth.rensaio.net`) pointed to Cloudflare:
 
 1. Add the domain to your Cloudflare account (DNS tab)
-2. Update [`wrangler.toml`](RensaioOAuthProxy.CF/wrangler.toml) with your zone ID:
+2. Update [`wrangler.toml`](../../RensaioOAuthProxy.CF/wrangler.toml) with your zone ID:
 
 ```toml
 routes = [
@@ -150,8 +151,9 @@ To find your zone ID: Cloudflare Dashboard → your domain → Overview → Zone
 npx wrangler deploy
 ```
 
-**Output:**
-```
+Output:
+
+```text
 Total Upload: 5.23 KiB / gzip: 1.87 KiB
 Uploaded rensaio-oauth-proxy (2.21 sec)
 Published rensaio-oauth-proxy (0.33 sec)
@@ -180,7 +182,7 @@ curl -X POST https://oauth.rensaio.net/api/oauth/unknown/url
 
 ## Step 8: Configure Rensaio Backend
 
-In your Rensaio instance's [`appsettings.json`](RensaioBackend/appsettings.json), point the [`ProxyScrobblerProvider`](RensaioBackend/Services/Scrobbling/Providers/ProxyScrobblerProvider.cs) to your new worker:
+In your Rensaio instance's [`appsettings.json`](../../RensaioBackend/appsettings.json), point the [`ProxyScrobblerProvider`](../../RensaioBackend/Services/Scrobbling/Providers/ProxyScrobblerProvider.cs) to your new worker:
 
 ```json
 "Scrobbling": {
@@ -191,7 +193,7 @@ In your Rensaio instance's [`appsettings.json`](RensaioBackend/appsettings.json)
 }
 ```
 
-No other changes needed — the API contract is identical to the ASP.NET Core version.
+No other changes needed — the API contract is identical to the ASP.NET Core version of the proxy in [`RensaioOAuthProxy/`](../../RensaioOAuthProxy/).
 
 ---
 

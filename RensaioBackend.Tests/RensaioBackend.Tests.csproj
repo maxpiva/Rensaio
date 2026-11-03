@@ -15,7 +15,9 @@
   </ItemGroup>
   <ItemGroup>
     <!-- RensaioBackend cannot be built on its own (embedded wwwroot.zip, IKVM bridge), so the dependency-free
-         helper is compiled straight into the test assembly instead of referencing the project. -->
-    <Compile Include="..\RensaioBackend\Services\Import\ImportLanguageHints.cs" Link="ImportLanguageHints.cs" />
+         OPDS helper is compiled straight into the test assembly instead of referencing the project. -->
+    <Compile Include="..\RensaioBackend\Services\Opds\OpdsLinks.cs" Link="OpdsLinks.cs" />
+    <!-- Copied next to the test assembly so a guard test can check that no feed code bypasses the helper. -->
+    <None Include="..\RensaioBackend\Services\Opds\OpdsFeedService.cs" Link="OpdsFeedService.cs.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

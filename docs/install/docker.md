@@ -35,6 +35,7 @@ It is recommended to use **host networking** for optimal performance when downlo
 docker run -d \
   --name Rensaio \
   --network host \
+  --memory=4g \
   -e PUID=99 \
   -e PGID=100 \
   -e UMASK=022 \

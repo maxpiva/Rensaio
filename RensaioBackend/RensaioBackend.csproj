@@ -9,7 +9,7 @@
     <DockerfileContext>.</DockerfileContext>
     <!-- Workstation GC: one heap, small allocation budgets, memory handed back promptly.
          Server GC allocates one heap per core, so on a 32-core NAS it can hold 10+ GB of
-         garbage before collecting. Override at runtime with DOTNET_gcServer=1 if needed.
+         garbage before collecting.
          Extra GC tuning lives in runtimeconfig.template.json. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>

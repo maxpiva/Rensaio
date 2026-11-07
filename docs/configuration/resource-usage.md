@@ -15,7 +15,7 @@ Always give the container a memory limit. The GC reads the cgroup limit and keep
 | Unraid | Container settings → **Extra Parameters**: `--memory=4g` |
 | Kubernetes | `resources.limits.memory` (the Helm chart sets `2Gi`) |
 
-4 GB is plenty for large libraries. Raise it if the log shows `Out of memory` or the container keeps restarting. Advanced overrides through environment variables: `DOTNET_gcServer=1` switches back to server GC, and `DOTNET_GCHeapHardLimit=0x100000000` caps the managed heap at 4 GB regardless of the container limit.
+4 GB is plenty for large libraries. Raise it if the log shows `Out of memory` or the container keeps restarting. Advanced override: the environment variable `DOTNET_GCHeapHardLimit=0x100000000` caps the managed heap at 4 GB regardless of the container limit.
 
 ## WebView/CEF renderer processes (`jcef_helper`)
 

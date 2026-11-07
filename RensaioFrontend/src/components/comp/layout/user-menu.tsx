@@ -34,20 +34,59 @@ import { EditUserDialog } from "@/components/comp/users/user-dialog";
 import { UserTrackerRequester } from "@/components/comp/scrobbler/user-tracker-requester";
 import { ExternalLinks } from "@/components/comp/layout/external-links";
 import { UserLevel } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 
-const LEVEL_LABEL: Record<UserLevel, string> = {
+export const LEVEL_LABEL: Record<UserLevel, string> = {
   [UserLevel.User]: "User",
   [UserLevel.Manager]: "Manager",
   [UserLevel.Admin]: "Admin",
   [UserLevel.Owner]: "Owner",
 };
 
-const LEVEL_BADGE: Record<UserLevel, string> = {
-  [UserLevel.User]: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
-  [UserLevel.Manager]: "bg-purple-500/15 text-purple-600 dark:text-purple-300",
-  [UserLevel.Admin]: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-  [UserLevel.Owner]: "bg-primary/15 text-primary",
+export const LEVEL_BADGE: Record<UserLevel, string> = {
+  [UserLevel.User]: "bg-info-soft text-info",
+  [UserLevel.Manager]: "bg-ok-soft text-ok",
+  [UserLevel.Admin]: "bg-warn-soft text-warn",
+  [UserLevel.Owner]: "bg-accent-soft text-accent-ink",
 };
+
+/**
+ * Round avatar: the user's uploaded image, or initials on the Paper
+ * amber→crimson gradient. Presentational only (no menu).
+ */
+export function UserAvatar({
+  username,
+  avatarBase64,
+  avatarContentType,
+  className,
+}: {
+  username?: string | null;
+  avatarBase64?: string | null;
+  avatarContentType?: string | null;
+  /** Size + text size, e.g. "h-10 w-10 text-[13px]". Default 30px. */
+  className?: string;
+}) {
+  const initials = (username ?? "?").slice(0, 2).toUpperCase();
+  return (
+    <span
+      className={cn(
+        "grid h-[30px] w-[30px] shrink-0 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#d97706,#be123c)] text-[11px] font-bold tracking-[0.02em] text-white",
+        className,
+      )}
+    >
+      {avatarBase64 ? (
+        // eslint-disable-next-line @next/next/no-img-element -- data: URI not supported by next/image
+        <img
+          src={`data:${avatarContentType ?? "image/png"};base64,${avatarBase64}`}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}
 
 const THEME_CYCLE = ["light", "dark", "system"] as const;
 
@@ -103,25 +142,20 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
     setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]!);
   };
 
-  const sz = size === "sm" ? "h-7 w-7" : "h-8 w-8";
+  const sz = size === "sm" ? "h-7 w-7 text-[10px]" : "h-[30px] w-[30px] text-[11px]";
 
   if (!user) {
     return (
       <div
-        className={`${sz} rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0`}
+        className={`${sz} rounded-full border border-rule-2 bg-paper-2 flex items-center justify-center shrink-0`}
       >
-        <span className="text-[10px] font-semibold text-primary">?</span>
+        <span className="text-[10px] font-semibold text-ink-3">?</span>
       </div>
     );
   }
 
-  const initials = user.username.slice(0, 2).toUpperCase();
-
-  const avatarSrc = user.avatarBase64
-    ? `data:${user.avatarContentType ?? "image/png"};base64,${user.avatarBase64}`
-    : null;
-  const textSz = size === "sm" ? "text-[10px]" : "text-xs";
-
+  // `||` on purpose: an empty externalDomain falls back too.
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   const externalDomain = settings?.externalDomain || "http://localhost:9833";
   const fullOpdsUrl = `${externalDomain}/${user.opdsPath}`;
 
@@ -139,36 +173,29 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {/* 36px hit area on desktop, 44px on phone; the avatar stays 28-30px. */}
           <button
-            className={`${sz} rounded-full overflow-hidden bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 hover:bg-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer`}
+            className="group flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background max-lg:h-11 max-lg:w-11"
             aria-label="User menu"
           >
-            {avatarSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element -- data: URI not supported by next/image
-              <img
-                src={avatarSrc}
-                alt={user.username}
-                width={size === "sm" ? 28 : 32}
-                height={size === "sm" ? 28 : 32}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className={`${textSz} font-semibold text-primary`}>
-                {initials}
-              </span>
-            )}
+            <UserAvatar
+              username={user.username}
+              avatarBase64={user.avatarBase64}
+              avatarContentType={user.avatarContentType}
+              className={`${sz} ring-1 ring-rule transition-[box-shadow] group-hover:ring-2 group-hover:ring-rule-2 group-data-[state=open]:ring-2 group-data-[state=open]:ring-accent-line`}
+            />
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuContent align="end" className="w-64">
           {/* User info — username left, role badge inline on the right */}
-          <div className="px-3 py-2 border-b border-border mb-1">
+          <div className="mb-1 border-b border-rule px-2.5 pb-2.5 pt-1.5">
             <div className="flex items-center justify-between gap-2">
-              <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+              <p className="min-w-0 flex-1 truncate font-serif text-[17px] leading-tight text-ink">
                 {user.username}
               </p>
               <span
-                className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                className={`shrink-0 inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11px] font-semibold ${
                   LEVEL_BADGE[user.level] ?? LEVEL_BADGE[UserLevel.User]
                 }`}
               >
@@ -179,10 +206,10 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
           </div>
 
           {/* OPDS path — info row with copy-to-clipboard of the full URL */}
-          <div className="flex items-center gap-2 px-3 py-1.5">
-            <Route className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-2 px-2.5 py-1">
+            <Route className="h-4 w-4 shrink-0 text-ink-3" />
             <span
-              className="flex-1 truncate font-mono text-xs text-muted-foreground"
+              className="flex-1 truncate font-mono text-[11.5px] text-ink-2"
               title={fullOpdsUrl}
             >
               {user.opdsPath}
@@ -191,10 +218,11 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
               type="button"
               onClick={handleCopyOpds}
               title="Copy OPDS URL"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+              aria-label={copied ? "OPDS URL copied" : "Copy OPDS URL"}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-ink-3 hover:bg-hover hover:text-ink transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-11 max-sm:w-11"
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-green-500" />
+                <Check className="h-3.5 w-3.5 text-ok" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -322,7 +350,7 @@ export function UserAvatarDropdown({ size = "md" }: { size?: "sm" | "md" }) {
         onOpenChange={(open) => {
           setIsEditOpen(open);
           // Refresh auth context so an updated avatar shows immediately.
-          if (!open) refreshAuth();
+          if (!open) void refreshAuth();
         }}
       />
 

@@ -1,58 +1,58 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, Monitor, Moon, Search, Sun, X } from "lucide-react";
+import { Monitor, Moon, Search, Sun, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import Image from "next/image";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { SectionList, SectionPills } from "@/components/comp/layout/section-pills";
-import { UserAvatarDropdown } from "@/components/comp/layout/user-menu";
+import { Brand } from "@/components/comp/layout/brand";
 import { DownloadStatus } from "@/components/comp/layout/download-status";
-import { ExternalLinks } from "@/components/comp/layout/external-links";
+import { useRibbonMount } from "@/components/comp/layout/ribbon";
+import {
+  useIsSectionActive,
+  useManageSections,
+  useSections,
+} from "@/components/comp/layout/section-pills";
+import { UserAvatarDropdown } from "@/components/comp/layout/user-menu";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useRibbonMount } from "@/components/comp/layout/ribbon";
 import { useSearch } from "@/contexts/search-context";
+import { cn } from "@/lib/utils";
 
 /**
- * Command Bar.
+ * Command Bar — the top of the content column.
  *
- * Replaces the old vertical sidebar + horizontal header pair with a single
- * sticky 56px top bar plus a 48px contextual ribbon below it that pages fill
- * via <RibbonSlot>. The bar holds:
+ * Desktop (≥1024px, sidebar visible), 58px:
+ *   [ Rensaiō / Library ]        [ ⌕ Filter series…  ⌘K ] [▾3 ⏸7 ✕2] [◐] [SV]
  *
- *   [ Logo ] [ Section pills · Library Browse Queue Sources Requests Settings ]
- *                                                      [ Search ] [ Theme ] [ User ]
+ * Phone / tablet (<1024px), 52px with a double rule:
+ *   [連 Rensaiō]                                         [⌕] [SV]
+ *   The search button expands a full-width filter input over the bar.
  *
- * On narrow viewports the section pills move into a Sheet drawer behind a
- * hamburger, and the search collapses to an icon that expands inline.
+ * Below either bar sits the contextual ribbon that pages fill via
+ * <RibbonSlot>. ⌘K / Ctrl+K focuses the page filter (it filters the current
+ * page through SearchContext; it is not a global palette).
  */
-export function CommandBar() {
+export function CommandBar({ seriesTitle }: { seriesTitle?: string } = {}) {
   const { searchTerm, setSearchTerm, currentPage, isSearchDisabled } =
     useSearch();
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
   const { setTarget: setRibbonTarget, active: ribbonActive } = useRibbonMount();
 
-  // Close mobile sheet when route changes.
+  // Collapse the phone search when the route changes.
   useEffect(() => {
-    setSheetOpen(false);
+    setMobileSearchOpen(false);
   }, [pathname]);
 
-  // Cmd/Ctrl+K focuses the search input. Matches the convention pages
-  // throughout the redesign use to signal a global search.
+  // Cmd/Ctrl+K focuses the search input.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -70,218 +70,104 @@ export function CommandBar() {
     return () => window.removeEventListener("keydown", handler);
   }, [isSearchDisabled]);
 
-  // Auto-focus when the mobile search expands.
+  // Auto-focus when the phone search expands.
   useEffect(() => {
     if (mobileSearchOpen) {
       mobileInputRef.current?.focus();
     }
   }, [mobileSearchOpen]);
 
-  // Swipe-from-left to open the nav drawer on mobile — preserved from the old
-  // header so the existing muscle memory still works.
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-
-  const handleTouchStart = useCallback((e: TouchEvent) => {
-    const t = e.touches[0];
-    if (!t) return;
-    if (t.clientX <= 24) {
-      touchStartXRef.current = t.clientX;
-      touchStartYRef.current = t.clientY;
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) {
-      return;
-    }
-    const t = e.touches[0];
-    if (!t) return;
-    const dx = t.clientX - touchStartXRef.current;
-    const dy = Math.abs(t.clientY - touchStartYRef.current);
-    if (dx > 40 && dy < dx * 0.8) {
-      setSheetOpen(true);
-      touchStartXRef.current = null;
-      touchStartYRef.current = null;
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    const el = window;
-    el.addEventListener("touchstart", handleTouchStart, { passive: true });
-    el.addEventListener("touchmove", handleTouchMove, { passive: true });
-    el.addEventListener("touchend", handleTouchEnd, { passive: true });
-    return () => {
-      el.removeEventListener("touchstart", handleTouchStart);
-      el.removeEventListener("touchmove", handleTouchMove);
-      el.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
-
   const placeholder = getSearchPlaceholder(currentPage);
 
   return (
     <div
-      className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-xl backdrop-saturate-150"
+      className="relative z-30 shrink-0 bg-paper/90 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-paper/80"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
-      {/* ─── Primary bar (56px) ─────────────────────────────────────── */}
-      <div className="relative flex h-14 items-center gap-3 px-3 lg:px-5">
-        {/* Mobile: hamburger → sheet drawer with section list */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="lg:hidden h-9 w-9 shrink-0"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side="left"
-            className="w-72 p-0 overflow-auto"
-            aria-describedby={undefined}
-            style={{
-              paddingTop: "env(safe-area-inset-top, 0px)",
-              paddingBottom: "env(safe-area-inset-bottom, 0px)",
-            }}
-          >
-            <div className="flex items-center gap-2 px-4 py-3 border-b">
-              <Image
-                src="/rensaio.png"
-                alt="Rensaiō"
-                width={24}
-                height={24}
-                className="h-6 w-6 object-contain"
-              />
-              <span className="text-sm font-semibold">Rensaiō</span>
-            </div>
-            <SectionList onNavigate={() => setSheetOpen(false)} />
+      {/* ─── Desktop top bar (58px) ─────────────────────────────────── */}
+      <div className="hidden h-[58px] items-center gap-3 border-b border-rule pl-8 pr-6 lg:flex">
+        <Crumb seriesTitle={seriesTitle} />
 
-            {/* Drawer footer — download status + project links, restored from
-                the old sidebar bottom group. */}
-            <div className="mt-2 space-y-3 border-t px-3 pt-3">
-              <DownloadStatus variant="drawer" />
-              <ExternalLinks />
-            </div>
-          </SheetContent>
-        </Sheet>
-
-        {/* Logo (always visible). Wordmark hidden when mobile search expands. */}
-        <Link
-          href="/library"
-          className="flex items-center gap-2 shrink-0"
-          aria-label="Rensaiō home"
-        >
-          <Image
-            src="/rensaio.png"
-            alt=""
-            width={28}
-            height={28}
-            priority
-            className="h-7 w-7 object-contain"
-          />
-          <AnimatePresence>
-            {!mobileSearchOpen && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.15 }}
-                className="hidden md:inline text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden"
-              >
-                Rensaiō
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </Link>
-
-        {/* Desktop section pills — absolutely centered in the bar so they sit in
-            the visual center regardless of logo / right-cluster widths. Capped at
-            60vw so a long section list can't overlap the logo or right cluster. */}
-        <div className="hidden lg:flex absolute left-1/2 -translate-x-1/2 pointer-events-none max-w-[60vw]">
-          <div className="pointer-events-auto min-w-0">
-            <SectionPills />
-          </div>
-        </div>
-
-        {/* Spacer — pushes search/avatar/theme cluster to the right edge. The
-            desktop section pills are absolutely centered above this row, so we
-            need a normal flex spacer at every breakpoint. */}
-        <div className="flex-1" />
-
-        {/* Desktop search input */}
         {!isSearchDisabled && (
-          <div className="hidden lg:flex relative items-center shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
+          <label className="group relative ml-auto flex h-9 w-[min(360px,36%)] min-w-[220px] cursor-text items-center gap-2 rounded-md border border-rule-2 bg-paper-1 pl-3 pr-2 text-ink-3 transition-[border-color,box-shadow] hover:border-ink-3 focus-within:border-primary focus-within:ring-[3px] focus-within:ring-accent-soft">
+            <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="sr-only">{placeholder}</span>
+            <input
               ref={desktopInputRef}
               type="search"
               placeholder={placeholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isSearchDisabled}
-              className="w-56 xl:w-72 pl-9 pr-16 h-9 bg-muted/50 border-border/60 focus:bg-background transition-colors [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
             />
             {searchTerm ? (
               <button
+                type="button"
                 onClick={() => setSearchTerm("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                className="flex h-6 w-6 items-center justify-center rounded text-ink-3 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             ) : (
-              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none hidden xl:inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <kbd className="pointer-events-none rounded-[3px] border border-b-2 border-rule-2 bg-paper px-[5px] py-0.5 font-mono text-[10.5px] font-medium leading-none text-ink-3">
                 ⌘K
               </kbd>
             )}
-          </div>
+          </label>
         )}
 
-        {/* Mobile search expand */}
-        <div className="lg:hidden flex items-center gap-1 shrink-0">
-          <AnimatePresence>
-            {mobileSearchOpen && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="relative flex items-center">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <input
-                    ref={mobileInputRef}
-                    type="search"
-                    placeholder={placeholder}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    disabled={isSearchDisabled}
-                    className="w-44 pl-8 pr-2 h-9 rounded-lg bg-muted/70 border border-border/60 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:bg-background transition-all [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className={cn("flex shrink-0 items-center gap-2", isSearchDisabled && "ml-auto")}>
+          <DownloadStatus variant="bar" />
+          <ThemeToggleButton />
+          <UserAvatarDropdown size="md" />
+        </div>
+      </div>
 
+      {/* ─── Phone / tablet top bar (52px) ──────────────────────────── */}
+      <div className="relative flex h-[52px] items-center gap-2.5 border-b-[3px] border-double border-rule-2 pl-4 pr-2.5 lg:hidden">
+        <Brand compact className={cn(mobileSearchOpen && "invisible")} />
+
+        <AnimatePresence>
+          {mobileSearchOpen && !isSearchDisabled && (
+            <motion.div
+              key="msearch"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+              className="absolute inset-y-0 left-3 right-[100px] flex items-center"
+            >
+              <label className="relative flex h-10 w-full items-center gap-2 rounded-md border border-rule-2 bg-paper-1 pl-3 pr-2 text-ink-3 focus-within:border-primary focus-within:ring-[3px] focus-within:ring-accent-soft">
+                <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="sr-only">{placeholder}</span>
+                <input
+                  ref={mobileInputRef}
+                  type="search"
+                  placeholder={placeholder}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  disabled={isSearchDisabled}
+                  className="h-full min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
+                />
+              </label>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {!isSearchDisabled && (
             <Button
               size="icon"
               variant="ghost"
-              className="h-9 w-9 shrink-0"
+              className="h-11 w-11 rounded-lg text-ink-2"
               onClick={() => {
                 if (mobileSearchOpen && searchTerm) setSearchTerm("");
                 setMobileSearchOpen((v) => !v);
               }}
               aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+              aria-expanded={mobileSearchOpen}
             >
               {mobileSearchOpen ? (
                 <X className="h-5 w-5" />
@@ -290,44 +176,53 @@ export function CommandBar() {
               )}
             </Button>
           )}
-        </div>
-
-        {/* Download status badges (desktop) — active / queued / failed counts,
-            restored from the old sidebar. Links to the queue. */}
-        <div className="hidden lg:flex items-center shrink-0">
-          <DownloadStatus variant="bar" />
-        </div>
-
-        {/* Theme toggle (desktop) */}
-        <div className="hidden lg:flex items-center shrink-0">
-          <ThemeToggleButton />
-        </div>
-
-        {/* User avatar */}
-        <div className="flex items-center shrink-0">
           <UserAvatarDropdown size="md" />
         </div>
       </div>
 
       {/* ─── Contextual ribbon (48px when a page has filled it) ──────── */}
       {/*
-        We always render the portal target so RibbonSlot has somewhere to
-        portal into immediately on mount — `display:none` keeps it
-        invisible until a page registers a slot, so the layout doesn't
-        reserve space on routes that don't use the ribbon.
+        The portal target is always rendered so RibbonSlot has somewhere to
+        portal into immediately on mount; it stays hidden until a page
+        registers a slot, so routes without a ribbon don't reserve space.
       */}
-      <div
-        className={
-          ribbonActive
-            ? "border-t border-border/60 bg-background/60"
-            : "hidden"
-        }
-      >
+      <div className={ribbonActive ? "border-b border-rule" : "hidden"}>
         <div
           ref={setRibbonTarget}
-          className="flex h-12 items-center gap-2 px-3 lg:px-5 overflow-x-auto scrollbar-hide"
+          className="flex h-12 items-center gap-2 overflow-x-auto px-3 scrollbar-hide lg:px-8"
         />
       </div>
+    </div>
+  );
+}
+
+/* ─── Crumb ────────────────────────────────────────────────────────────── */
+
+function Crumb({ seriesTitle }: { seriesTitle?: string }) {
+  const sections = useSections();
+  const manage = useManageSections();
+  const isActive = useIsSectionActive();
+  const current = [...sections, ...manage].find((s) => isActive(s.href));
+
+  return (
+    <div className="flex min-w-0 items-center gap-[7px] whitespace-nowrap text-[13px] text-ink-3">
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em]">
+        Rensaiō
+      </span>
+      {current ? (
+        <>
+          <span aria-hidden="true" className="text-rule-2">/</span>
+          <span className={seriesTitle ? "text-ink-3" : "truncate font-semibold text-ink"}>
+            {current.name}
+          </span>
+        </>
+      ) : null}
+      {seriesTitle ? (
+        <>
+          <span aria-hidden="true" className="text-rule-2">/</span>
+          <span className="truncate font-semibold text-ink">{seriesTitle}</span>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -343,8 +238,7 @@ function ThemeToggleButton() {
   }, []);
 
   if (!mounted) {
-    // Render a placeholder of the same size so the bar doesn't jiggle once the
-    // hook hydrates.
+    // Same-size placeholder so the bar doesn't jiggle once the hook hydrates.
     return <div className="h-9 w-9" />;
   }
 

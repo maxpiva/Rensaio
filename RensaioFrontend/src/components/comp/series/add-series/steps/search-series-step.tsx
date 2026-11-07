@@ -46,6 +46,8 @@ export function SearchSeriesStep({
   const [selectedSources, setSelectedSources] = React.useState<string[]>([]);
   // Debounce the selected sources to prevent too frequent searches when changing sources
   const [debouncedSelectedSources] = useDebounce(selectedSources, 3000);
+  // The selection made once on load, used before the debounce first catches up.
+  const [initialSelectedSources, setInitialSelectedSources] = React.useState<string[]>([]);
 
   // Key for localStorage - make it unique for different modes
   const LOCAL_STORAGE_KEY = existingSources && existingSources.length > 0
@@ -91,6 +93,7 @@ export function SearchSeriesStep({
       // Determine what sources to select
       const sourcesToSelect = restoredSources.length > 0 ? restoredSources : currentSourceIds;// Update state
       setSelectedSources(sourcesToSelect);
+      setInitialSelectedSources(sourcesToSelect);
       state.isInitialized = true;
       state.lastAvailableSourceIds = currentSourceIds;
       state.hasRestoredFromStorage = restoredSources.length > 0;return;
@@ -118,9 +121,14 @@ export function SearchSeriesStep({
   // When user does NOT have CanBrowseSources: search all sources (don't pass searchSources, backend defaults to all)
   // The 3s debounce is only for the user changing sources. The initial
   // selection (restored or "all") arrives right after mount, and waiting 3s
-  // for it left the first search idle and showing "No results found".
-  const effectiveSelectedSources =
-    debouncedSelectedSources.length > 0 ? debouncedSelectedSources : selectedSources;
+  // for it left the first search idle and showing "No results found". Use
+  // that first selection until the debounce has caught up once; after that,
+  // every change (including the user's early edits) is debounced normally.
+  const debounceCaughtUpRef = React.useRef(false);
+  if (debouncedSelectedSources.length > 0) debounceCaughtUpRef.current = true;
+  const effectiveSelectedSources = debounceCaughtUpRef.current
+    ? debouncedSelectedSources
+    : initialSelectedSources;
 
   const searchSourcesParam = canBrowseSources
     ? (effectiveSelectedSources.length > 0 ? effectiveSelectedSources : undefined)

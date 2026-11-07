@@ -66,10 +66,17 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
 
   // When the page changes, the visible term jumps immediately (no stale
   // debounce echo). Only the term that is actually being typed is debounced.
+  // The debounced value carries the page it belongs to, so after switching
+  // pages a stale value from another page is never used as this page's filter.
   const lastTypedPageRef = useRef<PageKey>(currentPage);
-  const debouncedTypedTerm = useDebounce(searchTerm, 300);
+  const debouncedTagged = useDebounce(`${currentPage}\u0000${searchTerm}`, 300);
+  const sepIndex = debouncedTagged.indexOf('\u0000');
+  const debouncedPage = debouncedTagged.slice(0, sepIndex);
+  const debouncedTypedTerm = debouncedTagged.slice(sepIndex + 1);
   const debouncedSearchTerm =
-    lastTypedPageRef.current === currentPage ? debouncedTypedTerm : searchTerm;
+    lastTypedPageRef.current === currentPage && debouncedPage === currentPage
+      ? debouncedTypedTerm
+      : searchTerm;
 
   const setSearchTerm = useCallback(
     (term: string) => {

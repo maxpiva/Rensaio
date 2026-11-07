@@ -438,8 +438,8 @@ export function ProviderManager({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.name.endsWith('.apk')) {
-      handleInstallFromApk(file);
+    if (file?.name.endsWith('.apk')) {
+      void handleInstallFromApk(file);
     } else {
       onError?.('Please select a valid APK file.');
     }

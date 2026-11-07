@@ -37,7 +37,7 @@ const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(
         id={id}
         ref={ref}
         className={cn(
-          "peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+          "peer relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-rule-2 bg-paper-1 transition-colors hover:border-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground max-sm:before:absolute max-sm:before:-inset-3.5 max-sm:before:content-['']",
           className
         )}
         onClick={handleClick}
@@ -45,7 +45,7 @@ const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(
         {...props}
       >
         {checked && (
-          <CheckIcon className="h-4 w-4" />
+          <CheckIcon className="h-3.5 w-3.5" />
         )}
       </button>
     )

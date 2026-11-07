@@ -36,19 +36,21 @@ function StatRow({
 }: StatRowProps) {
   const mutedClass =
     mutedTone === "amber"
-      ? "text-amber-500"
+      ? "text-warn"
       : mutedTone === "emerald"
-        ? "text-emerald-400"
-        : "text-muted-foreground";
+        ? "text-ok"
+        : "text-ink-3";
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-hover">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-rule bg-paper text-ink-3">
+        <Icon aria-hidden className="h-3.5 w-3.5" />
+      </span>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+        <div className="paper-eyebrow text-[9.5px]">
           {label}
         </div>
         <div
-          className="text-sm text-foreground tabular-nums truncate"
+          className="mt-0.5 truncate font-serif text-[16px] leading-tight text-ink tabular-nums"
           title={valueTitle ?? value}
         >
           {value}
@@ -56,7 +58,7 @@ function StatRow({
       </div>
       {muted && (
         <div
-          className={`text-[11px] ${mutedClass} truncate max-w-[40%]`}
+          className={`max-w-[40%] truncate font-mono text-[11px] tabular-nums ${mutedClass}`}
           title={muted}
         >
           {muted}
@@ -120,11 +122,12 @@ export function LibraryStatsCard({
   const { display: pathDisplay, full: pathFull } = truncatePath(series.path);
 
   return (
-    <section className="rounded-xl border border-border/60 bg-card overflow-hidden">
-      <header className="px-4 py-3 border-b border-border/60">
-        <h2 className="text-sm font-semibold tracking-tight">Library Stats</h2>
+    <section className="overflow-hidden rounded-lg border border-rule-2 bg-paper-1 shadow-paper">
+      <header className="flex items-baseline gap-3 border-b border-rule-2 bg-paper-2/60 px-4 py-2.5">
+        <h2 className="font-serif text-[17px] font-normal text-ink">Library Stats</h2>
+        <span aria-hidden className="h-px flex-1 bg-rule" />
       </header>
-      <div className="divide-y divide-border/40">
+      <div className="divide-y divide-rule">
         <StatRow
           icon={Layers}
           label="Chapters"

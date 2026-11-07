@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+/* Fraunces (display serif), self-hosted. Built from the Google Fonts variable
+   source: SOFT/WONK pinned to 0, opsz + wght axes kept, Latin + Latin
+   Extended in ONE file per style. (Splitting by unicode-range broke
+   composite glyphs such as the "ō" in the brand mark.) SIL OFL 1.1, see
+   src/fonts/fraunces/OFL.txt. */
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../fonts/fraunces/fraunces-opsz-wght.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Fraunces";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../fonts/fraunces/fraunces-opsz-wght-italic.woff2") format("woff2-variations");
+}
+
 /* ─── Safe area utilities ───────────────────────────────────────────── */
 @layer utilities {
   .pb-safe {
@@ -2893,8 +2913,9 @@ body[data-scroll-locked] .page-shell-main {
     --paper-lift: 0 30px 80px -28px rgba(60, 40, 20, 0.5);
     --paper-print: 2px 3px 0 rgba(26, 22, 17, 0.12);
 
-    /* Type stacks. No webfont download: the sans/mono are the bundled
-       local Geist files; the serif is a system book face. */
+    /* Type stacks. All fonts are bundled locally: Geist for sans/mono,
+       Fraunces (@font-face at the top of this file) for the serif, with
+       system book faces as the fallback. */
     --paper-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype",
       "Book Antiqua", Palatino, "URW Palladio L", "P052", Georgia, serif;
     --paper-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace,

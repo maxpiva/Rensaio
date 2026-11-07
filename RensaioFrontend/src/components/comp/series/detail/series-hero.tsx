@@ -91,7 +91,7 @@ export function SeriesHero({
 
   return (
     <section className="relative isolate border-b-[3px] border-double border-rule-3">
-      <div className="relative mx-auto max-w-6xl px-4 pb-7 pt-5 sm:px-6 sm:pb-9 sm:pt-8 lg:px-9">
+      <div className="relative mx-auto max-w-6xl px-4 pb-7 pt-5 sm:px-8 sm:pb-9 sm:pt-8">
         <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-x-4 gap-y-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-x-9 lg:grid-cols-[224px_minmax(0,1fr)]">
 
           {/* Cover */}

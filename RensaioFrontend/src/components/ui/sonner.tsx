@@ -37,7 +37,7 @@ export function Toaster(props: ToasterProps) {
         unstyled: true,
         classNames: {
           toast:
-            "paper-toast group pointer-events-auto grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-md border border-rule-2 border-l-[3px] border-l-ink-2 bg-paper-1 py-3 pl-3.5 pr-3 text-ink shadow-lift font-sans",
+            "paper-toast group pointer-events-auto grid w-full grid-cols-[18px_minmax(0,1fr)_auto] [&:not(:has(>[data-icon]))]:grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-md border border-rule-2 border-l-[3px] border-l-ink-2 bg-paper-1 py-3 pl-3.5 pr-3 text-ink shadow-lift font-sans",
           icon: "mt-px flex h-4 w-4 items-center justify-center text-ink-2",
           content: "min-w-0",
           title: "text-[13px] font-semibold leading-snug",

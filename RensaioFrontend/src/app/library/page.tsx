@@ -199,7 +199,7 @@ export default function RootPage() {
     "h-9 w-auto min-w-[9.5rem] max-w-[14rem] shrink-0 gap-2 text-[13px] caret-transparent max-sm:h-11 [&>span]:flex [&>span]:items-center [&>span]:gap-2";
 
   return (
-    <PageLayout mainClassName="overflow-y-auto px-4 pt-5 pb-8 sm:px-6 sm:pt-6 lg:px-9 lg:pt-7">
+    <PageLayout mainClassName="overflow-y-auto px-4 pt-5 pb-8 sm:px-8 sm:pt-7">
       <PageHeader
         folio="01"
         eyebrow="Library"

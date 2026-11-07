@@ -49,7 +49,7 @@ export function SeriesDetailSkeleton({ label }: { label: string }) {
     <div role="status" aria-busy="true" className="w-full">
       <span className="sr-only">{label}</span>
       <div className="border-b-[3px] border-double border-rule-3" aria-hidden="true">
-        <div className="mx-auto grid max-w-6xl grid-cols-[104px_minmax(0,1fr)] gap-x-4 gap-y-5 px-4 pb-7 pt-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-x-9 sm:px-6 sm:pb-9 sm:pt-8 lg:grid-cols-[224px_minmax(0,1fr)] lg:px-9">
+        <div className="mx-auto grid max-w-6xl grid-cols-[104px_minmax(0,1fr)] gap-x-4 gap-y-5 px-4 pb-7 pt-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-x-9 sm:px-8 sm:pb-9 sm:pt-8 lg:grid-cols-[224px_minmax(0,1fr)]">
           <div className="skeleton-shimmer aspect-[2/3] w-full rounded-[3px] sm:row-span-2" />
           <div className="self-end space-y-3 sm:self-start">
             <div className="flex gap-1.5">
@@ -80,7 +80,7 @@ export function SeriesDetailSkeleton({ label }: { label: string }) {
           </div>
         </div>
       </div>
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8 sm:px-6 lg:px-9" aria-hidden="true">
+      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8 sm:px-8" aria-hidden="true">
         <div className="skeleton-shimmer h-6 w-40 rounded-[3px]" />
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="skeleton-shimmer h-40 rounded-lg" />

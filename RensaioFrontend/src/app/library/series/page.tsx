@@ -1288,7 +1288,7 @@ function SeriesPageContent() {
       />
 
       {/* Main content — Sources full-width, then aside grid */}
-      <div className="mx-auto max-w-6xl space-y-9 px-4 py-7 sm:space-y-11 sm:px-6 sm:py-10 lg:px-9">
+      <div className="mx-auto max-w-6xl space-y-9 px-4 py-7 sm:space-y-11 sm:px-8 sm:py-10">
 
         {/* Sources — full width, providers tile in 2-col grid at lg+ */}
         <SourcesSection

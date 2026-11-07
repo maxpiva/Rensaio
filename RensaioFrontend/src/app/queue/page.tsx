@@ -475,7 +475,7 @@ export default function QueuePage() {
   const showError = hasError && allItems.length === 0 && !isLoading;
 
   return (
-    <div className="mx-auto w-full max-w-[1100px]">
+    <div className="w-full max-w-[1100px]">
       <PageHeader
         folio="03"
         eyebrow="Queue · Downloads"

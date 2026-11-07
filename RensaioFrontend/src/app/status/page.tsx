@@ -147,7 +147,7 @@ export default function StatusPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1100px]">
+    <div className="w-full max-w-[1100px]">
       <PageHeader
         folio="04"
         eyebrow="Status · Health report"

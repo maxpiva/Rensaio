@@ -3,10 +3,10 @@
 import "@/styles/globals.css";
 import React from "react";
 
-// Fonts are bundled locally (the `geist` package ships the font files), so
-// builds work offline. The display serif is a system stack (see globals.css,
-// --font-display) — next/font/google needs network at build time and breaks
-// Turbopack dev here, so it is intentionally not used.
+// Fonts are bundled locally so builds work offline: the `geist` package ships
+// the sans/mono files, and the Fraunces display serif is self-hosted via
+// @font-face in globals.css. next/font/google needs network at build time and
+// breaks Turbopack dev here, so it is intentionally not used.
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 

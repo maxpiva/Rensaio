@@ -35,6 +35,8 @@ export interface SectionDef {
   live?: boolean;
   /** Short mono sub-line for the phone More sheet tiles. */
   hint?: string;
+  /** Fixed two-digit folio, matching the page's PageHeader folio. */
+  folio?: string;
 }
 
 /**
@@ -52,16 +54,17 @@ export function useSections(): SectionDef[] {
   const sections: SectionDef[] = [];
 
   if (canViewLibrary) {
-    sections.push({ name: "Library", href: "/library", icon: Library, hint: "Your series" });
+    sections.push({ name: "Library", folio: "01", href: "/library", icon: Library, hint: "Your series" });
   }
   if (canBrowse) {
-    sections.push({ name: "Just In", href: "/cloud-latest", icon: Sparkles, hint: "Latest releases" });
+    sections.push({ name: "Just In", folio: "02", href: "/cloud-latest", icon: Sparkles, hint: "Latest releases" });
   }
   if (canViewQueue) {
     const activeCount = metrics?.downloads ?? 0;
     const failedCount = metrics?.failed ?? 0;
     sections.push({
       name: "Queue",
+      folio: "03",
       href: "/queue",
       icon: List,
       badge: activeCount + failedCount > 0 ? activeCount + failedCount : undefined,
@@ -71,10 +74,10 @@ export function useSections(): SectionDef[] {
     });
   }
   if (canViewStatus) {
-    sections.push({ name: "Status", href: "/status", icon: Activity, hint: "Health" });
+    sections.push({ name: "Status", folio: "04", href: "/status", icon: Activity, hint: "Health" });
   }
   if (isAdmin) {
-    sections.push({ name: "Sources", href: "/providers", icon: Plug, hint: "Providers" });
+    sections.push({ name: "Sources", folio: "05", href: "/providers", icon: Plug, hint: "Providers" });
   }
 
   return sections;
@@ -173,12 +176,12 @@ const activeBar =
 
 export function SidebarNavItem({
   item,
-  index,
+  numbered,
   onNavigate,
 }: {
   item: SectionDef;
-  /** Show a two-digit folio number (primary nav only). */
-  index?: number;
+  /** Show the item's folio number (primary nav only). */
+  numbered?: boolean;
   onNavigate?: () => void;
 }) {
   const isActive = useIsSectionActive();
@@ -191,9 +194,9 @@ export function SidebarNavItem({
       aria-current={active ? "page" : undefined}
       className={cn(navItemClass, activeBar)}
     >
-      {index !== undefined ? (
+      {numbered && item.folio ? (
         <span className="w-4 font-mono text-[10px] font-medium tabular-nums text-ink-3 group-aria-[current=page]:text-accent-ink">
-          {String(index + 1).padStart(2, "0")}
+          {item.folio}
         </span>
       ) : null}
       <Icon className="h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink-2 group-aria-[current=page]:text-accent-ink" />
@@ -214,8 +217,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <NavLabel>Read</NavLabel>
       <nav aria-label="Primary" className="flex flex-col gap-px">
-        {sections.map((s, i) => (
-          <SidebarNavItem key={s.href} item={s} index={i} onNavigate={onNavigate} />
+        {sections.map((s) => (
+          <SidebarNavItem key={s.href} item={s} numbered onNavigate={onNavigate} />
         ))}
       </nav>
       {manage.length > 0 && (

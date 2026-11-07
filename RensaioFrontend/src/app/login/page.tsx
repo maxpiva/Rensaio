@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowRight, KeyRound } from 'lucide-react';
+import { AuthFrame, AuthHeading, AuthNote, OrRule } from './auth-frame';
 
 const REMEMBERED_USER_KEY = 'rensaio_remembered_username';
 
@@ -70,6 +71,8 @@ function LoginForm() {
     if (!ssoCode || ssoHandled.current || authLoading) return;
     ssoHandled.current = true;
     setLoading(true);
+    // An empty ?returnTo= also falls back to the library.
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     const returnTo = searchParams.get('returnTo') || '/library';
     completeSsoLogin(ssoCode, returnTo).catch((err) => {
       autoRedirectBlocked.current = true;
@@ -115,111 +118,104 @@ function LoginForm() {
     }
   };
 
+  // Auth status still loading: show the bare frame instead of flashing the
+  // "Authentication disabled" state before isAuthEnabled resolves.
+  if (!isAuthEnabled && authLoading) {
+    return <AuthFrame><span className="sr-only" role="status">Loading...</span></AuthFrame>;
+  }
+
   // If auth is disabled, redirect is handled by layout
   if (!isAuthEnabled) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Disabled</CardTitle>
-            <CardDescription>
-              Authentication is not enabled. Please go back to the user selection page.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.href = '/user-select'} className="w-full">
-              Go to User Selection
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthFrame>
+        <div className="w-full max-w-[380px] motion-safe:animate-paper-rise">
+          <AuthHeading
+            eyebrow="Sign in"
+            title={<>Authentication <em>disabled</em>.</>}
+            description="Authentication is not enabled. Please go back to the user selection page."
+          />
+          <Button onClick={() => window.location.href = '/user-select'} className="h-[42px] w-full">
+            Go to User Selection
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        </div>
+      </AuthFrame>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="space-y-3">
-          <CardTitle className="flex justify-center">
-            <img src="/rensaiow.png" alt="Rensaiō" className="h-20 w-auto" />
-          </CardTitle>
-          <CardDescription className="text-center">
-            {ssoCode ? 'Signing you in...' : showPasswordForm ? 'Enter your credentials to log in' : 'Sign in to continue'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
-              {error}
+    <AuthFrame>
+      <div className="w-full max-w-[380px] motion-safe:animate-paper-rise">
+        <AuthHeading
+          id="login-title"
+          eyebrow="Sign in"
+          title={<>Welcome <em>back</em>.</>}
+          description={ssoCode ? 'Signing you in...' : showPasswordForm ? 'Enter your credentials to log in' : 'Sign in to continue'}
+        />
+
+        {error && <AuthNote className="-mt-2 mb-[18px]">{error}</AuthNote>}
+
+        {showPasswordForm && (
+          <form onSubmit={handleSubmit} aria-labelledby="login-title" className="grid gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+              />
             </div>
-          )}
-
-          {showPasswordForm && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                />
-                <Label htmlFor="rememberMe" className="text-sm cursor-pointer">
-                  Remember me
-                </Label>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Logging in...' : 'Log in'}
-              </Button>
-            </form>
-          )}
-
-          {ssoEnabled && showPasswordForm && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
-              </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-invalid={error ? true : undefined}
+                required
+              />
             </div>
-          )}
-
-          {ssoEnabled && (
-            <Button
-              type="button"
-              variant={showPasswordForm ? 'outline' : 'default'}
-              className="w-full"
-              disabled={loading}
-              onClick={() => { window.location.href = buildSsoUrl(rememberMe || !showPasswordForm); }}
-            >
-              {oidc?.buttonLabel || 'Single Sign-On'}
+            <div className="flex min-h-11 items-center gap-2.5 sm:min-h-0">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
+              <Label htmlFor="rememberMe" className="cursor-pointer text-[13px] font-normal text-ink-2">
+                Remember me
+              </Label>
+            </div>
+            <Button type="submit" className="h-[42px] w-full" disabled={loading}>
+              {loading ? 'Logging in...' : 'Log in'}
+              {!loading && <ArrowRight aria-hidden="true" />}
             </Button>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </form>
+        )}
+
+        {ssoEnabled && showPasswordForm && <OrRule />}
+
+        {ssoEnabled && (
+          <Button
+            type="button"
+            variant={showPasswordForm ? 'outline' : 'default'}
+            className="h-[42px] w-full"
+            disabled={loading}
+            onClick={() => { window.location.href = buildSsoUrl(rememberMe || !showPasswordForm); }}
+          >
+            <KeyRound aria-hidden="true" />
+            {oidc?.buttonLabel || 'Single Sign-On'}
+          </Button>
+        )}
+      </div>
+    </AuthFrame>
   );
 }
 

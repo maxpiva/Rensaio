@@ -29,7 +29,7 @@ export function RowActionsInstalled({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="btn-src-installed"
+          className="inline-flex h-[30px] items-center gap-1.5 rounded-[5px] border border-ok/30 bg-ok-soft px-2.5 text-[12.5px] font-semibold text-ok transition-colors hover:border-ok/60 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
           disabled={isLoading}
           aria-label={`${extension.name} — installed options`}
         >
@@ -58,7 +58,7 @@ export function RowActionsInstalled({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-md text-ink-2 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           disabled={isLoading}
           aria-label={`${extension.name} options`}
         >
@@ -95,7 +95,7 @@ export function RowActionsInstalled({
       {/* Desktop: settings icon + installed pill dropdown */}
       <div className="hidden md:flex items-center gap-1.5">
         <button
-          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+          className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[5px] text-ink-3 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           onClick={() => setPreferencesOpen(true)}
           aria-label={`${extension.name} settings`}
         >

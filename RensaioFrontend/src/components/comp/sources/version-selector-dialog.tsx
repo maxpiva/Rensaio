@@ -66,7 +66,7 @@ export function VersionSelectorDialog({
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
+            <Wrench className="h-4 w-4 text-accent-ink" aria-hidden="true" />
             Version — {extension.name}
           </DialogTitle>
         </DialogHeader>

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Plus, Loader2 } from "lucide-react";
 import { type Provider } from "@/lib/api/types";
+import { Button } from "@/components/ui/button";
 
 interface RowActionsAvailableProps {
   extension: Provider;
@@ -16,8 +17,9 @@ export function RowActionsAvailable({
   isLoading,
 }: RowActionsAvailableProps) {
   return (
-    <button
-      className="btn-src-install"
+    <Button
+      size="sm"
+      className="max-sm:min-h-11 max-sm:min-w-11"
       onClick={() => onInstall(extension.package)}
       disabled={isLoading}
       aria-label={`Install ${extension.name}`}
@@ -28,6 +30,6 @@ export function RowActionsAvailable({
         <Plus className="h-3.5 w-3.5" />
       )}
       <span className="hidden sm:inline">Install</span>
-    </button>
+    </Button>
   );
 }

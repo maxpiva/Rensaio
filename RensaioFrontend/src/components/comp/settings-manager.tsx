@@ -1794,11 +1794,16 @@ export function SettingsManager({
   const navScrollerRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLElement>(null);
 
-  // Deep link: /settings#security opens that section.
+  // Deep link: /settings#security opens that section, on load and when the hash changes.
   React.useEffect(() => {
     if (!pageMode) return;
-    const fromHash = window.location.hash.replace("#", "");
-    if (PAGE_SECTION_NAV.some((s) => s.id === fromHash)) setActiveId(fromHash);
+    const syncFromHash = () => {
+      const fromHash = window.location.hash.replace("#", "");
+      if (PAGE_SECTION_NAV.some((s) => s.id === fromHash)) setActiveId(fromHash);
+    };
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
   }, [pageMode]);
 
   // Keep the active chip visible in the phone's horizontal section strip.
@@ -2177,7 +2182,8 @@ export function SettingsManager({
           </section>
 
           {showFooterSaveButton && !isDirty && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pb-6">
+            // lg:pb-28 lets the end of the page scroll clear of the fixed activity dock.
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pb-6 lg:pb-28">
               <p className="flex items-center gap-1.5 text-xs text-ink-3">
                 <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-hidden />
                 No unsaved changes

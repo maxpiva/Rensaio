@@ -65,11 +65,11 @@ interface FilterPillsProps {
   value: FilterPill;
   onChange: (v: FilterPill) => void;
   counts: Record<FilterPill, number>;
-  /** Counts could not be loaded; show a dash instead of a misleading 0. */
-  unknown?: boolean;
+  /** Pills whose count could not be loaded; they show a dash instead of a misleading 0. */
+  unknown?: ReadonlySet<FilterPill>;
 }
 
-const FilterPills = memo(function FilterPills({ value, onChange, counts, unknown = false }: FilterPillsProps) {
+const FilterPills = memo(function FilterPills({ value, onChange, counts, unknown }: FilterPillsProps) {
   const pills: FilterPill[] = ['all', 'completed', 'failed', 'queued'];
   return (
     <div
@@ -101,7 +101,7 @@ const FilterPills = memo(function FilterPills({ value, onChange, counts, unknown
                 isActive ? 'text-paper/70' : 'text-ink-3',
               )}
             >
-              {unknown ? '–' : counts[pill]}
+              {unknown?.has(pill) ? '–' : counts[pill]}
             </span>
           </button>
         );
@@ -473,6 +473,16 @@ export default function QueuePage() {
   // --- Total count for the header ---
   const totalCount = allItems.length;
   const showError = hasError && allItems.length === 0 && !isLoading;
+  // A failed request makes its pill (and "All") unknown, even when the other
+  // requests succeeded, so a partial outage never reads as an honest 0.
+  const unknownPills = useMemo(() => {
+    const out = new Set<FilterPill>();
+    if (waitingQuery.isError) out.add('queued');
+    if (completedQuery.isError) out.add('completed');
+    if (failedQuery.isError) out.add('failed');
+    if (out.size > 0) out.add('all');
+    return out;
+  }, [waitingQuery.isError, completedQuery.isError, failedQuery.isError]);
 
   return (
     <div className="w-full max-w-[1100px]">
@@ -488,7 +498,7 @@ export default function QueuePage() {
             : [
                 `${totalCount} item${totalCount === 1 ? '' : 's'}`,
                 `${downloadingCount} downloading`,
-                `${counts.failed} failed`,
+                `${unknownPills.has('failed') ? '–' : counts.failed} failed`,
               ]
         }
         actions={
@@ -498,7 +508,7 @@ export default function QueuePage() {
           </Button>
         }
       >
-        <FilterPills value={filter} onChange={setFilter} counts={counts} unknown={showError} />
+        <FilterPills value={filter} onChange={setFilter} counts={counts} unknown={unknownPills} />
       </PageHeader>
 
       {hasError && !showError && (

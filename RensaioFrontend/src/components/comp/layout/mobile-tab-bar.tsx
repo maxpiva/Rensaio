@@ -107,9 +107,11 @@ export function MobileTabBar() {
   const moreActive = moreItems.some((s) => isActive(s.href));
   const showAdd = canAdd || canRequest;
 
-  // Add sits in the middle: [tab, tab, ADD, tab…, More]
-  const before = tabs.slice(0, 2);
-  const after = tabs.slice(2);
+  // Add sits in the middle of the visible items ([tab, tab, ADD, tab, More]),
+  // even when permissions hide some tabs.
+  const split = Math.floor((tabs.length + 1) / 2);
+  const before = tabs.slice(0, split);
+  const after = tabs.slice(split);
 
   return (
     <>

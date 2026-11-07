@@ -2076,13 +2076,6 @@ export function SettingsManager({
           description={description}
           meta={[`${navItems.length} sections`, isDirty ? "unsaved changes" : "all saved"]}
           tate="設定"
-          actions={
-            showSaveButton ? (
-              <Button onClick={handleSave} disabled={isPending}>
-                <SaveButtonContent pending={isPending} label="Save Settings" />
-              </Button>
-            ) : undefined
-          }
         />
       )}
 
@@ -2188,9 +2181,6 @@ export function SettingsManager({
                 <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-hidden />
                 No unsaved changes
               </p>
-              <Button variant="outline" onClick={handleSave} disabled={isPending}>
-                <SaveButtonContent pending={isPending} label="Save Settings" />
-              </Button>
             </div>
           )}
         </div>

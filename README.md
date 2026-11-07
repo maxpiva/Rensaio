@@ -42,6 +42,7 @@ It connects to sources through <strong>Mihon</strong> extensions.
 docker run -d \
   --name rensaio \
   --network host \
+  --memory=4g \
   -e PUID=99 -e PGID=100 -e UMASK=022 \
   -v /path/to/config:/config \
   -v /path/to/series:/series \

@@ -35,6 +35,7 @@ It is recommended to use **host networking** for optimal performance when downlo
 docker run -d \
   --name Rensaio \
   --network host \
+  --memory=4g \
   -e PUID=99 \
   -e PGID=100 \
   -e UMASK=022 \
@@ -63,6 +64,8 @@ services:
         - PUID=99
     ports:
         - '9833:9833'
+    # Optional but recommended: the .NET GC keeps its heap under 75% of this limit.
+    mem_limit: 4g
 ```
 
 ## Next steps

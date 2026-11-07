@@ -121,8 +121,10 @@ export default function StatusPage() {
   const totalAlerts = (series?.length ?? 0) + (providers?.length ?? 0);
   const anyCritical = seriesCritical + sourceCritical;
 
-  const seriesUnavailable = seriesQuery.isError && !series;
-  const providersUnavailable = providersQuery.isError && !providers;
+  // A failed refetch keeps the old data cached, so go by isError alone: stale
+  // results must never read as a current all-clear (Queue uses the same rule).
+  const seriesUnavailable = seriesQuery.isError;
+  const providersUnavailable = providersQuery.isError;
 
   const description = seriesLoading || providersLoading
     ? "Health of your sources and series."

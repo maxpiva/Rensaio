@@ -118,9 +118,11 @@ function LoginForm() {
     }
   };
 
-  // Auth status still loading: show the bare frame instead of flashing the
-  // "Authentication disabled" state before isAuthEnabled resolves.
-  if (!isAuthEnabled && authLoading) {
+  // Auth status still loading: show the bare frame. Checking only
+  // !isAuthEnabled is not enough: startup sets isAuthEnabled before the
+  // refresh-token check finishes, and a login in that gap would be wiped out
+  // when the stale refresh fails.
+  if (authLoading) {
     return <AuthFrame><span className="sr-only" role="status">Loading...</span></AuthFrame>;
   }
 

@@ -225,42 +225,45 @@ export default function RootPage() {
       {/* Filter bar — status tabs, sort + card size, then the facet selects. */}
       <div className="mb-5 space-y-3 sm:mb-6 motion-safe:animate-paper-rise [animation-delay:60ms]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
-          <div
-            role="group"
-            aria-label="Filter by status"
-            className="scroll-fade-x -mx-4 flex min-w-0 items-end gap-5 overflow-x-auto border-b border-rule px-4 max-sm:pr-8 [scrollbar-width:none] sm:-mx-0 sm:px-0 lg:flex-1 [&::-webkit-scrollbar]:hidden"
-          >
-            {statusTabs.map((t) => {
-              const active = tab === t.value;
-              return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setTab(t.value)}
-                  aria-pressed={active}
-                  className={cn(
-                    "relative -mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-[13.5px] font-semibold transition-colors outline-none max-sm:min-h-11",
-                    "focus-visible:text-ink focus-visible:[box-shadow:0_2px_0_0_var(--accent-ink)]",
-                    active
-                      ? "border-accent-ink text-ink"
-                      : "border-transparent text-ink-3 hover:border-rule-2 hover:text-ink-2",
-                  )}
-                >
-                  {t.marker}
-                  <span>{t.label}</span>
-                  {t.count > 0 && (
-                    <span
-                      className={cn(
-                        "-translate-y-1 font-mono text-[10.5px] font-medium tabular-nums",
-                        active ? "text-accent-ink" : "text-ink-3",
-                      )}
-                    >
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* The hairline lives on this wrapper so the phone edge fade does not fade it too. */}
+          <div className="-mx-4 min-w-0 border-b border-rule sm:mx-0 lg:flex-1">
+            <div
+              role="group"
+              aria-label="Filter by status"
+              className="scroll-fade-x flex min-w-0 items-end gap-5 overflow-x-auto px-4 max-sm:pr-8 [scrollbar-width:none] sm:px-0 [&::-webkit-scrollbar]:hidden"
+            >
+              {statusTabs.map((t) => {
+                const active = tab === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTab(t.value)}
+                    aria-pressed={active}
+                    className={cn(
+                      "relative -mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-[13.5px] font-semibold transition-colors outline-none max-sm:min-h-11",
+                      "focus-visible:text-ink focus-visible:[box-shadow:0_2px_0_0_var(--accent-ink)]",
+                      active
+                        ? "border-accent-ink text-ink"
+                        : "border-transparent text-ink-3 hover:border-rule-2 hover:text-ink-2",
+                    )}
+                  >
+                    {t.marker}
+                    <span>{t.label}</span>
+                    {t.count > 0 && (
+                      <span
+                        className={cn(
+                          "-translate-y-1 font-mono text-[10.5px] font-medium tabular-nums",
+                          active ? "text-accent-ink" : "text-ink-3",
+                        )}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

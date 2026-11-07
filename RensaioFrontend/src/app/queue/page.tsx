@@ -436,6 +436,9 @@ export default function QueuePage() {
     [visibleItems],
   );
 
+  // Queued rows sit at the top of this section, so name them in the heading.
+  const historyTitle = historyVisible.some((i) => i.status === 'queued') ? 'Up next & history' : 'History';
+
   // --- Bucket into groups ---
   const buckets = useMemo(() => {
     const groups: Record<DateBucket, QueueRowItem[]> = {
@@ -567,8 +570,8 @@ export default function QueuePage() {
           )}
 
           {historyVisible.length > 0 && (
-            <section aria-label="History">
-              <SectionHeading title="History" count={historyVisible.length} />
+            <section aria-label={historyTitle}>
+              <SectionHeading title={historyTitle} count={historyVisible.length} />
               {BUCKET_ORDER.map((bucket) => (
                 <SectionGroup
                   key={bucket}

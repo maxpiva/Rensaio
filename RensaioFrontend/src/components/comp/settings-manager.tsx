@@ -2089,7 +2089,7 @@ export function SettingsManager({
         >
           <div
             ref={navScrollerRef}
-            className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] lg:flex-col lg:gap-0.5 lg:overflow-visible [&::-webkit-scrollbar]:hidden"
+            className="scroll-fade-x flex gap-1.5 overflow-x-auto max-sm:pr-8 [scrollbar-width:none] lg:flex-col lg:gap-0.5 lg:overflow-visible [&::-webkit-scrollbar]:hidden"
           >
             {navItems.map((item, i) => {
               const Icon = item.icon;

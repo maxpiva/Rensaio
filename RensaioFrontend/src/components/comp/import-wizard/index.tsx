@@ -9,7 +9,7 @@ import { ConfirmImportsStep } from "../setup-wizard/steps/confirm-imports-step";
 import { ScheduleUpdatesStep } from "../setup-wizard/steps/schedule-updates-step";
 import { FinishStep } from "../setup-wizard/steps/finish-step";
 
-import { WizardShell, type WizardStep } from "./wizard-shell";
+import { WizardError, WizardShell, type WizardStep } from "./wizard-shell";
 
 const WIZARD_STEPS: WizardStep[] = [
   {
@@ -76,11 +76,10 @@ export function ImportWizard() {
       onPrevious={handlePrevious}
       onNext={handleNext}
       onClose={handleClose}
+      kicker="Import library"
     >
       {error && (
-        <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-          {error}
-        </div>
+        <WizardError>{error}</WizardError>
       )}
 
       {currentStep === 0 && (

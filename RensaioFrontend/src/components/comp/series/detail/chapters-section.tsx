@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, Loader2, Search } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,7 +48,7 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
     if (q) {
       list = list.filter(
         (c) =>
-          (c.number != null && c.number.toString().includes(q)) ||
+          (c.number?.toString().includes(q) ?? false) ||
           c.name.toLowerCase().includes(q)
       );
     }
@@ -94,53 +94,64 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
   };
 
   return (
-    <section className="space-y-4">
+    <section>
       <Collapsible open={open} onOpenChange={handleOpenChange}>
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group flex w-full items-center justify-between gap-3 rounded-lg text-left"
+            className="group flex min-h-11 w-full items-center gap-3 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-accent-soft focus-visible:ring-offset-4 focus-visible:ring-offset-background"
           >
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">Chapters</h2>
-              {total > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground/10 px-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                  {total}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {hasOpened && total > 0 && (
-                <span className="hidden sm:inline">
-                  {downloadedCount} of {total} downloaded
-                  {missingCount > 0 && (
-                    <>
-                      {" · "}
-                      <span className="font-medium text-amber-500">{missingCount} missing</span>
-                    </>
-                  )}
-                </span>
-              )}
+            <h2 className="font-serif text-[22px] font-normal leading-none tracking-[-0.02em] text-ink transition-colors group-hover:text-accent-ink sm:text-2xl">
+              Chapters
+            </h2>
+            {total > 0 && (
+              <span className="font-mono text-[11px] font-medium tabular-nums text-ink-3">{total}</span>
+            )}
+            <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-rule" />
+            {hasOpened && total > 0 && (
+              <span className="hidden font-mono text-[11.5px] tabular-nums text-ink-3 sm:inline">
+                {downloadedCount} of {total} downloaded
+                {missingCount > 0 && (
+                  <>
+                    {" · "}
+                    <span className="font-semibold text-warn">{missingCount} missing</span>
+                  </>
+                )}
+              </span>
+            )}
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-rule-2 bg-paper-1 text-ink-2 transition-colors group-hover:border-rule-3 group-hover:text-ink max-sm:h-11 max-sm:w-11">
               <ChevronDown
                 className={cn(
-                  "h-4 w-4 transition-transform duration-200",
+                  "h-4 w-4 transition-transform duration-200 motion-reduce:transition-none",
                   open && "rotate-180"
                 )}
               />
-            </div>
+            </span>
           </button>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="pt-4">
+          {hasOpened && total > 0 && (
+            <p className="mb-3 font-mono text-[11.5px] tabular-nums text-ink-3 sm:hidden">
+              {downloadedCount} of {total} downloaded
+              {missingCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="font-semibold text-warn">{missingCount} missing</span>
+                </>
+              )}
+            </p>
+          )}
           {isLoading && (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <div role="status" className="flex items-center justify-center gap-2 rounded-lg border border-rule-2 bg-paper-1 py-10 text-sm text-ink-3">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading chapters…
             </div>
           )}
 
           {isError && (
-            <div className="rounded-xl border border-dashed border-border/60 bg-card/50 p-8 text-center text-sm text-muted-foreground">
+            <div role="alert" className="flex items-center justify-center gap-2 rounded-lg border border-bad/30 bg-bad-soft px-6 py-8 text-center text-sm font-medium text-bad">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
               Couldn&apos;t load chapters. Please try again.
             </div>
           )}
@@ -148,14 +159,15 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
           {!isLoading && !isError && (
             <>
               {/* Controls */}
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative max-w-xs flex-1">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <div className="mb-3 flex items-center gap-2 sm:justify-between">
+                <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Filter by number or title…"
-                    className="h-8 pl-8 text-sm"
+                    aria-label="Filter chapters"
+                    className="h-9 pl-8 text-sm"
                   />
                 </div>
                 <button
@@ -163,15 +175,15 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
                   onClick={() => setMissingOnly((v) => !v)}
                   aria-pressed={missingOnly}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors",
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-accent-soft max-sm:h-11",
                     missingOnly
-                      ? "border-amber-500/40 bg-amber-500/15 text-amber-500"
-                      : "border-border/40 bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                      ? "border-warn/40 bg-warn-soft text-warn"
+                      : "border-rule-2 bg-paper-1 text-ink-3 hover:border-rule-3 hover:text-ink"
                   )}
                 >
                   Missing only
                   {missingCount > 0 && (
-                    <span className="tabular-nums opacity-80">({missingCount})</span>
+                    <span className="font-mono text-[11px] tabular-nums opacity-80">({missingCount})</span>
                   )}
                 </button>
               </div>
@@ -179,7 +191,7 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
               {/* Rows */}
               {filtered.length > 0 ? (
                 <TooltipProvider delayDuration={200}>
-                  <div className="space-y-2">
+                  <div className="divide-y divide-rule overflow-hidden rounded-lg border border-rule-2 bg-paper-1 shadow-paper">
                     {filtered.map((chapter, index) => (
                       <ChapterRow
                         key={chapter.number ?? `idx-${index}`}
@@ -193,7 +205,7 @@ export function ChaptersSection({ seriesId, paused, canManage }: ChaptersSection
                   </div>
                 </TooltipProvider>
               ) : (
-                <div className="rounded-xl border border-dashed border-border/60 bg-card/50 p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-rule-3 bg-paper-1/60 px-6 py-10 text-center font-serif text-lg italic text-ink-2">
                   {total === 0
                     ? "No chapters tracked for this series yet."
                     : missingOnly

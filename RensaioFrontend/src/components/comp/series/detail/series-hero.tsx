@@ -5,6 +5,7 @@ import { Pause, Play, CheckCircle2, Check, Trash2, FolderOpen, Copy, RefreshCw, 
 import { Button } from "@/components/ui/button";
 import { SeriesStatus, type SeriesExtendedInfo } from "@/lib/api/types";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+import { getStatusTone } from "./status-tone";
 
 // Tiny relative-time helper — no external dependency
 function formatRelative(dateString: string | null | undefined): string {
@@ -23,83 +24,6 @@ function formatRelative(dateString: string | null | undefined): string {
   const months = Math.floor(days / 30);
   if (months < 12) return `${months}mo ago`;
   return `${Math.floor(months / 12)}y ago`;
-}
-
-interface StatusPillConfig {
-  bg: string;
-  border: string;
-  text: string;
-  dot: string;
-  pulse: boolean;
-}
-
-function getStatusPillConfig(status: SeriesStatus): StatusPillConfig {
-  switch (status) {
-    case SeriesStatus.ONGOING:
-      return {
-        bg: 'bg-green-500/12',
-        border: 'border-green-500/25',
-        text: 'text-green-400',
-        dot: 'bg-green-500',
-        pulse: true,
-      };
-    case SeriesStatus.COMPLETED:
-      return {
-        bg: 'bg-blue-500/12',
-        border: 'border-blue-500/25',
-        text: 'text-blue-400',
-        dot: 'bg-blue-500',
-        pulse: false,
-      };
-    case SeriesStatus.LICENSED:
-      return {
-        bg: 'bg-purple-500/12',
-        border: 'border-purple-500/25',
-        text: 'text-purple-400',
-        dot: 'bg-purple-500',
-        pulse: false,
-      };
-    case SeriesStatus.PUBLISHING_FINISHED:
-      return {
-        bg: 'bg-blue-600/12',
-        border: 'border-blue-600/25',
-        text: 'text-blue-300',
-        dot: 'bg-blue-600',
-        pulse: false,
-      };
-    case SeriesStatus.CANCELLED:
-      return {
-        bg: 'bg-red-500/12',
-        border: 'border-red-500/25',
-        text: 'text-red-400',
-        dot: 'bg-red-500',
-        pulse: false,
-      };
-    case SeriesStatus.ON_HIATUS:
-      return {
-        bg: 'bg-yellow-500/12',
-        border: 'border-yellow-500/25',
-        text: 'text-yellow-400',
-        dot: 'bg-yellow-500',
-        pulse: false,
-      };
-    case SeriesStatus.DISABLED:
-      return {
-        bg: 'bg-foreground/[0.06]',
-        border: 'border-border/40',
-        text: 'text-muted-foreground',
-        dot: 'bg-muted-foreground',
-        pulse: false,
-      };
-    default:
-      return {
-        bg: 'bg-foreground/[0.06]',
-        border: 'border-border/40',
-        text: 'text-muted-foreground',
-        dot: 'bg-muted-foreground',
-        pulse: false,
-      };
-  }
 }
 
 function getStatusLabel(status: SeriesStatus): string {
@@ -157,45 +81,27 @@ export function SeriesHero({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const statusConfig = getStatusPillConfig(effectiveStatus);
+  const tone = getStatusTone(effectiveStatus);
   const statusLabel = getStatusLabel(effectiveStatus);
 
+  // Toolbar button: labelled tile on phone (icon over a short caption, 44px+
+  // tall), regular outlined button from `sm` up.
+  const tool =
+    "h-auto min-h-[52px] flex-col gap-1 px-1 py-1.5 text-[10.5px] font-semibold leading-tight sm:min-h-0 sm:h-9 sm:flex-row sm:gap-[7px] sm:px-3.5 sm:py-0 sm:text-[13px]";
+
   return (
-    <section className="relative isolate overflow-hidden border-b border-border/60">
-      {/* Blurred banner layer */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10 bg-cover bg-center scale-110 will-change-transform"
-        style={{
-          backgroundImage: `url(${formatThumbnailUrl(displayThumbnail)})`,
-          filter: 'blur(28px) brightness(0.4) saturate(1.4)',
-        }}
-      />
-
-      {/* Gradient overlay */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10 bg-gradient-to-b from-background/30 via-background/70 to-background"
-      />
-
-      {/* Subtle pink tint */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_50%_0%,hsl(346.8_77.2%_49.8%/0.10),transparent_70%)]"
-      />
-
-      {/* Foreground content */}
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10">
-        <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">
+    <section className="relative isolate border-b-[3px] border-double border-rule-3">
+      <div className="relative mx-auto max-w-6xl px-4 pb-7 pt-5 sm:px-6 sm:pb-9 sm:pt-8 lg:px-9">
+        <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-x-4 gap-y-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-x-9 lg:grid-cols-[224px_minmax(0,1fr)]">
 
           {/* Cover */}
-          <div className="shrink-0 mx-auto sm:mx-0">
+          <div className="relative self-start sm:row-span-2 motion-safe:animate-paper-rise">
             <img
               src={formatThumbnailUrl(displayThumbnail)}
               alt={displayTitle}
               loading="eager"
-              style={{ aspectRatio: '4/6' }}
-              className="w-[130px] h-[195px] sm:w-[180px] sm:h-[270px] object-cover rounded-xl ring-1 ring-white/[0.06] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7),0_0_80px_-20px_hsl(346.8_77.2%_49.8%/0.25)]"
+              style={{ aspectRatio: '2/3' }}
+              className="relative z-[1] w-full rounded-[3px] bg-paper-2 object-cover shadow-print ring-1 ring-ink/10"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 if (target.src !== window.location.origin + '/rensaio.png') {
@@ -205,52 +111,53 @@ export function SeriesHero({
             />
           </div>
 
-          {/* Info column */}
-          <div className="flex-1 min-w-0 space-y-3 sm:space-y-4">
-
+          {/* Title block */}
+          <div className="min-w-0 self-end sm:self-start motion-safe:animate-paper-rise [animation-delay:40ms]">
             {/* Status pill + Type chip */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 sm:mb-3.5">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border ${statusConfig.bg} ${statusConfig.border} ${statusConfig.text}`}
+                className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-[3px] font-mono text-[10px] font-semibold uppercase tracking-[0.1em] ${tone.chip}`}
               >
                 <span
                   aria-hidden="true"
-                  className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot} ${statusConfig.pulse ? 'animate-pulse' : ''}`}
+                  className={`h-1.5 w-1.5 rounded-full ${tone.fill} ${effectiveStatus === SeriesStatus.ONGOING ? 'motion-safe:animate-pulse' : ''}`}
                 />
                 {statusLabel}
               </span>
               {series.type && (
-                <span
-                  className="inline-flex items-center rounded-full bg-foreground/[0.06] border border-border/40 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-foreground/80"
-                >
+                <span className="inline-flex items-center rounded-[3px] border border-rule-2 bg-paper-1 px-2 py-[3px] font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-2">
                   {series.type}
                 </span>
               )}
             </div>
 
             {/* Title */}
-            <h1 className="text-2xl sm:text-3xl md:text-[34px] font-bold tracking-tight leading-[1.15] text-foreground line-clamp-3">
+            <h1 className="line-clamp-4 font-serif text-[28px] font-normal leading-[1.02] tracking-[-0.025em] text-ink text-balance sm:line-clamp-3 sm:text-[44px] lg:text-[52px]">
               {displayTitle}
             </h1>
 
             {/* Author / Artist row */}
             {(series.author || series.artist) && (
-              <p className="text-sm text-muted-foreground">
-                by <span className="text-foreground">{series.author}</span>
+              <p className="mt-2 text-[13px] text-ink-2 sm:mt-3 sm:text-sm">
+                by <span className="font-semibold text-ink">{series.author}</span>
                 {series.artist && series.artist !== series.author && (
-                  <> · illust. {series.artist}</>
+                  <> <span className="text-ink-3">·</span> illust. <span className="font-semibold text-ink">{series.artist}</span></>
                 )}
               </p>
             )}
+          </div>
+
+          {/* Body */}
+          <div className="col-span-2 min-w-0 space-y-4 sm:col-span-1 sm:col-start-2 motion-safe:animate-paper-rise [animation-delay:80ms]">
 
             {/* Inline meta row */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11.5px] tabular-nums text-ink-3 sm:text-xs">
               <span>Ch. {series.chapterList || '—'}</span>
-              <span className="opacity-40">·</span>
+              <span aria-hidden="true" className="text-rule-2">·</span>
               <span>{series.chapterCount} chapter{series.chapterCount === 1 ? '' : 's'}</span>
               {series.lastChangeUTC && (
                 <>
-                  <span className="opacity-40">·</span>
+                  <span aria-hidden="true" className="text-rule-2">·</span>
                   <span>Updated {formatRelative(series.lastChangeUTC)}</span>
                 </>
               )}
@@ -262,7 +169,7 @@ export function SeriesHero({
                 {series.genre.map(g => (
                   <span
                     key={g}
-                    className="inline-flex items-center rounded-full bg-foreground/[0.06] border border-border/40 px-2 py-0.5 text-[11px] text-foreground/80"
+                    className="inline-flex items-center rounded-full border border-rule-2 bg-paper-1 px-2.5 py-0.5 text-[12px] text-ink-2"
                   >
                     {g}
                   </span>
@@ -272,16 +179,16 @@ export function SeriesHero({
 
             {/* Description with Read more */}
             {series.description && (
-              <div className="max-w-[70ch]">
+              <div className="max-w-[68ch]">
                 <p
-                  className={`text-sm text-muted-foreground whitespace-pre-line ${expanded ? '' : 'line-clamp-3'}`}
+                  className={`whitespace-pre-line text-[14px] leading-[1.65] text-ink-2 sm:text-[14.5px] ${expanded ? '' : 'line-clamp-3'}`}
                 >
                   {series.description}
                 </p>
                 {series.description.length > 240 && (
                   <button
                     onClick={() => setExpanded(v => !v)}
-                    className="mt-1 text-xs font-medium text-primary hover:underline"
+                    className="mt-1 inline-flex min-h-9 items-center rounded-sm text-[13px] font-semibold text-accent-ink underline-offset-4 outline-none hover:underline focus-visible:underline sm:min-h-0"
                   >
                     {expanded ? 'Show less' : 'Read more'}
                   </button>
@@ -293,38 +200,39 @@ export function SeriesHero({
                 gets its own separated, beacon-pulsing area so the user's eye
                 lands here first and they're nudged to take action. */}
             {canManageDownloads && pausedDownloads && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2.5">
-                <span className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-300">
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-warn/40 bg-warn-soft px-3.5 py-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-warn">
                   <Pause className="h-4 w-4 shrink-0 fill-current" />
                   Downloads are paused for this series.
                 </span>
                 <Button
                   onClick={onPauseToggle}
-                  className="resume-beacon ml-auto rounded-full bg-yellow-500 font-semibold text-black hover:bg-yellow-400 focus-visible:ring-yellow-400"
+                  className="resume-beacon ml-auto border-warn bg-warn text-paper shadow-none hover:bg-warn hover:brightness-110 focus-visible:ring-warn/40 max-sm:w-full"
                 >
-                  <Play className="h-4 w-4 mr-2" />
+                  <Play className="h-4 w-4 fill-current" />
                   Resume Downloads
                 </Button>
               </div>
             )}
 
             {/* Action toolbar */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="grid auto-cols-fr grid-flow-col gap-1.5 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
               {canManageDownloads && !pausedDownloads && (
-                <Button variant="default" onClick={onPauseToggle} className="px-0 w-9 sm:w-auto sm:px-4">
-                  <Pause className="h-4 w-4 sm:mr-2" />
+                <Button variant="default" onClick={onPauseToggle} className={tool} aria-label="Pause Downloads">
+                  <Pause className="h-4 w-4" />
+                  <span className="sm:hidden">Pause</span>
                   <span className="hidden sm:inline">Pause Downloads</span>
                 </Button>
               )}
 
               {canEditSeries && (
-                <Button variant="outline" onClick={onVerify} disabled={verifyPending} className="px-0 w-9 sm:w-auto sm:px-4">
+                <Button variant="outline" onClick={onVerify} disabled={verifyPending} className={tool}>
                   {verifyPending ? (
-                    <div className="h-4 w-4 sm:mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4 sm:mr-2" />
+                    <CheckCircle2 className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline">Verify</span>
+                  <span>Verify</span>
                 </Button>
               )}
 
@@ -334,10 +242,10 @@ export function SeriesHero({
                   onClick={onRefresh}
                   disabled={refreshPending}
                   title="Refresh metadata & check for new chapters"
-                  className="px-0 w-9 sm:w-auto sm:px-4"
+                  className={tool}
                 >
-                  <RefreshCw className={`h-4 w-4 sm:mr-2 ${refreshPending ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Refresh</span>
+                  <RefreshCw className={`h-4 w-4 ${refreshPending ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
                 </Button>
               )}
 
@@ -347,10 +255,10 @@ export function SeriesHero({
                   onClick={onRename}
                   disabled={renamePending}
                   title="Rename the series folder & all .cbz files to the correct naming scheme"
-                  className="px-0 w-9 sm:w-auto sm:px-4"
+                  className={tool}
                 >
-                  <FolderSync className={`h-4 w-4 sm:mr-2 ${renamePending ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Rename</span>
+                  <FolderSync className={`h-4 w-4 ${renamePending ? 'animate-spin' : ''}`} />
+                  <span>Rename</span>
                 </Button>
               )}
 
@@ -359,40 +267,36 @@ export function SeriesHero({
                   variant="outline"
                   onClick={onEdit}
                   title="Edit series title, type, or storage path"
-                  className="px-0 w-9 sm:w-auto sm:px-4"
+                  className={tool}
                 >
-                  <Pencil className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Edit</span>
+                  <Pencil className="h-4 w-4" />
+                  <span>Edit</span>
                 </Button>
               )}
 
               {canDeleteSeries && (
-                <Button
-                  variant="outline"
-                  onClick={onDelete}
-                  className="px-0 w-9 sm:w-auto sm:px-4 text-destructive hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Delete</span>
+                <Button variant="danger" onClick={onDelete} className={tool}>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete</span>
                 </Button>
               )}
             </div>
 
             {/* Storage path */}
             {series.path && (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70 font-mono">
-                <FolderOpen className="h-3 w-3 shrink-0" />
-                <span className="truncate" title={series.path}>{series.path}</span>
+              <div className="inline-flex max-w-full items-center gap-2 rounded-[4px] border border-dashed border-rule-2 bg-paper-1/60 py-1 pl-2.5 pr-1 font-mono text-[11.5px] text-ink-3">
+                <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 truncate" title={series.path}>{series.path}</span>
                 <button
                   onClick={() => {
                     void navigator.clipboard.writeText(series.path!);
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1500);
                   }}
-                  className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors active:bg-foreground/[0.18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink active:bg-paper-3 focus-visible:ring-[3px] focus-visible:ring-accent-soft max-sm:-my-2.5 max-sm:h-11 max-sm:w-11"
                   aria-label="Copy storage path"
                 >
-                  {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                  {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
             )}

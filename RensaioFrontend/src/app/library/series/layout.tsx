@@ -8,7 +8,7 @@ function SeriesLayoutContent({ children }: { children: React.ReactNode }) {
   const { seriesTitle } = useSeriesContext();
 
   return (
-    <PageLayout seriesTitle={seriesTitle} mainClassName="p-4 pb-16 sm:px-6 sm:py-4 sm:pb-4 overflow-y-auto">
+    <PageLayout seriesTitle={seriesTitle} mainClassName="overflow-y-auto pb-8">
       {children}
     </PageLayout>
   );

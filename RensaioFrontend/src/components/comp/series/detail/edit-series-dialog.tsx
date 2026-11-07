@@ -75,8 +75,10 @@ export function EditSeriesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-5 w-5" />
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-ink">
+              <Pencil className="h-4 w-4" />
+            </span>
             Edit Series
           </DialogTitle>
           <DialogDescription>
@@ -85,7 +87,7 @@ export function EditSeriesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-5">
           {/* Title */}
           <div className="grid gap-2">
             <Label htmlFor="edit-series-title" className="text-sm font-medium">
@@ -97,9 +99,9 @@ export function EditSeriesDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="The series display title"
             />
-            <p className="text-xs text-muted-foreground">
-              Overriding the title detaches every source from "use as title", the title
-              becomes manual and metadata refreshes won't overwrite it. Re-picking a
+            <p className="text-xs leading-relaxed text-ink-3">
+              Overriding the title detaches every source from &ldquo;use as title&rdquo;, the title
+              becomes manual and metadata refreshes won&rsquo;t overwrite it. Re-picking a
               source as the title provider restores its title.
             </p>
           </div>
@@ -116,13 +118,18 @@ export function EditSeriesDialog({
               placeholder="Manga / Manhwa / Manhua / …"
             />
             {typePills.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                 {typePills.map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => setType(preset)}
-                    className="inline-flex items-center rounded-full bg-foreground/[0.06] border border-border/40 px-2 py-0.5 text-[11px] text-foreground/80 hover:bg-foreground/10"
+                    aria-pressed={type === preset}
+                    className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-accent-soft max-sm:h-10 max-sm:px-3.5 ${
+                      type === preset
+                        ? "border-accent-line bg-accent-soft text-accent-ink"
+                        : "border-rule-2 bg-paper text-ink-2 hover:border-rule-3 hover:text-ink"
+                    }`}
                   >
                     {preset}
                   </button>
@@ -137,7 +144,7 @@ export function EditSeriesDialog({
               Storage Path
             </Label>
             <div className="relative">
-              <FolderOpen className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <FolderOpen className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
               <Input
                 id="edit-series-path"
                 value={storagePath}
@@ -145,23 +152,23 @@ export function EditSeriesDialog({
                   setStoragePath(e.target.value);
                   setPathTouched(true);
                 }}
-                className="pl-9 font-mono"
+                className="pl-9 font-mono sm:text-[13px]"
                 placeholder="Manga/One Piece"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs leading-relaxed text-ink-3">
               Relative to the configured storage folder. Changing it moves the whole folder
               (and its files) to the new location; the operation rolls back if it fails.
             </p>
             {pathTouched && storagePath.trim() !== (series.storagePath ?? "") && (
-              <p className="text-xs text-foreground/90">
+              <p className="flex items-center gap-1.5 rounded-md border border-warn/35 bg-warn-soft px-2.5 py-1.5 text-xs font-medium text-warn">
                 Moving files — the old folder will be cleaned up when empty.
               </p>
             )}
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+        <DialogFooter>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -176,7 +183,7 @@ export function EditSeriesDialog({
           >
             {isSaving ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 Saving…
               </>
             ) : (

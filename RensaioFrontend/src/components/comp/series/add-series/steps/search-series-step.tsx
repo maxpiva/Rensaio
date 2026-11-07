@@ -116,12 +116,18 @@ export function SearchSeriesStep({
 
   // When user has CanBrowseSources: search with their selected sources
   // When user does NOT have CanBrowseSources: search all sources (don't pass searchSources, backend defaults to all)
+  // The 3s debounce is only for the user changing sources. The initial
+  // selection (restored or "all") arrives right after mount, and waiting 3s
+  // for it left the first search idle and showing "No results found".
+  const effectiveSelectedSources =
+    debouncedSelectedSources.length > 0 ? debouncedSelectedSources : selectedSources;
+
   const searchSourcesParam = canBrowseSources
-    ? (debouncedSelectedSources.length > 0 ? debouncedSelectedSources : undefined)
+    ? (effectiveSelectedSources.length > 0 ? effectiveSelectedSources : undefined)
     : undefined;
 
   const isSearchReady = canBrowseSources
-    ? debouncedSearchValue.length >= 3 && debouncedSelectedSources.length > 0
+    ? debouncedSearchValue.length >= 3 && effectiveSelectedSources.length > 0
     : debouncedSearchValue.length >= 3;
 
   const { data: searchResults, isLoading, error, isFetching } = useSearchSeries(

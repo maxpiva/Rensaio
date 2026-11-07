@@ -172,26 +172,46 @@ function TabLink({ item, active }: { item: SectionDef; active: boolean }) {
   );
 }
 
-/** Centre "Add" tab: rotated crimson seal button. Trigger for AddSeries. */
+/**
+ * Centre "Add" tab: straight crimson seal button. Trigger for AddSeries.
+ * A tap plays a short shake that settles back to straight (skipped when the
+ * user prefers reduced motion).
+ */
 const AddTabButton = forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }
->(({ label, className, ...props }, ref) => (
-  <button
-    ref={ref}
-    type="button"
-    aria-label={label === "Add" ? "Add series" : "Request series"}
-    className={cn(
-      "group flex min-h-[52px] items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
-      className,
-    )}
-    {...props}
-  >
-    <span className="grid h-12 w-12 -rotate-[4deg] place-items-center rounded-md bg-primary text-primary-foreground shadow-[0_10px_22px_-10px_hsl(var(--primary)),inset_0_0_0_1.5px_rgba(255,255,255,.25)] transition-transform group-active:scale-95 group-active:-rotate-2">
-      <Plus className="h-6 w-6" strokeWidth={2.2} aria-hidden="true" />
-    </span>
-  </button>
-));
+>(({ label, className, onClick, ...props }, ref) => {
+  // Bumped on every tap; keying the seal on it remounts the span so the
+  // shake restarts even on rapid repeat taps.
+  const [shakeCount, setShakeCount] = useState(0);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={label === "Add" ? "Add series" : "Request series"}
+      className={cn(
+        "group flex min-h-[52px] items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
+      onClick={(e) => {
+        onClick?.(e);
+        setShakeCount((n) => n + 1);
+      }}
+      {...props}
+    >
+      <span
+        key={shakeCount}
+        className={cn(
+          "grid h-12 w-12 place-items-center rounded-md bg-primary text-primary-foreground shadow-[0_10px_22px_-10px_hsl(var(--primary)),inset_0_0_0_1.5px_rgba(255,255,255,.25)] transition-transform group-active:scale-95",
+          shakeCount > 0 && "motion-safe:animate-seal-shake",
+        )}
+      >
+        <Plus className="h-6 w-6" strokeWidth={2.2} aria-hidden="true" />
+      </span>
+    </button>
+  );
+});
 AddTabButton.displayName = "AddTabButton";
 
 /* ─── More sheet ───────────────────────────────────────────────────────── */

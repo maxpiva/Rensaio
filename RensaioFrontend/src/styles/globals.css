@@ -218,6 +218,33 @@
       transform: none;
     }
   }
+
+  /* Phone tab-bar Add button: a quick shake that settles back to straight. */
+  --animate-seal-shake: seal-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  @keyframes seal-shake {
+    0%,
+    100% {
+      transform: rotate(0deg) scale(1);
+    }
+    15% {
+      transform: rotate(-12deg) scale(0.94);
+    }
+    30% {
+      transform: rotate(10deg) scale(1.04);
+    }
+    45% {
+      transform: rotate(-7deg) scale(1.02);
+    }
+    60% {
+      transform: rotate(5deg) scale(1);
+    }
+    75% {
+      transform: rotate(-2deg);
+    }
+    88% {
+      transform: rotate(1deg);
+    }
+  }
 }
 
 @layer utilities {

@@ -212,9 +212,10 @@ export function AddSeriesSteps({
   const stageNumber = isStage0 ? 0 : 1;
 
   return (
-    <div className="relative flex max-h-[86dvh] flex-col overflow-hidden rounded-xl border border-rule-2 bg-paper text-ink shadow-lift">
+    <div className="relative flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:max-h-[86dvh] border border-rule-2 bg-paper text-ink shadow-lift">
       {/* ── Masthead ─────────────────────────────────────────────── */}
-      <header className="relative shrink-0 px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
+      {/* Tighter on phones so the results keep room when the keyboard is up */}
+      <header className="relative shrink-0 px-5 pb-3 pt-4 sm:px-7 sm:pb-4 sm:pt-6">
         <button
           type="button"
           className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-9 sm:w-9"
@@ -225,8 +226,8 @@ export function AddSeriesSteps({
         </button>
 
         <p className="paper-eyebrow pr-12 text-accent-ink">{getStageLabel()}</p>
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-12">
-          <DialogTitle className="paper-display text-[26px] leading-[1.05] tracking-[-0.02em] sm:text-[30px]">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-12 sm:mt-1.5">
+          <DialogTitle className="paper-display text-[22px] leading-[1.05] tracking-[-0.02em] sm:text-[30px]">
             Add <em>{isAddSourcesMode ? "sources" : "series"}</em>
           </DialogTitle>
           {title && isAddSourcesMode && (
@@ -235,7 +236,7 @@ export function AddSeriesSteps({
         </div>
 
         {/* Two-stage track: done = ink, current = crimson, upcoming = hairline */}
-        <div className="mt-4 grid grid-cols-2 gap-1.5" aria-hidden="true">
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-4" aria-hidden="true">
           {[0, 1].map((step) => (
             <span
               key={step}
@@ -288,15 +289,22 @@ export function AddSeriesSteps({
       )}
 
       {/* ── Footer ────────────────────────────────────────────────── */}
-      <footer className="flex shrink-0 flex-col gap-2.5 border-t border-rule bg-paper-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-7">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3 tabular-nums" aria-live="polite">
+      {/* On phones the search stage uses one row (count + Next; Back is
+          always disabled there) so the results get the height instead. */}
+      <footer
+        className={cn(
+          "flex shrink-0 gap-2.5 border-t border-rule bg-paper-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-7",
+          isStage0 ? "flex-row items-center justify-between" : "flex-col",
+        )}
+      >
+        <p className="min-w-0 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3 tabular-nums" aria-live="polite">
           {getLeftMetaCopy()}
         </p>
-        <div className="flex gap-2">
+        <div className={cn("flex gap-2", isStage0 && "shrink-0")}>
           <Button
             type="button"
             variant="ghost"
-            className="max-sm:flex-1"
+            className={cn("max-sm:flex-1", isStage0 && "max-sm:hidden")}
             onClick={handlePrev}
             disabled={currentStep === 0}
           >
@@ -304,7 +312,7 @@ export function AddSeriesSteps({
           </Button>
           <Button
             type="button"
-            className="gap-1.5 max-sm:flex-[2] sm:min-w-[8.5rem]"
+            className={cn("gap-1.5 sm:min-w-[8.5rem]", isStage0 ? "max-sm:min-w-[7.5rem]" : "max-sm:flex-[2]")}
             onClick={isStage0 ? handleNext : handleSubmit}
             disabled={!canProgress || isLoading || isPending}
           >

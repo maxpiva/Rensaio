@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { type Provider, NsfwVisibility } from "@/lib/api/types";
 import { type MultiSelectOption } from "@/components/ui/multi-select";
 import { Input } from "@/components/ui/input";
@@ -320,7 +321,7 @@ export function SourcesList({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.name.endsWith('.apk')) {
+    if (file?.name.endsWith('.apk')) {
       void handleInstallFromApk(file);
     }
     // Reset so same file can be selected again
@@ -330,8 +331,24 @@ export function SourcesList({
   // ── Loading state ────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-muted-foreground text-sm">Loading sources…</div>
+      <div className="space-y-3" role="status" aria-label="Loading sources">
+        <div className="flex items-center gap-3 pb-1">
+          <Skeleton className="h-5 w-24" />
+          <span aria-hidden className="h-px flex-1 bg-rule" />
+        </div>
+        <div className="overflow-hidden rounded-lg border border-rule bg-card">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 border-b border-rule px-3 py-3 last:border-b-0 md:gap-4 md:px-4">
+              <Skeleton className="h-10 w-10 rounded-md md:h-11 md:w-11" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-40 max-w-[60%]" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-[30px] w-20 rounded-[5px]" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Loading sources…</span>
       </div>
     );
   }
@@ -348,12 +365,12 @@ export function SourcesList({
       {embedded && (
         <div className="space-y-3">
           {description && (
-            <p className="text-sm leading-relaxed text-muted-foreground">
+            <p className="text-sm leading-relaxed text-ink-3">
               {description}
             </p>
           )}
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
             <Input
               type="search"
               value={internalSearch}
@@ -444,13 +461,16 @@ export function SourcesList({
       {/* Empty state */}
       {filteredInstalledExtensions.length === 0 &&
         filteredAvailableExtensions.length === 0 && (
-          <div className="text-center text-muted-foreground py-12 text-sm">
+          <div className="rounded-lg border border-dashed border-rule-2 px-6 py-14 text-center text-sm text-ink-2">
+            <p className="mb-1 font-serif text-xl text-ink">
+              {effectiveSearchTerm.trim() ? "Nothing on the shelf." : "No sources yet."}
+            </p>
             {effectiveSearchTerm.trim() ? (
               <>
                 No sources found matching &ldquo;{effectiveSearchTerm}&rdquo;.{' '}
                 <button
                   onClick={() => doClearSearch?.()}
-                  className="text-primary underline hover:no-underline"
+                  className="font-semibold text-accent-ink underline underline-offset-2 hover:no-underline"
                 >
                   View all sources
                 </button>
@@ -463,8 +483,8 @@ export function SourcesList({
 
       {/* APK upload indicator */}
       {isUploadingApk && (
-        <div className="text-center text-muted-foreground py-2 text-sm flex items-center justify-center gap-2">
-          <span className="animate-spin inline-block w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full" />
+        <div className="flex items-center justify-center gap-2 py-2 text-sm text-ink-2" role="status">
+          <Loader2 className="h-4 w-4 animate-spin text-accent-ink" aria-hidden />
           Installing APK…
         </div>
       )}

@@ -154,7 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Only applies to non-auth pages (avoids redirect loops on /login, /user-select)
   useEffect(() => {
     if (!isLoading && !user) {
-      const pathname = window.location.pathname;
+      // Static export uses trailingSlash, so routes arrive as "/login/".
+      const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
       // Don't redirect if already on an auth-related page
       if (pathname === '/login' || pathname === '/user-select' || pathname.startsWith('/auth/')) {
         return;

@@ -25,31 +25,26 @@ export function SourcesSection({
 
   return (
     <section id={id} aria-labelledby={headingId} className="space-y-0">
-      {/* Section header */}
-      <div className="flex items-center justify-between pb-2.5 pt-0">
-        <h2 id={headingId} className="flex items-center gap-2.5 text-[17px] md:text-[18px] font-bold tracking-tight text-foreground">
+      {/* Section header: serif title, mono count, trailing hairline */}
+      <div className="flex items-center gap-3 pb-3">
+        <h2
+          id={headingId}
+          className="flex items-baseline gap-2 font-serif text-[21px] leading-none tracking-[-0.01em] text-ink md:text-[23px]"
+        >
           {title}
-          <span
-            className="text-[12px] font-semibold px-2 py-0.5 rounded-full border"
-            style={{
-              background: 'hsla(0 0% 100% / 0.05)',
-              borderColor: 'hsla(0 0% 100% / 0.06)',
-              color: 'hsl(var(--muted-foreground))',
-            }}
-          >
-            {count}
-          </span>
+          <span className="font-mono text-[11.5px] tracking-normal text-ink-3">{count}</span>
         </h2>
+        <span aria-hidden className="h-px flex-1 bg-rule" />
       </div>
 
-      {/* Bordered list card */}
-      <div className="src-list">
+      {/* Hairline-ruled list panel */}
+      <div className="overflow-hidden rounded-lg border border-rule bg-card shadow-paper">
         {children}
 
         {/* Optional "Show all" footer */}
         {onShowAll && showAllLabel && (
           <button
-            className="src-show-all"
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 border-t border-rule bg-paper-1 text-[13px] font-semibold text-accent-ink transition-colors hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
             onClick={onShowAll}
             type="button"
           >

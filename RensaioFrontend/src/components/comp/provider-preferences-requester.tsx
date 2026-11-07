@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
-import { Loader2, Settings } from "lucide-react";
+import { AlertTriangle, Loader2, Settings } from "lucide-react";
 import { providerService } from "@/lib/api/services/providerService";
 import type { ProviderPreferences, ProviderPreference } from "@/lib/api/types";
 import { EntryType } from "@/lib/api/types";
@@ -137,7 +137,7 @@ export function ProviderPreferencesRequester({
         return (currentVal as string) || EMPTY_VALUE_SENTINEL;
       }
       // If currentValue is not in entryValues, return the first valid value
-      return preference.entryValues[0] || EMPTY_VALUE_SENTINEL;
+      return preference.entryValues[0]?.length ? preference.entryValues[0] : EMPTY_VALUE_SENTINEL;
     }
 
     return (currentVal as string) || EMPTY_VALUE_SENTINEL;
@@ -223,27 +223,36 @@ export function ProviderPreferencesRequester({
 
       case EntryType.Switch:
         return (
-          <div className="flex items-center space-x-2">
+          <div className="flex min-h-9 items-center gap-2.5 max-sm:min-h-11">
             <Switch
+              id={`pref-${index}`}
               checked={currentValue as boolean ?? false}
               onCheckedChange={(checked) => updatePreferenceValue(index, checked)}
             />
-            <Label className="text-sm">
+            <Label
+              htmlFor={`pref-${index}`}
+              className={`font-mono text-[11.5px] uppercase tracking-[0.08em] ${(currentValue as boolean) ? 'text-ok' : 'text-ink-3'}`}
+            >
               {(currentValue as boolean) ? 'Enabled' : 'Disabled'}
             </Label>
           </div>
         );
 
       default:
-        return <div className="text-sm text-muted-foreground">Unknown preference type</div>;
+        return <div className="rounded-md border border-dashed border-rule-2 px-3 py-2 text-[12.5px] italic text-ink-3">Unknown preference type</div>;
     }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            {providerName ? `${providerName} Settings` : 'Provider Settings'}
+      <DialogContent className="max-h-[92dvh] sm:max-h-[90vh] sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-ink">
+              <Settings className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 break-words">
+              {providerName ? `${providerName} Settings` : 'Provider Settings'}
+            </span>
           </DialogTitle>
           <DialogDescription>
             Configure preferences for this provider. Changes will be saved automatically.
@@ -251,44 +260,70 @@ export function ProviderPreferencesRequester({
         </DialogHeader>
 
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-            <p className="text-sm text-destructive">{error}</p>
+          <div role="alert" className="flex items-start gap-2.5 rounded-md border border-bad/30 bg-bad-soft px-3 py-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" />
+            <p className="text-[13px] font-medium text-bad">{error}</p>
           </div>
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading preferences...</span>
-          </div>        ) : preferences ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {preferences.preferences.map((preference, index) => (              <div key={index} className="flex flex-col h-full min-h-[120px]">
-                <div className="flex-1 space-y-1 mb-4">
-                  <Label className="text-base font-medium">
-                    {preference.title}
-                  </Label>                  {preference.summary && (
-                    <p 
-                      className="text-sm text-muted-foreground"
-                      dangerouslySetInnerHTML={{ __html: getProcessedSummary(preference) }}
-                    />
-                  )}</div>
-                <div className="mt-auto">
-                  {renderPreferenceControl(preference, index)}
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Loading preferences...</span>
+            <div className="mb-4 flex items-center gap-2 text-[13px] text-ink-3" aria-hidden>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading preferences...
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2" aria-hidden>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2.5 rounded-lg border border-rule-2 bg-paper-1 p-4">
+                  <div className="skeleton-shimmer h-4 w-2/5 rounded-[3px]" />
+                  <div className="skeleton-shimmer h-3 w-4/5 rounded-[2px]" />
+                  <div className="skeleton-shimmer mt-3 h-9 w-full rounded-md" />
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        ) : preferences ? (
+          preferences.preferences.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-rule-2 px-4 py-8 text-center font-serif text-[16px] italic text-ink-3">
+              This provider has no preferences.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {preferences.preferences.map((preference, index) => (
+                <div
+                  key={index}
+                  className="flex h-full min-h-[120px] flex-col rounded-lg border border-rule-2 bg-paper-1 p-4 transition-colors hover:border-rule-3"
+                >
+                  <div className="mb-4 flex-1 space-y-1">
+                    <Label className="block font-serif text-[16px] font-normal leading-snug text-ink">
+                      {preference.title}
+                    </Label>
+                    {preference.summary && (
+                      <p
+                        className="text-[12.5px] leading-relaxed text-ink-3 [overflow-wrap:anywhere]"
+                        dangerouslySetInnerHTML={{ __html: getProcessedSummary(preference) }}
+                      />
+                    )}
+                  </div>
+                  <div className="mt-auto">
+                    {renderPreferenceControl(preference, index)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : null}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             disabled={loading || saving || !preferences}
           >
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Save Preferences
           </Button>
         </DialogFooter>

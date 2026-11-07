@@ -103,9 +103,9 @@ function ProviderCard({
               {showNsfwIndicator && isNsfw && (
                 <div className="absolute -top-1 -right-1">
                   {isCompact ? (
-                    <div className="rounded-full bg-red-500 text-white text-[9px] px-1">18+</div>
+                    <div className="rounded-full bg-bad text-white text-[9px] px-1">18+</div>
                   ) : (
-                    <svg className="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" data-name="Layer 2" viewBox="0 0 1850 1850">
+                    <svg className="h-5 w-5 text-bad" xmlns="http://www.w3.org/2000/svg" data-name="Layer 2" viewBox="0 0 1850 1850">
                       <g fill="currentColor" data-name="Layer 1">
                         <path d="M778.46 1414.4H595.17V710.23c-66.97 63.83-145.89 111.04-236.78 141.63V682.3c47.83-15.96 99.8-46.21 155.89-90.76 56.1-44.55 94.58-96.53 115.45-155.93h148.72v978.79zm244.16-533.83c-47.4-20.04-81.86-47.59-103.39-82.66-21.53-35.07-32.29-73.51-32.29-115.32 0-71.44 24.9-130.46 74.69-177.07 49.79-46.61 120.56-69.91 212.32-69.91s161.44 23.3 211.66 69.91 75.34 105.63 75.34 177.07c0 44.43-11.52 83.96-34.57 118.59-23.05 34.63-55.44 61.09-97.19 79.39 53.05 21.34 93.38 52.49 121 93.44 27.61 40.95 41.42 88.21 41.42 141.79 0 88.43-28.16 160.3-84.47 215.62-56.31 55.32-131.22 82.98-224.71 82.98-86.97 0-159.37-22.87-217.21-68.61-68.27-54.02-102.41-128.07-102.41-222.16 0-51.84 12.83-99.43 38.48-142.77 25.66-43.34 66.1-76.78 121.32-100.3zm37.83-184.91c0 36.59 10.33 65.12 30.98 85.59 20.66 20.47 48.16 30.71 82.51 30.71s62.62-10.35 83.49-31.04c20.87-20.69 31.31-49.33 31.31-85.92 0-34.41-10.33-61.96-30.98-82.66-20.66-20.69-47.94-31.04-81.86-31.04s-63.27 10.45-84.14 31.36c-20.87 20.91-31.31 48.57-31.31 82.98zm-16.96 410.33c0 50.53 12.94 89.95 38.81 118.27 25.87 28.31 58.16 42.47 96.86 42.47s69.14-13.61 93.93-40.84c24.79-27.23 37.18-66.54 37.18-117.94 0-44.87-12.61-80.91-37.83-108.14-25.22-27.22-57.18-40.84-95.89-40.84-44.79 0-78.17 15.46-100.12 46.39-21.96 30.93-32.94 64.47-32.94 100.62z"/>
                         <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="150" d="M925 75c469.13 0 850 380.87 850 850s-380.87 850-850 850S75 1394.13 75 925 455.87 75 925 75h0z"/>
@@ -438,8 +438,8 @@ export function ProviderManager({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.name.endsWith('.apk')) {
-      handleInstallFromApk(file);
+    if (file?.name.endsWith('.apk')) {
+      void handleInstallFromApk(file);
     } else {
       onError?.('Please select a valid APK file.');
     }

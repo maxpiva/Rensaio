@@ -6,9 +6,10 @@
  * Single import card in the confirm-imports panel.
  *
  * Layout:
- *   [poster 64×96] | [title (Fraunces) / path (mono)] | [action cluster]
- *   ——————————————————————————————————————————————————————————
- *   match rows (MatchRow ×N)
+ *   [poster 64×96] | title (serif) / path (mono)
+ *                  | action cluster
+ *                  | match rows (MatchRow ×N)
+ *   Phone: poster + title side by side; controls and matches span the card.
  *
  * The action cluster contains:
  *   - "Continue After Chapter" number input
@@ -17,7 +18,7 @@
  *   - Add button (conditional)
  *   - Action combobox (conditional)
  *
- * SearchSeriesRequester is kept mounted per-card (Slice C re-skins that component).
+ * SearchSeriesRequester is kept mounted per-card.
  */
 
 import React, { useCallback, useContext, useMemo } from "react";
@@ -36,6 +37,7 @@ import { SearchSeriesRequester } from "@/components/comp/setup-wizard/search-ser
 import type { ImportInfo, SmallSeries } from "@/lib/api/types";
 import { ImportStatus, Action } from "@/lib/api/types";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+import { cn } from "@/lib/utils";
 import { MatchRow } from "./match-row";
 import { ImportsContext } from "./imports-context";
 
@@ -105,7 +107,7 @@ export const ImportCard = React.memo(
     // Event handlers
     const handleActionChange = useCallback(
       (value: string) => {
-        const newAction = parseInt(value) as Action;
+        const newAction: Action = parseInt(value);
         if (newAction !== importItem.action) {
           const newStatus =
             newAction === Action.Add ? ImportStatus.Import : ImportStatus.Skip;
@@ -216,63 +218,70 @@ export const ImportCard = React.memo(
       [importsCtx, importItem.series]
     );
 
-    return (
-      <div className="iw-import-card">
-        {/* Card header: poster + title/path + action cluster.
-            Not-matched items have no preferred series → no thumbnail, so the
-            poster element is omitted. Drop the fixed poster grid column in that
-            case (via --no-poster) so the title doesn't fall into the 64px slot. */}
-        <div
-          className={`iw-card-head${thumbnailSrc ? "" : " iw-card-head--no-poster"}`}
-        >
-          {/* Poster */}
-          {thumbnailSrc && (
-            <div className="iw-card-poster">
-              <Image
-                src={imgSrc}
-                alt={importItem.title || "Series thumbnail"}
-                width={64}
-                height={96}
-                className="iw-card-poster__img"
-                unoptimized
-                onError={handleImgError}
-              />
-            </div>
-          )}
+    const hasMatches = !!importItem.series && importItem.series.length > 0;
+    const btnClass = "max-sm:min-h-11 max-sm:flex-1";
 
+    return (
+      <article
+        className={cn(
+          "grid gap-x-[18px] gap-y-3 rounded-md border border-rule bg-paper-1 p-4 shadow-paper max-sm:gap-x-3 max-sm:px-3 max-sm:py-3.5",
+          // Not-matched items have no preferred series → no thumbnail, so the
+          // poster column is dropped and the title takes the full width.
+          thumbnailSrc ? "grid-cols-[64px_minmax(0,1fr)] max-sm:grid-cols-[52px_minmax(0,1fr)]" : "grid-cols-1",
+        )}
+      >
+        {/* Poster */}
+        {thumbnailSrc && (
+          <div className="self-start overflow-hidden rounded-[3px] bg-paper-3 shadow-print ring-1 ring-rule-2">
+            <Image
+              src={imgSrc}
+              alt={importItem.title || "Series thumbnail"}
+              width={64}
+              height={96}
+              className="aspect-[2/3] h-auto w-full object-cover"
+              unoptimized
+              onError={handleImgError}
+            />
+          </div>
+        )}
+
+        {/* On phone this column dissolves (display: contents) so the title sits
+            beside the poster and the controls + matches span the full card. */}
+        <div className="min-w-0 max-sm:contents">
           {/* Title + path */}
-          <div className="iw-card-meta">
-            <h3 className="iw-card-title">
+          <div className="min-w-0 max-sm:self-center">
+            <h3 className="font-serif text-[20px] font-normal leading-[1.15] tracking-[-0.01em] text-ink [overflow-wrap:anywhere] max-sm:text-[17px]">
               {importItem.title || "Unknown Title"}
             </h3>
-            <div className="iw-card-path">{importItem.path}</div>
+            <div className="mt-1 font-mono text-[11.5px] font-medium leading-[1.45] text-ink-3 [overflow-wrap:anywhere] max-sm:text-[11px]">
+              {importItem.path}
+            </div>
           </div>
 
           {/* Action cluster */}
-          <div className="iw-action-cluster">
-            <div className="iw-action-chapter">
-              <label className="iw-action-chapter__label">Continue after</label>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5 max-sm:col-span-full max-sm:mt-0">
+            <label className="flex items-center gap-2 text-[12.5px] font-medium text-ink-2 max-sm:w-full">
+              <span className="whitespace-nowrap">Continue after</span>
               <Input
                 type="number"
                 min="0"
                 value={localChapter}
                 onChange={handleChapterChange}
-                className="iw-action-chapter__input"
+                className="h-[30px] w-[88px] font-mono text-[12.5px] tabular-nums max-sm:ml-auto max-sm:w-[104px]"
                 placeholder="0"
               />
-            </div>
+            </label>
 
-            <div className="iw-action-btn-row">
-              {(showSearchButton ||
-                !importItem.series ||
-                importItem.series.length === 0) && (
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+              {(showSearchButton === true || !importItem.series?.length) && (
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={handleSearchClick}
                   disabled={isUpdating}
-                  className="iw-action-btn"
+                  className={btnClass}
                 >
-                  <Search className="h-4 w-4" />
+                  <Search className="h-3.5 w-3.5" aria-hidden />
                   Search
                 </Button>
               )}
@@ -280,11 +289,12 @@ export const ImportCard = React.memo(
               {showSkipButton && (
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={handleSkipClick}
                   disabled={isUpdating}
-                  className="iw-action-btn"
+                  className={btnClass}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" aria-hidden />
                   Mismatch
                 </Button>
               )}
@@ -294,16 +304,16 @@ export const ImportCard = React.memo(
                   size="sm"
                   onClick={handleAddClick}
                   disabled={isUpdating}
-                  className="iw-action-btn"
+                  className={btnClass}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" aria-hidden />
                   Add
                 </Button>
               )}
 
               {showActionCombobox && (
-                <div className="flex items-center gap-2 relative isolate">
-                  <span className="text-sm font-medium">Action:</span>
+                <div className="relative isolate flex items-center gap-2">
+                  <span className="text-[12.5px] font-medium text-ink-2">Action:</span>
                   <div className="relative z-10 contain-layout">
                     {actionSelect}
                   </div>
@@ -311,24 +321,28 @@ export const ImportCard = React.memo(
               )}
             </div>
           </div>
+
+          {/* Match rows */}
+          {hasMatches && (
+            <div
+              className="mt-3 overflow-hidden rounded-[5px] border border-rule bg-paper max-sm:col-span-full max-sm:mt-0"
+              role="list"
+              aria-label="Source matches"
+            >
+              {importItem.series!.map((series: SmallSeries, index: number) => (
+                <MatchRow
+                  key={`series-${series.id}-${series.provider}-${series.scanlator ?? ""}`}
+                  series={series}
+                  seriesIndex={index}
+                  importPath={importItem.path}
+                  onProviderToggle={handleProviderToggle}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Match rows */}
-        {importItem.series && importItem.series.length > 0 && (
-          <div className="iw-matches">
-            {importItem.series.map((series: SmallSeries, index: number) => (
-              <MatchRow
-                key={`series-${series.id}-${series.provider}-${series.scanlator ?? ""}`}
-                series={series}
-                seriesIndex={index}
-                importPath={importItem.path}
-                onProviderToggle={handleProviderToggle}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* SearchSeriesRequester — kept mounted per-card (Slice C re-skins) */}
+        {/* SearchSeriesRequester — kept mounted per-card */}
         <SearchSeriesRequester
           open={searchRequesterOpen}
           onOpenChange={setSearchRequesterOpen}
@@ -336,7 +350,7 @@ export const ImportCard = React.memo(
           importPath={importItem.path}
           onResult={handleSearchResult}
         />
-      </div>
+      </article>
     );
   },
   (prevProps, nextProps) => {
@@ -351,8 +365,8 @@ export const ImportCard = React.memo(
 
     if (!basicEqual) return false;
 
-    const prevSeries = prevProps.import.series || [];
-    const nextSeries = nextProps.import.series || [];
+    const prevSeries = prevProps.import.series ?? [];
+    const nextSeries = nextProps.import.series ?? [];
     if (prevSeries.length !== nextSeries.length) return false;
 
     for (let i = 0; i < prevSeries.length; i++) {

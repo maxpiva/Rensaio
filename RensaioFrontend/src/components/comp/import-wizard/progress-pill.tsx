@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Check, ChevronRight } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 
 export interface ProgressPillStep {
   id: string;
@@ -11,80 +12,50 @@ export interface ProgressPillStep {
 interface ProgressPillProps {
   steps: ProgressPillStep[];
   currentStep: number; // 0-based
+  className?: string;
 }
 
-export function ProgressPill({ steps, currentStep }: ProgressPillProps) {
+/**
+ * Compact wizard progress: a mono "Step 03 of 07 · Scan" kicker over one
+ * hairline bar per step (done = ink, current = crimson, pending = paper).
+ * The desktop wizard shows the full step rail instead; this is the phone and
+ * tablet header. Column count follows the step count (4 for import, 7 setup).
+ */
+export function ProgressPill({ steps, currentStep, className }: ProgressPillProps) {
   const total = steps.length;
-  // percentage through the wizard: e.g. step 1 of 4 = 25%, step 2 of 4 = 50%
-  const pct = Math.round(((currentStep + 1) / total) * 100);
   const activeStep = steps[currentStep];
-  const stepNum = String(currentStep + 1).padStart(2, "0");
-  const stepLabel = activeStep?.label.toUpperCase() ?? "";
+  const pad = (n: number) => String(n).padStart(2, "0");
 
   return (
-    <>
-      {/* Desktop: N-segment bar — hidden on ≤640px via CSS. Column count is driven
-          inline so the stepper fits any number of steps (4 for import, 7 for setup). */}
+    <div className={cn("min-w-0", className)} aria-label="Wizard progress" role="group">
+      <span className="sr-only">
+        Step {currentStep + 1} of {total}: {activeStep?.label}
+      </span>
       <div
-        className="iw-stepper"
-        style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
-        aria-label="Wizard progress"
+        aria-hidden="true"
+        className="flex min-w-0 items-baseline gap-1.5 font-mono text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-ink-3"
       >
-        {/* Visually-hidden full progress announcement for screen readers on desktop */}
-        <span className="sr-only">
-          Step {currentStep + 1} of {total}: {activeStep?.label}
+        <span className="shrink-0">
+          Step <b className="font-bold text-accent-ink">{pad(currentStep + 1)}</b> of {pad(total)}
         </span>
-        {steps.map((step, i) => {
-          const isComplete = i < currentStep;
-          const isActive = i === currentStep;
-          const isPending = i > currentStep;
-          const segClass = [
-            "iw-segment",
-            isComplete ? "is-complete" : "",
-            isActive ? "is-active" : "",
-            isPending ? "is-pending" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-
-          return (
-            <div key={step.id} className={segClass}>
-              <div className="iw-segment-bar" />
-              <div className="iw-segment-label">
-                {isComplete ? (
-                  <Check className="iw-segment-check" aria-hidden />
-                ) : (
-                  <span className="iw-segment-num" aria-hidden="true">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                )}
-                <span>{step.label}</span>
-              </div>
-            </div>
-          );
-        })}
+        <span className="shrink-0">·</span>
+        <span className="truncate text-ink">{activeStep?.label}</span>
       </div>
-
-      {/* Mobile: compact pill + hairline — shown only on ≤640px via CSS */}
-      {/* aria-hidden removed: this is the only visible progress landmark on mobile */}
-      <div className="iw-mobile-stepper" aria-label="Wizard progress">
-        {/* Visually-hidden full progress announcement for screen readers on mobile */}
-        <span className="sr-only">
-          Step {currentStep + 1} of {total}: {activeStep?.label}
-        </span>
-        <div className="iw-mobile-current" aria-hidden="true">
-          <span className="iw-mobile-pct">{stepNum}</span>
-          <span>·</span>
-          <span>{stepLabel}</span>
-          <ChevronRight className="iw-mobile-caret" aria-hidden />
-        </div>
-        <div className="iw-mobile-hair" aria-hidden="true">
-          <span
-            className="iw-mobile-hair-fill"
-            style={{ width: `${pct}%` }}
+      <div
+        aria-hidden="true"
+        className="mt-2 grid gap-[3px]"
+        style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+      >
+        {steps.map((step, i) => (
+          <i
+            key={step.id}
+            className={cn(
+              "block h-1 rounded-[2px] transition-colors duration-300",
+              i < currentStep ? "bg-ink" : i === currentStep ? "bg-primary" : "bg-paper-3",
+            )}
           />
-        </div>
+        ))}
       </div>
-    </>
+    </div>
   );
 }

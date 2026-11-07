@@ -19,7 +19,8 @@ export function SeriesRibbon({ seriesTitle, onBack }: SeriesRibbonProps) {
           onClick={onBack}
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 px-2 -ml-1"
+          className="-ml-1 h-8 gap-1.5 px-2 text-ink-2 hover:text-ink max-sm:h-11 max-sm:min-w-11"
+          aria-label="Back to Library"
         >
           <ChevronLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Back to Library</span>
@@ -32,7 +33,7 @@ export function SeriesRibbon({ seriesTitle, onBack }: SeriesRibbonProps) {
             drifts off-axis. */}
         <div className="hidden lg:flex absolute left-1/2 -translate-x-1/2 pointer-events-none max-w-[60vw] min-w-0">
           <span
-            className="pointer-events-auto truncate text-sm font-medium text-foreground/80"
+            className="pointer-events-auto truncate font-serif text-[15px] italic text-ink-2"
             title={seriesTitle}
           >
             {seriesTitle}

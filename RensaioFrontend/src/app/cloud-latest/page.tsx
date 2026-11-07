@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { useSearch } from "@/contexts/search-context";
-import { RibbonSlot } from "@/components/comp/layout/ribbon";
+import { PageHeader } from "@/components/comp/layout/page-header";
 import { useSearchSources, useLatest, useLatestGenres } from "@/lib/api/hooks/useSeries";
 import { seriesService } from "@/lib/api/services/seriesService";
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,7 +34,7 @@ import { AddSeries } from "@/components/comp/series/add-series";
 
 const ITEMS_PER_PAGE = 40; // Increased to ensure screen fill
 const MAX_VISIBLE_GENRES = 200;
-const TAG_POPOVER_MAX_WIDTH_PX = 352; // matches w-[min(22rem,calc(100vw-2rem))] on the popover root
+const TAG_POPOVER_MAX_WIDTH_PX = 352; // popover width cap; clamped to the viewport in the position effect
 
 // Calculate optimal items per page based on card width and screen size
 function calculateItemsPerPage(cardWidth: string): number {
@@ -46,7 +47,7 @@ function calculateItemsPerPage(cardWidth: string): number {
     "w-70": 17.5 * 16,  // 280px
   };
 
-  const cardWidthPx = cardWidths[cardWidth] || 180; // Default to medium
+  const cardWidthPx = cardWidths[cardWidth] ?? 180; // Default to medium
   const gap = 16; // 1rem gap
   const aspectRatio = 4/6; // Card aspect ratio
   const cardHeight = cardWidthPx / aspectRatio; // ~270px for medium
@@ -276,7 +277,7 @@ export default function CloudLatestPage() {
 
   // Periodic refresh of latest data when user is idle
   useEffect(() => {
-    const interval = setInterval(async () => {
+    const refreshIfIdle = async () => {
       const now = Date.now();
       const timeSinceLastActivity = now - lastActivityRef.current;
       const oneMinuteInMs = 60 * 1000;
@@ -320,6 +321,9 @@ export default function CloudLatestPage() {
           console.error('Failed to refresh latest data:', error);
         }
       }
+    };
+    const interval = setInterval(() => {
+      void refreshIfIdle();
     }, 60000); // Check every 60 seconds
 
     return () => clearInterval(interval);
@@ -514,18 +518,36 @@ export default function CloudLatestPage() {
     return `Tags · ${selectedGenres.length}`;
   }, [selectedGenres]);
 
+  const selectedSourceName = useMemo(() => {
+    if (!selectedSourceId) return "All sources";
+    return sortedSources.find((src) => src.mihonProviderId === selectedSourceId)?.provider ?? "One source";
+  }, [selectedSourceId, sortedSources]);
+
+  const hasTags = selectedGenres.length > 0;
+
   return (
     <>
-      {/* Browse contextual ribbon — portaled into the command bar */}
-      <RibbonSlot>
-        <div className="flex w-full items-center gap-2">
+      <PageHeader
+        folio="02"
+        eyebrow="Just In · Cloud latest"
+        title="Just"
+        accent="In"
+        tate="新着"
+        description="The newest chapters landing across your sources, freshest first."
+        meta={[
+          selectedSourceName,
+          hasTags ? `${selectedGenres.length} tag${selectedGenres.length === 1 ? "" : "s"}` : null,
+          items.length > 0 ? `${items.length} shown` : null,
+        ]}
+      >
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
           {/* Source picker */}
-          <div className="w-40 sm:w-48 shrink-0">
+          <div className="w-full min-w-0 sm:w-56">
             <Select
               value={selectedSourceId ?? "__ALL__"}
               onValueChange={(value) => setSelectedSourceId(value === "__ALL__" ? null : value)}
             >
-              <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
+              <SelectTrigger aria-label="Filter by source" className="h-9 w-full caret-transparent text-[13px] max-sm:h-11">
                 <SelectValue placeholder="All Sources" />
               </SelectTrigger>
               <SelectContent>
@@ -559,25 +581,23 @@ export default function CloudLatestPage() {
             </Select>
           </div>
 
-          {/* Tag popover — anchored to the trigger button; opens below the ribbon. */}
-          <div className="relative shrink-0">
+          {/* Tag popover — anchored to the trigger button. */}
+          <div className="relative min-w-0 shrink-0">
             <Button
               ref={tagButtonRef}
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 justify-between gap-2 bg-card font-normal text-xs sm:text-sm"
+              className={cn(
+                "h-9 max-w-[16rem] justify-between gap-2 text-[13px] font-medium max-sm:h-11",
+                hasTags && "border-accent-line bg-accent-soft text-accent-ink hover:bg-accent-soft hover:text-accent-ink",
+              )}
               aria-haspopup="dialog"
               aria-expanded={tagPopoverOpen}
               onClick={() => setTagPopoverOpen((o) => !o)}
             >
-              <Tag className="h-4 w-4 opacity-70" />
-              <span className="truncate max-w-[10rem]">{tagButtonLabel}</span>
-              {selectedGenres.length > 0 && (
-                <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-none text-primary-foreground">
-                  {selectedGenres.length}
-                </span>
-              )}
+              <Tag className="h-4 w-4 opacity-80" aria-hidden />
+              <span className="max-w-[10rem] truncate">{tagButtonLabel}</span>
             </Button>
 
             {tagPopoverOpen && tagPopoverPos && createPortal(
@@ -591,26 +611,33 @@ export default function CloudLatestPage() {
                   left: tagPopoverPos.left,
                   width: tagPopoverPos.width,
                 }}
-                className="z-50 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+                className="z-50 overflow-hidden rounded-lg border border-rule-2 bg-popover text-popover-foreground shadow-lift motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-[0.98]"
               >
-                <div className="flex items-center gap-2 border-b border-border/60 px-2 py-2">
-                  <Search className="h-4 w-4 shrink-0 opacity-60" />
+                <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-3">
+                  <span className="paper-eyebrow">Filter by tags</span>
+                  {genresData && genresData.length > 0 && (
+                    <span className="font-mono text-[10.5px] tabular-nums text-ink-3">{genresData.length} tags</span>
+                  )}
+                </div>
+                <div className="mx-3 my-2 flex items-center gap-2 rounded-md border border-rule bg-paper px-2.5 focus-within:border-rule-3 focus-within:ring-2 focus-within:ring-ring/30">
+                  <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
                   <Input
                     ref={tagSearchInputRef}
                     value={tagSearch}
                     onChange={(e) => setTagSearch(e.target.value)}
                     placeholder="Search tags…"
-                    className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                    aria-label="Search tags"
+                    className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 max-sm:h-11"
                   />
                 </div>
 
-                <div className="max-h-72 overflow-y-auto py-1">
+                <div className="max-h-72 overflow-y-auto border-t border-rule py-1">
                   {isGenresLoading ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <div className="px-3 py-6 text-center text-[13px] text-ink-3">
                       Loading tags…
                     </div>
                   ) : filteredGenres.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <div className="px-3 py-6 text-center text-[13px] text-ink-3">
                       {(genresData?.length ?? 0) === 0
                         ? "No tags available yet"
                         : "No tags match your search"}
@@ -626,19 +653,24 @@ export default function CloudLatestPage() {
                               role="checkbox"
                               aria-checked={isChecked}
                               onClick={() => toggleGenre(g.name)}
-                              className="group flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+                              className={cn(
+                                "group flex min-h-9 w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[13px] outline-none transition-colors hover:bg-hover focus-visible:bg-hover max-sm:min-h-11",
+                                isChecked ? "font-semibold text-ink" : "text-ink-2",
+                              )}
                             >
                               <span
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
+                                aria-hidden
+                                className={cn(
+                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border transition-colors",
                                   isChecked
                                     ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-input bg-transparent"
-                                }`}
+                                    : "border-rule-3 bg-paper",
+                                )}
                               >
-                                {isChecked && <Check className="h-3 w-3" />}
+                                {isChecked && <Check className="h-3 w-3" strokeWidth={3} />}
                               </span>
                               <span className="flex-1 truncate">{g.name}</span>
-                              <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+                              <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-ink-3">
                                 {g.count}
                               </span>
                             </button>
@@ -649,16 +681,16 @@ export default function CloudLatestPage() {
                   )}
                 </div>
 
-                {selectedGenres.length > 0 && (
-                  <div className="flex items-center justify-between border-t border-border/60 px-2 py-2">
-                    <span className="text-xs text-muted-foreground">
+                {hasTags && (
+                  <div className="flex items-center justify-between border-t border-rule bg-paper-1 px-3 py-2">
+                    <span className="font-mono text-[11px] text-ink-3">
                       {selectedGenres.length} selected
                     </span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-8 px-2 text-[12px] max-sm:h-11"
                       onClick={clearGenres}
                     >
                       Clear all
@@ -670,34 +702,72 @@ export default function CloudLatestPage() {
             )}
           </div>
 
-          {/* Right cluster: card size */}
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <div className="w-14 sm:w-16">
-              <Select value={cardWidth} onValueChange={setCardWidth}>
-                <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="Card Size" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cardWidthOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Selected tags — removable chips */}
+          {hasTags && (
+            <ul className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Selected tags">
+              {selectedGenres.map((name) => (
+                <li
+                  key={name}
+                  className="inline-flex h-8 items-center gap-0.5 rounded-full border border-rule-2 bg-paper-1 pl-3 pr-0.5 text-[12px] text-ink-2 max-sm:h-11"
+                >
+                  <span className="max-w-[12rem] truncate">{name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${name}`}
+                    onClick={() => toggleGenre(name)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-10 max-sm:w-10"
+                  >
+                    <X className="h-3 w-3" aria-hidden />
+                  </button>
+                </li>
+              ))}
+              <li>
+                <button
+                  type="button"
+                  onClick={clearGenres}
+                  className="inline-flex h-8 items-center px-1.5 text-[12px] text-ink-3 underline-offset-2 transition-colors hover:text-ink hover:underline focus-visible:outline-none focus-visible:underline max-sm:h-11"
+                >
+                  Clear
+                </button>
+              </li>
+            </ul>
+          )}
+
+          {/* Card size — segmented */}
+          <div
+            role="group"
+            aria-label="Card size"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-rule bg-paper-1 p-0.5 sm:ml-auto"
+          >
+            {cardWidthOptions.map((opt) => {
+              const selected = cardWidth === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`Card size ${opt.label}`}
+                  onClick={() => setCardWidth(opt.value)}
+                  className={cn(
+                    "inline-flex h-7 min-w-8 items-center justify-center rounded-[4px] px-1.5 font-mono text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-10 max-sm:min-w-11",
+                    selected ? "bg-ink text-paper" : "text-ink-3 hover:bg-hover hover:text-ink",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-      </RibbonSlot>
+      </PageHeader>
 
       {/* Cinematic spotlight — only renders once the first page has resolved
           to at least one non-InLibrary candidate. Hidden during the very
           first load to avoid jumpy layout. */}
       {isLoading && currentPage === 0 && firstPageItems.length === 0 ? (
-        <div
-          aria-hidden
-          className="mb-6 h-[420px] w-full animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]"
-        />
+        <Skeleton className="mb-8 h-[520px] w-full rounded-xl sm:h-[440px] lg:h-[380px]" />
       ) : spotlightItems.length > 0 ? (
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-8 sm:mb-10">
           <SpotlightHero
             variant="browse"
             items={spotlightItems}
@@ -725,36 +795,7 @@ export default function CloudLatestPage() {
         triggerButton={<span aria-hidden className="hidden" />}
       />
 
-      {selectedGenres.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {selectedGenres.map((name) => (
-            <Badge
-              key={name}
-              variant="secondary"
-              className="group inline-flex items-center gap-1 rounded-full bg-secondary/70 px-2.5 py-0.5 text-xs font-normal text-secondary-foreground hover:bg-secondary"
-            >
-              <span className="truncate max-w-[12rem]">{name}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${name}`}
-                onClick={() => toggleGenre(name)}
-                className="-mr-1 ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-          <button
-            type="button"
-            onClick={clearGenres}
-            className="ml-1 text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
-      <div className="pt-4">
+      <div>
         <CloudLatestGrid
           items={items}
           isLoading={isLoading && currentPage === 0}

@@ -24,7 +24,10 @@ const SearchContext = createContext<SearchContextType | undefined>(undefined);
  * Each distinct page keeps its own independent search term, so switching
  * between Library / Discover / Queue / Sources never leaks a term across.
  */
-function getPageKey(pathname: string): PageKey {
+function getPageKey(rawPathname: string | null): PageKey {
+  // The app is exported with `trailingSlash: true`, so routes arrive as
+  // "/library/". Strip the trailing slash so they match the keys below.
+  const pathname = (rawPathname ?? '/').replace(/\/+$/, '') || '/';
   if (pathname === '/' || pathname === '/library') return 'library';
   if (pathname === '/cloud-latest') return 'cloudLatest';
   if (pathname === '/providers') return 'providers';
@@ -63,10 +66,17 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
 
   // When the page changes, the visible term jumps immediately (no stale
   // debounce echo). Only the term that is actually being typed is debounced.
+  // The debounced value carries the page it belongs to, so after switching
+  // pages a stale value from another page is never used as this page's filter.
   const lastTypedPageRef = useRef<PageKey>(currentPage);
-  const debouncedTypedTerm = useDebounce(searchTerm, 300);
+  const debouncedTagged = useDebounce(`${currentPage}\u0000${searchTerm}`, 300);
+  const sepIndex = debouncedTagged.indexOf('\u0000');
+  const debouncedPage = debouncedTagged.slice(0, sepIndex);
+  const debouncedTypedTerm = debouncedTagged.slice(sepIndex + 1);
   const debouncedSearchTerm =
-    lastTypedPageRef.current === currentPage ? debouncedTypedTerm : searchTerm;
+    lastTypedPageRef.current === currentPage && debouncedPage === currentPage
+      ? debouncedTypedTerm
+      : searchTerm;
 
   const setSearchTerm = useCallback(
     (term: string) => {
@@ -95,9 +105,10 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentPage]);
 
-  // Determine if search should be disabled
+  // Only Library, Just In, Sources and Queue read the filter; hide it
+  // everywhere else so the bar never offers a search that does nothing.
   const isSearchDisabled = React.useMemo(() => {
-    return currentPage === 'settings' || currentPage === 'series';
+    return currentPage === 'settings' || currentPage === 'series' || currentPage === 'other';
   }, [currentPage]);
 
   return (

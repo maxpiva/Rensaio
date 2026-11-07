@@ -47,15 +47,15 @@ const relativeTime = (date: Date): string => {
 function statusDiscClass(status: QueueStatus): string {
   switch (status) {
     case QueueStatus.COMPLETED:
-      return 'bg-emerald-500/15 text-emerald-400';
+      return 'bg-ok-soft text-ok';
     case QueueStatus.RUNNING:
-      return 'bg-primary/15 text-primary';
+      return 'bg-info-soft text-info';
     case QueueStatus.FAILED:
-      return 'bg-destructive/15 text-destructive';
+      return 'bg-bad-soft text-bad';
     case QueueStatus.WAITING:
-      return 'bg-amber-500/15 text-amber-400';
+      return 'bg-warn-soft text-warn';
     default:
-      return 'bg-muted text-muted-foreground';
+      return 'bg-paper-2 text-ink-3';
   }
 }
 
@@ -95,14 +95,14 @@ export const DownloadItem = ({ download }: { download: DownloadInfo }) => {
           : undefined
       }
       title={download.url ? 'Open chapter in source' : undefined}
-      className={`group relative flex items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none ${
+      className={`group relative flex min-h-[60px] items-center gap-3 px-3.5 py-2.5 transition-colors focus-visible:outline-none sm:px-4 ${
         download.url
-          ? 'cursor-pointer hover:bg-foreground/[0.04] active:bg-foreground/[0.08] focus-visible:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+          ? 'cursor-pointer hover:bg-hover active:bg-paper-2 focus-visible:bg-hover focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent-soft'
           : ''
       }`}
     >
       {/* Thumbnail */}
-      <div className="relative shrink-0 w-7 h-[42px] rounded overflow-hidden ring-1 ring-white/[0.06] bg-muted">
+      <div className="relative h-[42px] w-7 shrink-0 overflow-hidden rounded-[2px] bg-paper-2 shadow-paper ring-1 ring-ink/10">
         {download.thumbnailUrl && (
           <img
             src={formatThumbnailUrl(download.thumbnailUrl)}
@@ -119,11 +119,11 @@ export const DownloadItem = ({ download }: { download: DownloadInfo }) => {
 
       {/* Two-line text */}
       <div className="flex-1 min-w-0">
-        <div className="truncate text-[13px] font-medium text-foreground leading-tight">
+        <div className="truncate text-[13.5px] font-semibold leading-tight text-ink">
           {chapterLabel}
           {download.chapterTitle ? ` · ${download.chapterTitle}` : ''}
         </div>
-        <div className="truncate text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+        <div className="mt-1 flex items-center gap-1.5 truncate font-mono text-[11px] text-ink-3">
           <span className="truncate">{download.provider}</span>
           {download.scanlator && download.scanlator !== download.provider && (
             <>
@@ -138,7 +138,7 @@ export const DownloadItem = ({ download }: { download: DownloadInfo }) => {
           {download.retries > 0 && (
             <>
               <span aria-hidden>·</span>
-              <span className="text-amber-500 whitespace-nowrap">
+              <span className="whitespace-nowrap font-semibold text-warn">
                 retry {download.retries}
               </span>
             </>
@@ -159,7 +159,7 @@ export const DownloadItem = ({ download }: { download: DownloadInfo }) => {
       {download.status === QueueStatus.RUNNING && (
         <div
           aria-hidden
-          className="absolute inset-x-0 bottom-0 h-[2px] bg-primary/70 animate-pulse"
+          className="absolute inset-x-0 bottom-0 h-[2px] bg-info/70 motion-safe:animate-pulse"
         />
       )}
     </div>

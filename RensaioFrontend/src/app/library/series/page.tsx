@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, ShieldCheck, FolderSync } from "lucide-react";
+import { Trash2, ShieldCheck, FolderSync, AlertTriangle } from "lucide-react";
+import { SeriesDetailSkeleton, SeriesStateNotice } from "@/components/comp/series/detail/series-states";
 import { SeriesStatus, ArchiveResult, type ExistingSource, type SeriesExtendedInfo, type SeriesIntegrityResult } from "@/lib/api/types";
 import { useSeriesContext } from "@/contexts/series-context";
 
@@ -55,7 +56,7 @@ function SeriesPageContent() {
   // Track deletion state to prevent loops
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { data: series, isLoading, error, refetch } = useSeriesById(seriesId || '', !isDeleting);
+  const { data: series, isLoading, error, refetch } = useSeriesById(seriesId ?? '', !isDeleting);
   const deleteSeries = useDeleteSeries();
   const updateSeriesMutation = useUpdateSeries();
   const verifyIntegrity = useVerifyIntegrity();
@@ -118,7 +119,7 @@ function SeriesPageContent() {
   useEffect(() => {
     if (!seriesId || isDeleting) return;
 
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => { void (async () => {
       const now = Date.now();
       const timeSinceLastActivity = now - lastActivityRef.current;
       const oneMinuteInMs = 60 * 1000;
@@ -146,7 +147,7 @@ function SeriesPageContent() {
       } catch (error) {
         console.error('Failed to refresh series data:', error);
       }
-    }, 60000); // Check every 60 seconds
+    })(); }, 60000); // Check every 60 seconds
 
     return () => clearInterval(interval);
   }, [seriesId, isDeleting, queryClient]);
@@ -192,12 +193,12 @@ function SeriesPageContent() {
 
       // Update local state with the response from backend
       // This ensures that if the backend changed any values (like fromChapter), the UI reflects them
-      if (result && result.providers) {
+      if (result?.providers) {
         const updatedFromChapters: Record<string, string> = {};
         const updatedDisabledStates: Record<string, boolean> = {};
         
         result.providers.forEach(provider => {
-          updatedFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          updatedFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
           // Update disabled states with backend response
           updatedDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
         });
@@ -264,7 +265,7 @@ function SeriesPageContent() {
           // Use the modified switches for the specific provider
           const currentSwitches = provider.id === providerId ? 
             effectiveSwitches[providerId] : 
-            (providerSwitches[provider.id] || { useTitle: false, useCover: false, useStorage: false });
+            (providerSwitches[provider.id] ?? { useTitle: false, useCover: false, useStorage: false });
           const fromChapterValue = providerFromChapters[provider.id];
           
           const updatedProvider = {
@@ -288,13 +289,13 @@ function SeriesPageContent() {
       const result = await updateSeriesMutation.mutateAsync(updatedSeries);
 
       // Update local state with the response from backend if needed
-      if (result && result.providers) {
+      if (result?.providers) {
         const updatedFromChapters: Record<string, string> = {};
         const updatedDisabledStates: Record<string, boolean> = {};
         const updatedSwitches: Record<string, { useTitle: boolean; useCover: boolean; useStorage: boolean }> = {};
         
         result.providers.forEach(provider => {
-          updatedFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          updatedFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
           // Update disabled states with backend response
           updatedDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
           // Update switches with backend response
@@ -335,7 +336,7 @@ function SeriesPageContent() {
       });
       
       // Only refetch series data if provider count actually changed
-      const hasDeletedProviders = updatedSeries.providers.some((p: any) => p.isDeleted);
+      const hasDeletedProviders = updatedSeries.providers.some((p) => p.isDeleted);
       const providerCountChanged = result && result.providers.length !== series.providers.length;
       if (hasDeletedProviders && providerCountChanged) {
         await queryClient.invalidateQueries({ 
@@ -392,12 +393,12 @@ function SeriesPageContent() {
       const result = await updateSeriesMutation.mutateAsync(updatedSeries);
 
       // Update local state with the response from backend if needed
-      if (result && result.providers) {
+      if (result?.providers) {
         const updatedFromChapters: Record<string, string> = {};
         const updatedDisabledStates: Record<string, boolean> = {};
         
         result.providers.forEach(provider => {
-          updatedFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          updatedFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
           // Update disabled states with backend response
           updatedDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
         });
@@ -426,7 +427,7 @@ function SeriesPageContent() {
       });
       
       // Only refetch series data if provider count actually changed
-      const hasDeletedProviders = updatedSeries.providers.some((p: any) => p.isDeleted);
+      const hasDeletedProviders = updatedSeries.providers.some((p) => p.isDeleted);
       const providerCountChanged = result && result.providers.length !== series.providers.length;
       if (hasDeletedProviders && providerCountChanged) {
         await queryClient.invalidateQueries({ 
@@ -481,13 +482,13 @@ function SeriesPageContent() {
       const result = await updateSeriesMutation.mutateAsync(updatedSeries);
 
       // Update local state with the response from backend if needed
-      if (result && result.providers) {
+      if (result?.providers) {
         const updatedFromChapters: Record<string, string> = {};
         const updatedDisabledStates: Record<string, boolean> = {};
         const updatedDeletedStates: Record<string, boolean> = {};
         
         result.providers.forEach(provider => {
-          updatedFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          updatedFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
           // Update disabled states with backend response
           updatedDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
           // Update deleted states with backend response
@@ -524,7 +525,7 @@ function SeriesPageContent() {
       });
       
       // Only refetch series data if provider count actually changed
-      const hasDeletedProviders = updatedSeries.providers.some((p: any) => p.isDeleted);
+      const hasDeletedProviders = updatedSeries.providers.some((p) => p.isDeleted);
       const providerCountChanged = result && result.providers.length !== series.providers.length;
       if (hasDeletedProviders && providerCountChanged) {
         await queryClient.invalidateQueries({ 
@@ -542,8 +543,8 @@ function SeriesPageContent() {
     return () => {
       // If component is unmounting and we're deleting, cancel any ongoing queries
       if (isDeleting && seriesId) {
-        queryClient.cancelQueries({ queryKey: ['series', 'detail', seriesId] });
-        queryClient.cancelQueries({ queryKey: ['downloads', 'series', seriesId] });
+        void queryClient.cancelQueries({ queryKey: ['series', 'detail', seriesId] });
+        void queryClient.cancelQueries({ queryKey: ['downloads', 'series', seriesId] });
       }
     };
   }, [isDeleting, seriesId, queryClient]);
@@ -571,7 +572,7 @@ function SeriesPageContent() {
       return;
     }
     
-    if (series && series.providers) {
+    if (series?.providers) {
       // Only initialize if local state is empty (first load or series change)
       const hasLocalState = Object.keys(providerSwitches).length > 0;
       const seriesIdChanged = series.id !== searchParams.get('id');
@@ -590,7 +591,7 @@ function SeriesPageContent() {
           };
           // If provider is uninstalled, it should be treated as disabled
           initialDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
-          initialFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          initialFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
         });
 
         setProviderSwitches(initialSwitches);
@@ -611,14 +612,14 @@ function SeriesPageContent() {
     !provider.isUnknown &&
     !provider.isUninstalled &&
     !providerDeletedStates[provider.id]
-  ) || [];
+  ) ?? [];
   const allProvidersDisabled = knownProviders.length > 0 && knownProviders.every(provider => {
     const isDisabled = providerDisabledStates[provider.id] ?? provider.isDisabled;
     return isDisabled;
   });
   // Determine the display title and thumbnail based on active providers
-  const displayTitle = activeProviderForTitle?.title || series?.title || '';
-  const displayThumbnail = activeProviderForCover?.thumbnailUrl || series?.thumbnailUrl;
+  const displayTitle = [activeProviderForTitle?.title, series?.title].find(Boolean) ?? '';
+  const displayThumbnail = activeProviderForCover?.thumbnailUrl?.length ? activeProviderForCover.thumbnailUrl : series?.thumbnailUrl;
   
   // Calculate effective isActive state based on current provider states
   // A series is considered active if it has at least one enabled, known provider
@@ -740,7 +741,7 @@ function SeriesPageContent() {
     }));
 
     // Trigger immediate update with explicit disabled state
-    updateSeriesWithDisabledState(providerId, disabled);
+    void updateSeriesWithDisabledState(providerId, disabled);
   };  // Handler for provider deletion
   const handleDeleteProvider = (providerId: string) => {
     setProviderDeletedStates(prev => ({
@@ -753,7 +754,7 @@ function SeriesPageContent() {
     }));
 
     // Trigger immediate update with explicit deleted state
-    updateSeriesWithDeletedState(providerId, true);  };
+    void updateSeriesWithDeletedState(providerId, true);  };
   // Handler for fromChapter changes
   const handleFromChapterChange = (providerId: string, value: string) => {
     
@@ -767,7 +768,7 @@ function SeriesPageContent() {
     setProviderFromChapters(updatedFromChapters);
     
     // We need to modify the updateSeries function to handle explicit fromChapter values
-    updateSeriesWithFromChapter(providerId, value);
+    void updateSeriesWithFromChapter(providerId, value);
   };  // Handler for pause downloads toggle
   const handlePausedDownloadsToggle = () => {
     // Calculate new value
@@ -777,7 +778,7 @@ function SeriesPageContent() {
     setPausedDownloads(newPausedDownloadsValue);
     
     // We need to modify the updateSeries function to handle explicit pausedDownloads value
-    updateSeriesWithPausedDownloads(newPausedDownloadsValue);
+    void updateSeriesWithPausedDownloads(newPausedDownloadsValue);
   };
 
   // Handler for delete series button click
@@ -893,7 +894,7 @@ function SeriesPageContent() {
         variant: result.filesFailed > 0 ? "destructive" : "success",
         title: nothingChanged ? "Names already correct" : "Rename complete",
         description: nothingChanged
-          ? (result.message || "Nothing needed renaming — everything already matches the scheme.")
+          ? (result.message?.length ? result.message : "Nothing needed renaming — everything already matches the scheme.")
           : `${parts.join(' · ')}${result.message ? ` · ${result.message}` : ''}`,
       });
     } catch (error) {
@@ -944,7 +945,7 @@ function SeriesPageContent() {
           isDisabled: provider.isUninstalled ? true : (providerDisabledStates[provider.id] ?? provider.isDisabled),
           isDeleted: providerDeletedStates[provider.id] ?? false,
           fromChapter: providerFromChapters[provider.id] !== undefined
-            ? parseFloat(providerFromChapters[provider.id] || "0")
+            ? parseFloat(providerFromChapters[provider.id] ? providerFromChapters[provider.id]! : "0")
             : provider.fromChapter,
         })),
       };
@@ -952,7 +953,7 @@ function SeriesPageContent() {
       const result = await updateSeriesMutation.mutateAsync(updatedSeries);
 
       // Re-sync local provider switches from the backend response (e.g. cleared title flags).
-      if (result && result.providers) {
+      if (result?.providers) {
         const newSwitches: Record<string, { useTitle: boolean; useCover: boolean; useStorage: boolean }> = {};
         const newDisabledStates: Record<string, boolean> = {};
         const newFromChapters: Record<string, string> = {};
@@ -963,7 +964,7 @@ function SeriesPageContent() {
             useStorage: provider.isStorage ?? false,
           };
           newDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
-          newFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          newFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
         });
         setProviderSwitches(newSwitches);
         setProviderDisabledStates(newDisabledStates);
@@ -1042,15 +1043,15 @@ function SeriesPageContent() {
   const getArchiveResultDisplay = (result: ArchiveResult) => {
     switch (result) {
       case ArchiveResult.Fine:
-        return { text: 'Fine', color: 'text-green-600' };
+        return { text: 'Fine', color: 'text-ok' };
       case ArchiveResult.NotAnArchive:
-        return { text: 'Not an Archive', color: 'text-red-600' };
+        return { text: 'Not an Archive', color: 'text-bad' };
       case ArchiveResult.NoImages:
-        return { text: 'No Images', color: 'text-yellow-600' };
+        return { text: 'No Images', color: 'text-warn' };
       case ArchiveResult.NotFound:
-        return { text: 'Not Found', color: 'text-red-600' };
+        return { text: 'Not Found', color: 'text-bad' };
       default:
-        return { text: 'Unknown', color: 'text-gray-600' };
+        return { text: 'Unknown', color: 'text-ink-3' };
     }
   };
 
@@ -1096,12 +1097,12 @@ function SeriesPageContent() {
 
       // Update local state with the response from backend
       // This ensures that if the backend changed any values (like fromChapter), the UI reflects them
-      if (result && result.providers) {
+      if (result?.providers) {
         const updatedFromChapters: Record<string, string> = {};
         const updatedDisabledStates: Record<string, boolean> = {};
         
         result.providers.forEach(provider => {
-          updatedFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          updatedFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
           // Update disabled states with backend response
           updatedDisabledStates[provider.id] = provider.isUninstalled ? true : (provider.isDisabled ?? false);
         });
@@ -1126,7 +1127,7 @@ function SeriesPageContent() {
       }
       
       // Only refetch series data if provider count actually changed
-      const hasDeletedProviders = updatedSeries.providers.some((p: any) => p.isDeleted);
+      const hasDeletedProviders = updatedSeries.providers.some((p) => p.isDeleted);
       const providerCountChanged = result && result.providers.length !== series.providers.length;
       if (hasDeletedProviders && providerCountChanged) {
         await queryClient.invalidateQueries({ 
@@ -1172,7 +1173,7 @@ function SeriesPageContent() {
 
       const result = await updateSeriesMutation.mutateAsync(updatedSeries);
       
-      if (result && result.providers) {
+      if (result?.providers) {
         
         // Sync local state with backend response
         const newSwitches: Record<string, { useTitle: boolean; useCover: boolean; useStorage: boolean }> = {};
@@ -1186,7 +1187,7 @@ function SeriesPageContent() {
             useStorage: provider.isStorage
           };
           newDisabledStates[provider.id] = provider.isDisabled;
-          newFromChapters[provider.id] = provider.fromChapter?.toString() || "";
+          newFromChapters[provider.id] = provider.fromChapter?.toString() ?? "";
         });
         
         setProviderSwitches(newSwitches);
@@ -1208,53 +1209,47 @@ function SeriesPageContent() {
   // Handle error states first, before accessing series
   if (!seriesId) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-red-500">Series ID is required</div>
-      </div>
+      <SeriesStateNotice tone="bad" eyebrow="Series" title="Series ID is required" />
     );
   }
 
   if (isDeleting) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Deleting series...</div>
-      </div>
+      <SeriesStateNotice tone="busy" eyebrow="Removing" title="Deleting series..." />
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading series details...</div>
-      </div>
+      <SeriesDetailSkeleton label="Loading series details..." />
     );
   }
 
   if (error || !series) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-lg text-red-500">
-          {error ? "Error loading series" : "Series not found"}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void refetch()}>
-            Retry
-          </Button>
-          <Button variant="ghost" onClick={() => router.push('/library')}>
-            Back to Library
-          </Button>
-        </div>
-      </div>
+      <SeriesStateNotice
+        tone="bad"
+        eyebrow={error ? "Something went wrong" : "Not on the shelf"}
+        title={error ? "Error loading series" : "Series not found"}
+      >
+        <Button variant="outline" onClick={() => void refetch()}>
+          Retry
+        </Button>
+        <Button variant="ghost" onClick={() => router.push('/library')}>
+          Back to Library
+        </Button>
+      </SeriesStateNotice>
     );
   }
   
   // Derive ExistingSource array from providers for Add Sources mode
   const existingSources: ExistingSource[] = series.providers
-    .filter((provider: any) => !providerDeletedStates[provider.id]) // Filter out deleted providers
-    .map((provider: any) => ({
+    .filter((provider) => !providerDeletedStates[provider.id]) // Filter out deleted providers
+    .map((provider) => ({
       provider: provider.provider,
       scanlator: provider.scanlator,
-      mihonProviderId: provider.mihonProviderId,
+      // Not declared on ProviderExtendedInfo, but sent by the API.
+      mihonProviderId: (provider as typeof provider & { mihonProviderId: string }).mihonProviderId,
       lang: provider.lang
     }));
 
@@ -1293,7 +1288,7 @@ function SeriesPageContent() {
       />
 
       {/* Main content — Sources full-width, then aside grid */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10 space-y-6 lg:space-y-8">
+      <div className="mx-auto max-w-6xl space-y-9 px-4 py-7 sm:space-y-11 sm:px-8 sm:py-10">
 
         {/* Sources — full width, providers tile in 2-col grid at lg+ */}
         <SourcesSection
@@ -1330,24 +1325,29 @@ function SeriesPageContent() {
     <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Series</DialogTitle>
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-bad-soft text-bad">
+              <Trash2 className="h-4 w-4" />
+            </span>
+            Delete Series
+          </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{displayTitle}"? This action cannot be undone.
+            Are you sure you want to delete <span className="font-semibold text-ink">&ldquo;{displayTitle}&rdquo;</span>? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex items-center space-x-2 py-4">
+        <div className="flex min-h-11 items-center gap-3 rounded-md border border-rule-2 bg-paper px-3.5 py-3">
           <Switch
             id="delete-physical-files"
             checked={deletePhysicalFiles}
             onCheckedChange={setDeletePhysicalFiles}
           />
-          <Label htmlFor="delete-physical-files" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+          <Label htmlFor="delete-physical-files" className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
             Also delete Physical Files
           </Label>
         </div>
         
-        <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+        <DialogFooter>
           <Button 
             variant="outline" 
             onClick={handleDeleteSeriesCancel}
@@ -1363,7 +1363,7 @@ function SeriesPageContent() {
           >
             {deleteSeries.isPending ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 Deleting...
               </>
             ) : (
@@ -1381,19 +1381,21 @@ function SeriesPageContent() {
     <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FolderSync className="h-5 w-5" />
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-ink">
+              <FolderSync className="h-4 w-4" />
+            </span>
             Rename Files &amp; Folder
           </DialogTitle>
           <DialogDescription>
-            This renames the series folder to <span className="font-medium text-foreground">"{displayTitle}"</span> and
-            renames every downloaded <span className="font-mono">.cbz</span> to the correct
-            <span className="font-mono"> [Source][lang] Title 0000.cbz</span> scheme. Only files downloaded by
+            This renames the series folder to <span className="font-semibold text-ink">&ldquo;{displayTitle}&rdquo;</span> and
+            renames every downloaded <code className="rounded-[3px] bg-paper-2 px-1 py-px font-mono text-[12px] text-ink">.cbz</code> to the correct{" "}
+            <code className="rounded-[3px] bg-paper-2 px-1 py-px font-mono text-[12px] text-ink">[Source][lang] Title 0000.cbz</code> scheme. Only files downloaded by
             Rensaio are touched. This moves files on disk — make sure no downloads are running for this series.
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+        <DialogFooter>
           <Button
             variant="outline"
             onClick={() => setShowRenameDialog(false)}
@@ -1408,7 +1410,7 @@ function SeriesPageContent() {
           >
             {renameSeries.isPending ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 Renaming...
               </>
             ) : (
@@ -1427,19 +1429,21 @@ function SeriesPageContent() {
       <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-green-600" />
+            <DialogTitle className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-ok-soft text-ok">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
               Integrity Verification Complete
             </DialogTitle>
           </DialogHeader>
           
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
+          <div>
+            <p className="text-sm leading-relaxed text-ink-2">
               The integrity verification completed successfully. All files are in good condition.
             </p>
           </div>
           
-          <DialogFooter className="flex justify-end gap-2">
+          <DialogFooter>
             <Button 
               variant="default" 
               onClick={handleVerifyDialogClose}
@@ -1456,8 +1460,10 @@ function SeriesPageContent() {
       <Dialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-600" />
+            <DialogTitle className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-bad-soft text-bad">
+                <Trash2 className="h-4 w-4" />
+              </span>
               File Issues Found
             </DialogTitle>
             <DialogDescription>
@@ -1465,30 +1471,28 @@ function SeriesPageContent() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4 max-h-60 overflow-y-auto">
-            <div className="space-y-2">
-              {verifyResult?.badFiles?.map((result: any, index: number) => {
+          <div className="max-h-64 overflow-y-auto rounded-md border border-rule-2 bg-paper">
+            <ul className="divide-y divide-rule">
+              {verifyResult?.badFiles?.map((result, index) => {
                 const displayResult = getArchiveResultDisplay(result.result);
                 return (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-secondary rounded">
-                    <div className={`h-6 w-6 rounded-full flex items-center justify-center bg-red-100`}>
-                      <div className="h-2.5 w-2.5 rounded-full bg-red-600" />
-                    </div>
-                    <div className="text-sm flex-1">
-                      <div className="font-medium truncate" title={result.filename}>
+                  <li key={index} className="flex items-start gap-3 px-3 py-2.5">
+                    <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${displayResult.color}`} aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <div className="line-clamp-2 break-all font-mono text-[12.5px] leading-snug text-ink" title={result.filename}>
                         {result.filename}
                       </div>
-                      <div className={`text-xs ${displayResult.color}`}>
+                      <div className={`mt-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] ${displayResult.color}`}>
                         {displayResult.text}
                       </div>
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
           
-          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end sm:space-x-2">
+          <DialogFooter>
             <Button 
               variant="outline" 
               onClick={handleCleanupCancel}

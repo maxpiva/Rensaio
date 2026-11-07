@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Loader2, Maximize2 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import { useSetupWizardStatus, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
 import { useSetupWizard } from "@/components/providers/setup-wizard-provider";
 import { JobType, type SetupJobStatusValue } from "@/lib/api/types";
@@ -102,42 +101,63 @@ function ImportProgressPillInner({ reopen }: { reopen: () => void }) {
       ? "Tap to finish the remaining setup steps."
       : progressData?.message ?? "Running in the background — tap to reopen.";
 
+  const pct = Math.round(progress);
+  // Ring geometry for the 28px progress dial.
+  const R = 11;
+  const C = 2 * Math.PI * R;
+
   return (
     <button
       type="button"
       onClick={reopen}
       aria-label="Reopen setup wizard"
-      className="fixed bottom-4 right-4 z-[60] w-[min(20rem,calc(100vw-2rem))] rounded-lg border bg-background/95 p-4 text-left shadow-lg backdrop-blur transition-colors hover:bg-accent supports-[backdrop-filter]:bg-background/80"
+      className={[
+        // Ink-inverted floating slip. Phone: full width above the tab bar and
+        // the activity dock; desktop: centred at the foot of the page.
+        "group fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+124px)] z-[60] flex items-center gap-3 rounded-[10px] bg-ink py-2.5 pl-3 pr-2.5 text-left text-paper shadow-lift",
+        "outline-none transition-[transform,opacity] duration-200 hover:-translate-y-px focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-paper-rise",
+        "lg:inset-x-auto lg:bottom-6 lg:left-1/2 lg:w-[min(440px,calc(100vw-48px))] lg:-translate-x-1/2 lg:rounded-full lg:py-2 lg:hover:-translate-y-px",
+      ].join(" ")}
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 shrink-0">
-          {failed ? (
-            <AlertCircle className="h-5 w-5 text-destructive" />
-          ) : done ? (
-            <CheckCircle className="h-5 w-5 text-primary" />
-          ) : (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">{title}</span>
-            <Maximize2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </div>
-          {!failed && (
-            <div className="mt-2 space-y-1">
-              <Progress value={progress} className="h-2" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span className="truncate">{subtitle}</span>
-                <span className="shrink-0">{Math.round(progress)}%</span>
-              </div>
-            </div>
-          )}
-          {failed && (
-            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
-      </div>
+      {/* Status dial */}
+      <span className="relative grid h-7 w-7 shrink-0 place-items-center" aria-hidden>
+        {failed ? (
+          <AlertCircle className="h-5 w-5 text-[hsl(var(--primary))]" />
+        ) : done ? (
+          <CheckCircle className="h-5 w-5 text-paper" />
+        ) : (
+          <>
+            <svg viewBox="0 0 28 28" className="absolute inset-0 h-7 w-7 -rotate-90">
+              <circle cx="14" cy="14" r={R} fill="none" stroke="currentColor" strokeOpacity={0.22} strokeWidth={2.5} />
+              <circle
+                cx="14"
+                cy="14"
+                r={R}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeDasharray={C}
+                strokeDashoffset={C - (C * pct) / 100}
+                className="transition-[stroke-dashoffset] duration-500 ease-out"
+              />
+            </svg>
+            {pct === 0 && <Loader2 className="h-3.5 w-3.5 animate-spin opacity-70" />}
+          </>
+        )}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-semibold leading-tight">{title}</span>
+        <span className="mt-0.5 flex min-w-0 items-baseline gap-2 font-mono text-[11px] font-medium leading-tight opacity-75">
+          <span className={failed ? "line-clamp-2 [overflow-wrap:anywhere]" : "truncate"}>{subtitle}</span>
+          {!failed && <span className="ml-auto shrink-0 tabular-nums">{pct}%</span>}
+        </span>
+      </span>
+
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-paper text-ink transition-transform group-hover:scale-105 max-lg:h-10 max-lg:w-10" aria-hidden>
+        <Maximize2 className="h-4 w-4" />
+      </span>
     </button>
   );
 }

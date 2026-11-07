@@ -1,50 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, AlertCircle, Flag } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, Flag, LoaderCircle } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { useSetupWizardImports, useSetupWizardImportSeriesWithOptions, useSetupWizardImportStatus, useSignalRProgress } from "@/lib/api/hooks/useSetupWizard";
 import { JobType, ImportStatus } from "@/lib/api/types";
-
-// Custom hook to detect if scrollbar is visible
-function useScrollbarDetection() {
-  const [hasScrollbar, setHasScrollbar] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>(null);
-
-  useEffect(() => {
-    const checkScrollbar = () => {
-      if (containerRef.current) {
-        const { scrollHeight, clientHeight } = containerRef.current;
-        const newHasScrollbar = scrollHeight > clientHeight;
-        setHasScrollbar(prev => prev !== newHasScrollbar ? newHasScrollbar : prev);
-      }
-    };
-
-    const debouncedCheck = () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(checkScrollbar, 100);
-    };
-
-    checkScrollbar();
-
-    const observer = new ResizeObserver(debouncedCheck);
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  return { hasScrollbar, containerRef };
-}
+import { cn } from "@/lib/utils";
+import { PaperBar, PaperNote, PaperPanel, PaperTag, StepIntro } from "../paper";
 
 interface FinishStepProps {
   setError: (error: string | null) => void;
@@ -63,7 +25,6 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
   // Whether we've checked the backend for an already-running import (after a reload).
   const [statusChecked, setStatusChecked] = useState(false);
   const hasCheckedUsersRef = useRef(false);
-  const { hasScrollbar, containerRef } = useScrollbarDetection();
   const { data: imports } = useSetupWizardImports();
   const importMutation = useSetupWizardImportSeriesWithOptions();
   const importStatusMutation = useSetupWizardImportStatus();
@@ -180,27 +141,6 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
   const isDone = importCompleted || isJobCompleted(JobType.ImportSeries);
   const isActive = hasTriggeredImportRef.current && !isDone && !isFailed;
 
-  const heroCardClass = [
-    'iw-hero-progress',
-    isActive  ? 'is-active'  : '',
-    isFailed  ? 'is-failed'  : '',
-  ].filter(Boolean).join(' ');
-
-  const iconClass = [
-    'iw-hero-progress-icon',
-    isFailed  ? 'is-failed'  : '',
-    isDone    ? 'is-done'    : '',
-    isActive  ? 'is-spinning': '',
-    (!isFailed && !isDone && !isActive) ? 'is-idle' : '',
-  ].filter(Boolean).join(' ');
-
-  const renderHeroIcon = () => {
-    if (isFailed)  return <AlertCircle className="h-5 w-5" />;
-    if (isDone)    return <CheckCircle className="h-5 w-5" />;
-    if (isActive)  return null; // CSS border-animation spinner
-    return <Flag className="h-5 w-5" />;
-  };
-
   const statusText = (() => {
     if (isFailed)  return 'Import process failed';
     if (isDone)    return 'Import process completed successfully';
@@ -208,67 +148,78 @@ export function FinishStep({ setError, setIsLoading, setCanProgress, disableDown
     return 'Preparing to import series…';
   })();
 
+  const tag = isFailed
+    ? <PaperTag tone="bad"><AlertCircle aria-hidden />Failed</PaperTag>
+    : isDone
+      ? <PaperTag tone="ok"><CheckCircle aria-hidden />Complete</PaperTag>
+      : isActive
+        ? <PaperTag tone="accent"><Download aria-hidden />Importing</PaperTag>
+        : <PaperTag><Flag aria-hidden />Waiting</PaperTag>;
+
+  // The wizard shell's content region scrolls; no nested scroll box here.
   return (
-    <div className="space-y-4">
-      <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+    <div className="max-w-[760px] space-y-4">
+      <StepIntro>
         Final step: importing your selected series into the library. Please wait while the process completes.
-      </p>
+      </StepIntro>
 
-      <div
-        ref={containerRef}
-        className={`max-h-[60vh] p-0.5 overflow-y-auto ${hasScrollbar ? 'pr-2' : ''}`}
-      >
-        <div className="space-y-3">
-          {/* Hero progress card */}
-          <div className={heroCardClass}>
-            <div className="iw-hero-progress-head">
-              <div className={iconClass}>
-                {renderHeroIcon()}
-              </div>
-              <div className="iw-hero-info">
-                <div className="iw-hero-title">Series Import</div>
-                <div className="iw-hero-status">{statusText}</div>
-              </div>
-              <div className="iw-hero-pct">{Math.round(progress)}%</div>
-            </div>
-            <div className="iw-progress-bar">
-              <div className="iw-progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            {progressData?.errorMessage && (
-              <div
-                className="text-sm mt-3 p-2 rounded"
-                style={{
-                  color: 'hsl(var(--destructive))',
-                  background: 'hsl(var(--destructive) / 0.1)',
-                }}
-              >
-                <strong>Error:</strong> {progressData.errorMessage}
-              </div>
+      {/* Progress panel */}
+      <PaperPanel as="section" aria-labelledby="finish-import-title">
+        <div className="flex items-center gap-3 border-b border-rule px-4 py-3.5">
+          <span
+            className={cn(
+              'grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full border-[1.5px]',
+              isFailed && 'border-bad/35 bg-bad-soft text-bad',
+              isDone && 'border-ok/35 bg-ok-soft text-ok',
+              isActive && 'border-accent-line bg-accent-soft text-accent-ink',
+              !isFailed && !isDone && !isActive && 'border-rule-2 text-ink-3',
             )}
+          >
+            {isFailed ? <AlertCircle className="h-4 w-4" aria-hidden />
+              : isDone ? <CheckCircle className="h-4 w-4" aria-hidden />
+              : isActive ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+              : <Flag className="h-4 w-4" aria-hidden />}
+          </span>
+          <h3 id="finish-import-title" className="min-w-0 flex-1 font-serif text-[20px] font-normal leading-tight tracking-[-0.01em] text-ink">
+            Series Import
+          </h3>
+          {tag}
+        </div>
+        <div className="px-4 pb-4 pt-3.5">
+          <div className="mb-2 flex items-baseline justify-between gap-3 font-mono text-[12px] font-medium">
+            <span className="min-w-0 text-ink-2 [overflow-wrap:anywhere]" role="status">{statusText}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-ink">{Math.round(progress)}%</span>
           </div>
-
-          {/* Done banner */}
-          {isDone && (
-            <div className="iw-done-banner">
-              <CheckCircle />
-              <span>Import process completed successfully</span>
-            </div>
-          )}
-
-          {/* Fail banner */}
-          {isFailed && (
-            <div className="iw-fail-banner">
-              <div className="iw-fail-banner-icon">
-                <AlertCircle className="h-10 w-10" />
-              </div>
-              <p className="iw-fail-banner-title">Import Failed</p>
-              <p className="iw-fail-banner-body">
-                The import process encountered an error. You can try again or skip this step and manually import series later.
-              </p>
+          <PaperBar
+            value={progress}
+            size="lg"
+            tone={isFailed ? 'bad' : isDone ? 'ok' : 'accent'}
+            label="Series import progress"
+          />
+          {progressData?.errorMessage && (
+            <div className="mt-3 rounded-[5px] border border-bad/30 bg-bad-soft px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-ink [overflow-wrap:anywhere]">
+              <strong className="text-bad">Error:</strong> {progressData.errorMessage}
             </div>
           )}
         </div>
-      </div>
+      </PaperPanel>
+
+      {/* Done banner */}
+      {isDone && (
+        <PaperNote tone="ok" className="motion-safe:animate-paper-rise">
+          <b>Import process completed successfully</b>
+        </PaperNote>
+      )}
+
+      {/* Fail banner */}
+      {isFailed && (
+        <PaperNote tone="bad" role="alert" className="motion-safe:animate-paper-rise">
+          <b className="block">Import Failed</b>
+          <span className="mt-0.5 block">
+            The import process encountered an error. You can try again or skip this step and manually import series later.
+          </span>
+        </PaperNote>
+      )}
     </div>
   );
 }

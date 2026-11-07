@@ -29,9 +29,10 @@ export function getApiConfig(): ApiConfig {
   const backendUrl = process.env.NEXT_PUBLIC_RENSAIO_BACKEND_URL;
   
   if (isDevelopment) {
-    // In development, always use localhost:5001
+    // In development, use the local backend unless NEXT_PUBLIC_RENSAIO_BACKEND_URL
+    // points elsewhere (e.g. a mock API on another host).
     return {
-      baseUrl: 'http://127.0.0.1:9833',
+      baseUrl: backendUrl && backendUrl.trim() !== '' ? backendUrl.trim().replace(/\/$/, '') : 'http://127.0.0.1:9833',
       isAbsolute: true
     };
   } else if (backendUrl && backendUrl.trim() !== '') {

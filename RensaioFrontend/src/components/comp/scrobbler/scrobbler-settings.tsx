@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useScrobblerConfigs, useUpdateScrobblerConfig, useScrobblerAuthorize, useScrobblerCallback, useScrobblerDisconnect, useTriggerSync, useSyncStatus, useSaveComicVineApiKey, useKitsuDirectAuth, useMangaDexDirectAuth, useMetadataLinkAll } from '@/lib/api/hooks/useScrobbler';
-import { useScrobblerUnmatched, useAutoMatchAll, useConfirmMatch, useDisableLink } from '@/lib/api/hooks/useScrobbler';
-import { ScrobblerProvider, ProviderFeatures, type ScrobblerConfig, type OAuthCallbackRequest, type ScrobblerConfigUpdate, type MetadataLinkAllResult } from '@/lib/api/types';
+import { useScrobblerConfigs, useUpdateScrobblerConfig, useScrobblerAuthorize, useScrobblerCallback, useScrobblerDisconnect, useTriggerSync, useSaveComicVineApiKey, useKitsuDirectAuth, useMangaDexDirectAuth, useMetadataLinkAll } from '@/lib/api/hooks/useScrobbler';
+import { useScrobblerUnmatched, useAutoMatchAll } from '@/lib/api/hooks/useScrobbler';
+import { ScrobblerProvider, ProviderFeatures, SeriesMappingStatus, type ScrobblerConfig, type ScrobblerConfigUpdate } from '@/lib/api/types';
 import { SeriesMatchDialog } from '@/components/comp/scrobbler/series-match-dialog';
 import { RefreshCw, Link, Link2Off, ExternalLink, Key } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
@@ -37,8 +37,8 @@ const providerIcons: Record<ScrobblerProvider, string> = {
  */
 function isPublicMetadataProvider(config: ScrobblerConfig): boolean {
   const features = config.features ?? 0;
-  const hasMetadata = (features & ProviderFeatures.Metadata) === ProviderFeatures.Metadata;
-  const hasScrobbling = (features & ProviderFeatures.Scrobbling) === ProviderFeatures.Scrobbling;
+  const hasMetadata = (features & ProviderFeatures.Metadata) === Number(ProviderFeatures.Metadata);
+  const hasScrobbling = (features & ProviderFeatures.Scrobbling) === Number(ProviderFeatures.Scrobbling);
 
   // Explicit provider-id fallback: the three public metadata APIs (plus no-auth gate).
   const isPublicMetadataId =
@@ -79,7 +79,7 @@ export function ScrobblerSettings() {
             void queryClient.invalidateQueries({ queryKey: ['scrobbler', 'configs'] });
             void queryClient.invalidateQueries({ queryKey: ['scrobbler', 'matches'] });
           } else if (p.progressStatus === ProgressStatus.Failed) {
-            setLinkProgress(p.errorMessage || 'Link failed');
+            setLinkProgress(p.errorMessage?.length ? p.errorMessage : 'Link failed');
           }
         });
       } catch {
@@ -216,24 +216,26 @@ export function ScrobblerSettings() {
   console.log('[ScrobblerSettings] rendering, configs:', configsLoading ? 'loading' : configs?.length + ' items');
 
   if (configsLoading) {
-    return <div className="p-4 text-muted-foreground">Loading scrobbler settings...</div>;
+    return <div role="status" className="p-4 text-sm text-ink-3">Loading scrobbler settings...</div>;
   }
 
-  const unmatchedCount = unmatched?.filter(u => u.mappingStatus === 0).length ?? 0;
+  const unmatchedCount = unmatched?.filter(u => u.mappingStatus === SeriesMappingStatus.Unmatched).length ?? 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b-[3px] border-double border-rule-3 pb-4">
         <div>
-          <h2 className="text-2xl font-bold">Scrobbler / Tracking</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="paper-eyebrow mb-1">Trackers</p>
+          <h2 className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-ink">Scrobbler / <em className="italic text-accent-ink">Tracking</em></h2>
+          <p className="text-sm text-ink-2">
             Connect your reading progress to external tracking services
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
+            className="max-sm:min-h-11"
             onClick={linkSeries}
             disabled={metadataLinkAll.isPending}
           >
@@ -243,6 +245,7 @@ export function ScrobblerSettings() {
           <Button
             variant="outline"
             size="sm"
+            className="max-sm:min-h-11"
             onClick={() => triggerSync.mutate()}
             disabled={triggerSync.isPending}
           >
@@ -253,7 +256,7 @@ export function ScrobblerSettings() {
       </div>
 
       {linkProgress && (
-        <p className="text-xs text-muted-foreground">{linkProgress}</p>
+        <p className="text-xs text-ink-3">{linkProgress}</p>
       )}
 
       <Separator />
@@ -312,7 +315,7 @@ export function ScrobblerSettings() {
                   {(config.isConnected || (isPublicMetadataProvider(config) && config.isEnabled)) ? (
                     <>
                       {config.lastSyncAt && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-ink-3">
                           Last sync: {new Date(config.lastSyncAt).toLocaleDateString()}
                         </span>
                       )}
@@ -326,7 +329,7 @@ export function ScrobblerSettings() {
                       </Button>
                     </>
                   ) : isPublicMetadataProvider(config) ? (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-ink-3">
                       No credentials required
                     </span>
                   ) : config.supportsDirectAuth ? (
@@ -364,7 +367,7 @@ export function ScrobblerSettings() {
                           href="https://mangadex.org/settings"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline"
+                          className="text-xs text-accent-ink underline-offset-2 hover:underline"
                         >
                           Create personal API client on MangaDex
                         </a>
@@ -459,8 +462,8 @@ export function ScrobblerSettings() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Unmatched Series</h3>
-            <p className="text-sm text-muted-foreground">
+            <h3 className="font-serif text-xl text-ink">Unmatched Series</h3>
+            <p className="text-sm text-ink-2">
               {unmatchedCount > 0
                 ? `${unmatchedCount} series need manual matching`
                 : 'All series are matched'}
@@ -474,7 +477,7 @@ export function ScrobblerSettings() {
                 onClick={() => {
                   // Auto-match across all providers
                   Object.values(ScrobblerProvider).filter(v => typeof v === 'number').forEach(p => {
-                    autoMatchAll.mutate(p as ScrobblerProvider);
+                    autoMatchAll.mutate(p);
                   });
                 }}
                 disabled={autoMatchAll.isPending}
@@ -499,24 +502,24 @@ export function ScrobblerSettings() {
                   </tr>
                 </thead>
                 <tbody>
-                  {unmatched.filter(s => s.mappingStatus !== 2).slice(0, 20).map((status) => (
+                  {unmatched.filter(s => s.mappingStatus !== SeriesMappingStatus.UserConfirmed).slice(0, 20).map((status) => (
                     <tr key={`${status.seriesId}-${status.provider}`} className="border-b last:border-0">
                       <td className="py-2">{status.seriesTitle}</td>
                       <td className="py-2">{ScrobblerProvider[status.provider]}</td>
                       <td className="py-2">
-                        {status.mappingStatus === 0 && (
+                        {status.mappingStatus === SeriesMappingStatus.Unmatched && (
                           <Badge variant="secondary">Not matched</Badge>
                         )}
-                        {status.mappingStatus === 1 && (
+                        {status.mappingStatus === SeriesMappingStatus.AutoMatched && (
                           <Badge variant="default">Auto-matched ({Math.round((status.matchScore ?? 0) * 100)}%)</Badge>
                         )}
-                        {status.mappingStatus === 3 && (
+                        {status.mappingStatus === SeriesMappingStatus.TemporaryIgnored && (
                           <Badge variant="secondary">Temp. ignored</Badge>
                         )}
-                        {status.mappingStatus === 4 && (
+                        {status.mappingStatus === SeriesMappingStatus.ForeverIgnored && (
                           <Badge variant="secondary">Disabled</Badge>
                         )}
-                        {status.mappingStatus === 5 && (
+                        {status.mappingStatus === SeriesMappingStatus.Blocked && (
                           <Badge variant="secondary">Blocked</Badge>
                         )}
                       </td>

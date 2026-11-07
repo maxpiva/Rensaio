@@ -7,16 +7,18 @@ import { Sparkles, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SeriesStatus } from "@/lib/api/types";
-import { getStatusDisplay } from "@/lib/utils/series-status";
+import {
+  SeriesStatusTag,
+  statusStripeClass,
+} from "@/components/comp/series/cloud-latest-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 
 /**
- * SpotlightHero — the big cinematic hero that sits at the top of the Library
- * and Browse pages. Shows up to 7 spotlight series with auto-advancing
- * thumbnails on the right, a blurred backdrop of the active series cover,
- * a 200×280 floating crisp cover with a status-colored top strip, an eyebrow
- * label, a large display title, a status pill, a meta strip, a gradient-faded
- * description, tag chips, and a single pink primary CTA.
+ * SpotlightHero — the feature panel at the top of Just In. Shows up to 7
+ * spotlight series with auto-advancing thumbnails, styled as a Paper "feature
+ * page": a cover with an offset print shadow and a status-coloured top strip,
+ * a crimson mono eyebrow, a serif display title, an icon + label status tag,
+ * a meta strip, a fading description, tag chips and a single primary CTA.
  *
  * Implementation notes:
  *
@@ -24,15 +26,13 @@ import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
  *   paused for {@link SpotlightHeroProps.pauseAfterManualMs} (default 12s)
  *   after the user clicks a thumb. Respects `prefers-reduced-motion`.
  *
- * - The backdrop is a blurred/saturated copy of the active cover (filter:
- *   `blur(40px) saturate(150%) brightness(0.45)`). A pink radial overlay
- *   in the top-right gives the "galaxy" vibe; a dark veil keeps text legible.
+ * - A faint blurred wash of the active cover fades in from the right edge;
+ *   the reading side stays plain paper so text keeps full contrast.
  *
- * - Content fades on transition (350ms cross-fade) but the backdrop also
- *   transitions opacity for a soft crossfade between covers.
+ * - Content fades on transition (350ms cross-fade).
  *
- * - The right-side dot strip is vertical at `lg+` and horizontal under the
- *   cover at smaller widths. Each "dot" is a tiny cover thumbnail.
+ * - The thumbnail strip is vertical on the right at `lg+` and a scrollable
+ *   row underneath at smaller widths. Each thumb is a 44px-wide target.
  */
 
 export type SpotlightItem = {
@@ -64,29 +64,6 @@ export type SpotlightHeroProps = {
   pauseAfterManualMs?: number;
   variant?: "library" | "browse";
 };
-
-const PINK = "hsl(346.8 77.2% 49.8%)";
-
-// Map series status -> CSS color used for the cover top strip.
-function statusBarColor(status?: SeriesStatus): string {
-  switch (status) {
-    case SeriesStatus.ONGOING:
-      return "#22c55e";
-    case SeriesStatus.COMPLETED:
-    case SeriesStatus.PUBLISHING_FINISHED:
-      return "#3b82f6";
-    case SeriesStatus.LICENSED:
-      return "#a855f7";
-    case SeriesStatus.CANCELLED:
-      return "#ef4444";
-    case SeriesStatus.ON_HIATUS:
-      return "#eab308";
-    case SeriesStatus.DISABLED:
-      return "#4b5563";
-    default:
-      return "#6b7280";
-  }
-}
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -228,10 +205,7 @@ export function SpotlightHero({
 
   const current = safeItems[active]!;
   const status = current.status ?? SeriesStatus.UNKNOWN;
-  const statusInfo = getStatusDisplay(status);
-  const stripColor = statusBarColor(status);
   const tags = (current.genres ?? []).slice(0, 4);
-  const isOngoing = status === SeriesStatus.ONGOING;
 
   const backdropSrc = current.thumbnailUrl
     ? formatThumbnailUrl(current.thumbnailUrl)
@@ -241,21 +215,14 @@ export function SpotlightHero({
     <section
       role="region"
       aria-label="Spotlight"
-      className={cn(
-        "relative isolate w-full overflow-hidden rounded-2xl border border-white/[0.06]",
-        "h-[420px] max-lg:h-auto",
-      )}
-      style={{
-        background: "hsl(240 8% 7%)",
-      }}
+      className="paper-grain relative isolate w-full overflow-hidden rounded-xl border border-rule bg-paper-1 shadow-paper"
     >
-      {/* Backdrop (blurred + saturated cover) */}
+      {/* Backdrop: a faint wash of the active cover, fading in from the
+          right edge so the reading side stays clean paper. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-10 transition-opacity duration-500"
-        style={{
-          opacity: fading ? 0.55 : 1,
-        }}
+        className="pointer-events-none absolute inset-y-0 right-0 w-full transition-opacity duration-500 [mask-image:linear-gradient(to_left,black,transparent_75%)] lg:w-3/4"
+        style={{ opacity: fading ? 0.08 : 0.16 }}
       >
         <Image
           key={`bd-${current.id}`}
@@ -265,267 +232,183 @@ export function SpotlightHero({
           priority
           sizes="100vw"
           className="object-cover"
-          style={{
-            filter: "blur(40px) saturate(150%) brightness(0.45)",
-            transform: "scale(1.15)",
-          }}
+          style={{ filter: "blur(36px) saturate(130%)", transform: "scale(1.2)" }}
         />
       </div>
 
-      {/* Pink radial top-right + dark veil for legibility */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(900px 600px at 85% -10%, hsla(346.8, 77.2%, 49.8%, 0.42), transparent 60%)," +
-            " linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.3) 75%, rgba(0,0,0,0.55) 100%)," +
-            " linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%)",
-        }}
-      />
-
-      {/* Content row */}
-      <div
-        className={cn(
-          "relative z-10 flex h-full items-stretch gap-6 px-5 py-6",
-          "sm:gap-8 sm:px-8",
-          "lg:items-center lg:gap-10 lg:px-10",
-          "max-lg:flex-col max-lg:items-center",
-        )}
-      >
-        {/* Floating cover */}
-        <div
-          className={cn(
-            "relative shrink-0 overflow-hidden rounded-xl",
-            "transition-opacity duration-300",
-            fading ? "opacity-0" : "opacity-100",
-          )}
-          style={{
-            width: 200,
-            height: 280,
-            boxShadow:
-              "0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px hsla(0, 0%, 100%, 0.06)",
-          }}
-        >
-          {/* Status-colored top strip */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5"
-            style={{
-              background: stripColor,
-              boxShadow: `0 0 12px ${stripColor}`,
-            }}
-          />
-          <Image
-            key={`cover-${current.id}`}
-            src={backdropSrc}
-            alt={current.title}
-            fill
-            priority={active === 0}
-            sizes="200px"
-            className="object-cover"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 35%, transparent 60%)",
-            }}
-          />
-          <div className="absolute inset-x-3 bottom-3">
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/80 line-clamp-1">
-              {current.title}
-            </div>
-            {current.author && (
-              <div className="text-[10px] text-white/55 line-clamp-1">
-                {current.author}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right-side text content */}
+      <div className="relative z-10 flex flex-col gap-5 p-4 sm:p-6 lg:min-h-[380px] lg:flex-row lg:items-center lg:gap-8 lg:p-8 lg:pr-6">
+        {/* Active item */}
         <div
           id={panelId}
           role="tabpanel"
           aria-labelledby={`${heroId}-tab-${active}`}
           className={cn(
-            "min-w-0 flex-1 transition-opacity duration-300",
-            "lg:max-w-2xl",
-            "max-lg:w-full max-lg:text-center",
+            "grid min-w-0 flex-1 grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4 gap-y-4 transition-opacity duration-300 motion-reduce:transition-none",
+            "sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-x-6",
+            "lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-x-10",
             fading ? "opacity-0" : "opacity-100",
           )}
         >
-          {/* Eyebrow */}
-          <div
-            className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase max-lg:justify-center"
-            style={{
-              letterSpacing: "0.28em",
-              color: "hsl(346.8 90% 70%)",
-            }}
-          >
-            <EyebrowIcon className="h-3 w-3" />
-            <span className="hidden sm:inline">{eyebrow}</span>
-            <span className="sm:hidden">
-              {eyebrow.split("·")[0]?.trim() ?? eyebrow}
-            </span>
+          {/* Cover with offset print shadow */}
+          <div className="relative lg:row-span-2 lg:self-center">
+            <div aria-hidden className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-[3px] bg-rule-2 lg:translate-x-2 lg:translate-y-2" />
+            <div className="relative aspect-[5/7] overflow-hidden rounded-[3px] bg-paper-2 ring-1 ring-rule">
+              <div
+                aria-hidden
+                className={cn("pointer-events-none absolute inset-x-0 top-0 z-10 h-[3px]", statusStripeClass(status))}
+              />
+              <Image
+                key={`cover-${current.id}`}
+                src={backdropSrc}
+                alt={current.title}
+                fill
+                priority={active === 0}
+                sizes="(max-width: 640px) 96px, (max-width: 1024px) 150px, 200px"
+                className="object-cover"
+              />
+            </div>
           </div>
 
-          {/* Title */}
-          <h2 className="mb-4 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-4xl lg:text-5xl line-clamp-2">
-            {current.title}
-          </h2>
-
-          {/* Meta strip */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] max-lg:justify-center">
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium"
-            >
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  isOngoing && "animate-pulse",
-                )}
-                style={{
-                  background: stripColor,
-                  boxShadow: isOngoing
-                    ? `0 0 0 0 ${stripColor}`
-                    : undefined,
-                }}
-              />
-              {statusInfo.text}
-            </span>
-
-            {variant === "library" ? (
-              <>
-                {typeof current.trackedChapters === "number" && (
-                  <span className="text-white/55">
-                    <b className="text-white/90">{current.trackedChapters}</b>{" "}
-                    chapters tracked
-                  </span>
-                )}
-                {typeof current.activeSources === "number" && (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-white/20" />
-                    <span className="text-white/55">
-                      <b className="text-white/90">{current.activeSources}</b>{" "}
-                      active sources
-                    </span>
-                  </>
-                )}
-                {current.lastDownload && (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-white/20" />
-                    <span className="text-white/55">
-                      Downloaded {current.lastDownload}
-                    </span>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {typeof current.availableChapters === "number" && (
-                  <span className="text-white/55">
-                    <b className="text-white/90">{current.availableChapters}</b>{" "}
-                    chapters available
-                  </span>
-                )}
-                {(current.sourceName ?? current.provider) && (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-white/20" />
-                    <span className="text-white/55">
-                      Source:{" "}
-                      <b className="text-white/90">
-                        {current.sourceName ?? current.provider}
-                      </b>
-                    </span>
-                  </>
-                )}
-              </>
+          {/* Eyebrow + title */}
+          <div className="min-w-0 self-center lg:self-end">
+            <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-ink sm:text-[10.5px]">
+              <EyebrowIcon className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">{eyebrow}</span>
+              <span className="sm:hidden">
+                {eyebrow.split("·")[0]?.trim() ?? eyebrow}
+              </span>
+            </div>
+            <h2 className="line-clamp-3 font-serif text-[24px] font-normal leading-[1.08] tracking-[-0.015em] text-ink [overflow-wrap:anywhere] sm:text-[34px] lg:line-clamp-2 lg:text-[46px]">
+              {current.title}
+            </h2>
+            {current.author && (
+              <p className="mt-1.5 truncate text-[12.5px] text-ink-3 sm:text-[13px]">
+                {current.author}
+              </p>
             )}
           </div>
 
-          {/* Description */}
-          {current.description && (
-            <div className="mb-5 text-[14px] leading-[1.5] text-white/65">
-              <div
-                id={`${panelId}-desc`}
-                className={cn(
-                  "relative overflow-hidden",
-                  !descExpanded && "max-h-[4.5em]",
-                )}
-              >
-                <p className={cn(!descExpanded && "line-clamp-3")}>
-                  {current.description}
-                </p>
-                {!descExpanded && (
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-6"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))",
-                    }}
-                  />
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setDescExpanded((v) => !v)}
-                aria-expanded={descExpanded}
-                aria-controls={`${panelId}-desc`}
-                className="mt-1.5 inline-flex items-center text-[12px] font-semibold uppercase tracking-wider text-[hsl(346.8_90%_70%)] transition-colors duration-150 hover:text-[hsl(346.8_90%_80%)] focus-visible:outline-none focus-visible:underline"
-              >
-                {descExpanded ? "Read less" : "Read more"}
-              </button>
-            </div>
-          )}
+          {/* Details */}
+          <div className="col-span-2 min-w-0 lg:col-span-1 lg:col-start-2">
+            {/* Meta strip */}
+            <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-ink-3 max-sm:gap-x-4">
+              <SeriesStatusTag status={status} />
 
-          {/* Tags */}
-          {tags.length > 0 && (
-            <div className="mb-5 flex flex-wrap items-center gap-2 max-lg:justify-center">
-              {tags.map((tag, idx) => (
-                <span
-                  key={tag}
+              {variant === "library" ? (
+                <>
+                  {typeof current.trackedChapters === "number" && (
+                    <span>
+                      <b className="font-semibold text-ink">{current.trackedChapters}</b>{" "}
+                      chapters tracked
+                    </span>
+                  )}
+                  {typeof current.activeSources === "number" && (
+                    <>
+                      <span aria-hidden className="h-1 w-1 rounded-full bg-rule-3 max-sm:hidden" />
+                      <span>
+                        <b className="font-semibold text-ink">{current.activeSources}</b>{" "}
+                        active sources
+                      </span>
+                    </>
+                  )}
+                  {current.lastDownload && (
+                    <>
+                      <span aria-hidden className="h-1 w-1 rounded-full bg-rule-3 max-sm:hidden" />
+                      <span>Downloaded {current.lastDownload}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {typeof current.availableChapters === "number" && (
+                    <span>
+                      <b className="font-semibold text-ink">{current.availableChapters}</b>{" "}
+                      chapters available
+                    </span>
+                  )}
+                  {(current.sourceName ?? current.provider) && (
+                    <>
+                      <span aria-hidden className="h-1 w-1 rounded-full bg-rule-3 max-sm:hidden" />
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        Source:{" "}
+                        <b className="font-semibold text-ink">
+                          {current.sourceName ?? current.provider}
+                        </b>
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Description */}
+            {current.description && (
+              <div className="mb-4 max-w-2xl text-[14px] leading-[1.6] text-ink-2">
+                <div
+                  id={`${panelId}-desc`}
                   className={cn(
-                    "rounded-full border px-2 py-[3px] text-[10.5px] tracking-wide",
-                    idx === 0
-                      ? "border-[hsla(346.8,77.2%,49.8%,0.32)] bg-[hsla(346.8,77.2%,49.8%,0.14)] text-[hsl(346.8,90%,75%)]"
-                      : "border-white/10 bg-white/[0.06] text-white/65",
+                    "relative overflow-hidden",
+                    !descExpanded && "max-h-[4.8em] [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
                   )}
                 >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
+                  <p className={cn(!descExpanded && "line-clamp-3")}>
+                    {current.description}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded((v) => !v)}
+                  aria-expanded={descExpanded}
+                  aria-controls={`${panelId}-desc`}
+                  className="mt-1 inline-flex min-h-8 items-center font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-ink underline-offset-4 transition-colors duration-150 hover:underline focus-visible:underline focus-visible:outline-none max-sm:min-h-11"
+                >
+                  {descExpanded ? "Read less" : "Read more"}
+                </button>
+              </div>
+            )}
 
-          {/* CTA */}
-          <div className="flex flex-wrap items-center gap-2.5 max-lg:justify-center">
-            <Button
-              type="button"
-              onClick={() => onCtaClick(current)}
-              className="h-10 gap-2 rounded-lg px-5 text-[13px] font-semibold text-white shadow-[0_8px_24px_hsla(346.8,77.2%,49.8%,0.35),inset_0_1px_0_hsla(0,0%,100%,0.18)] transition-all duration-150 ease-out hover:brightness-110 hover:shadow-[0_10px_32px_hsla(346.8,77.2%,49.8%,0.55),inset_0_1px_0_hsla(0,0%,100%,0.25)] active:scale-[0.97] active:brightness-95 active:shadow-[0_4px_16px_hsla(346.8,77.2%,49.8%,0.3),inset_0_1px_0_hsla(0,0%,100%,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-[hsl(346.8_90%_70%)] motion-reduce:transition-none"
-              style={{ background: PINK }}
-            >
-              {CtaIcon && <CtaIcon className="h-4 w-4" />}
-              {ctaLabel}
-            </Button>
+            {/* Tags */}
+            {tags.length > 0 && (
+              <div className="mb-5 flex flex-wrap items-center gap-1.5">
+                {tags.map((tag, idx) => (
+                  <span
+                    key={tag}
+                    className={cn(
+                      "rounded-full border px-2.5 py-[3px] text-[11px]",
+                      idx === 0
+                        ? "border-accent-line bg-accent-soft text-accent-ink"
+                        : "border-rule-2 text-ink-2",
+                    )}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* CTA */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                type="button"
+                onClick={() => onCtaClick(current)}
+                className="h-10 gap-2 px-5 max-sm:h-11 max-sm:w-full"
+              >
+                {CtaIcon && <CtaIcon className="h-4 w-4" />}
+                {ctaLabel}
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Dot strip: vertical right at lg+, horizontal under cover at <lg */}
+        {/* Thumb strip: vertical on the right at lg+, a row below otherwise */}
         {safeItems.length > 1 && (
           <div
             role="tablist"
             aria-label="Spotlight selection"
             className={cn(
-              "z-20",
-              // lg+: absolute vertical strip on the right
-              "lg:absolute lg:right-6 lg:top-1/2 lg:flex lg:-translate-y-1/2 lg:flex-col lg:gap-3",
-              // <lg: a horizontal scroll row under the content
-              "max-lg:order-last max-lg:flex max-lg:flex-row max-lg:flex-wrap max-lg:gap-2",
+              "flex shrink-0 gap-1",
+              "lg:flex-col lg:gap-1.5 lg:border-l lg:border-rule lg:pl-5",
+              "max-lg:mx-auto max-lg:max-w-full max-lg:overflow-x-auto max-lg:border-t max-lg:border-rule max-lg:pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             )}
           >
             {safeItems.map((item, idx) => {
@@ -543,37 +426,28 @@ export function SpotlightHero({
                   aria-label={`Spotlight ${idx + 1}: ${item.title}`}
                   onClick={() => goTo(idx)}
                   className={cn(
-                    "relative cursor-pointer overflow-hidden rounded-md border transition-all duration-200",
-                    "w-[28px] h-[40px] lg:w-[36px] lg:h-[52px]",
-                    isActive
-                      ? "border-transparent opacity-100"
-                      : "border-white/10 opacity-55 hover:opacity-95",
+                    "group/thumb flex shrink-0 cursor-pointer items-center justify-center rounded-[5px] p-1 outline-none transition-colors",
+                    "h-[60px] w-11 lg:h-[56px] lg:w-[46px]",
+                    "focus-visible:ring-2 focus-visible:ring-ring",
+                    isActive ? "bg-accent-soft" : "hover:bg-hover",
                   )}
-                  style={
-                    isActive
-                      ? {
-                          boxShadow:
-                            "0 0 0 1px hsl(346.8 77.2% 49.8%), 0 0 16px hsla(346.8, 77.2%, 49.8%, 0.5)",
-                          transform: "translateX(-4px)",
-                        }
-                      : undefined
-                  }
                 >
-                  <Image
-                    src={thumbSrc}
-                    alt=""
-                    fill
-                    sizes="40px"
-                    className="object-cover"
-                  />
                   <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to top, rgba(0,0,0,0.6), transparent 60%)",
-                    }}
-                  />
+                    className={cn(
+                      "relative block h-full w-full overflow-hidden rounded-[3px] transition-[opacity,box-shadow] duration-200",
+                      isActive
+                        ? "opacity-100 ring-2 ring-primary"
+                        : "opacity-60 ring-1 ring-rule group-hover/thumb:opacity-100",
+                    )}
+                  >
+                    <Image
+                      src={thumbSrc}
+                      alt=""
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                    />
+                  </span>
                 </button>
               );
             })}

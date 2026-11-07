@@ -1,7 +1,8 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, Loader2 } from "lucide-react";
+import { SectionHeading } from "@/components/comp/layout/page-header";
 import { useDownloadsForSeries } from "@/lib/api/hooks/useDownloads";
 import { QueueStatus, type DownloadInfo } from "@/lib/api/types";
 import { DownloadItem } from "./download-item";
@@ -77,12 +78,12 @@ export const DownloadsPanel = memo(({ seriesId, isDeleting }: { seriesId: string
         // Only refresh if we're not deleting the series
         if (!isDeleting) {
           // Refresh both series data and providers data
-          queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: ['series', 'detail', seriesId],
           });
 
           // Also refresh sources/providers to get updated chapter counts and metadata
-          queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: ['series', 'sources'],
           });
         }
@@ -125,45 +126,43 @@ export const DownloadsPanel = memo(({ seriesId, isDeleting }: { seriesId: string
 
   if (downloadsError) {
     return (
-      <section className="rounded-xl border border-border/60 bg-card overflow-hidden">
-        <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border/60">
-          <h2 className="text-sm font-semibold tracking-tight">Latest Downloads</h2>
-        </header>
-        <div className="px-4 py-10 text-center">
-          <Download className="mx-auto mb-2 h-5 w-5 text-muted-foreground/60" />
-          <p className="text-xs text-muted-foreground">Failed to load downloads.</p>
+      <section>
+        <SectionHeading title="Latest Downloads" />
+        <div role="alert" className="flex items-center justify-center gap-2 rounded-lg border border-bad/30 bg-bad-soft px-4 py-8 text-center text-sm font-medium text-bad">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Failed to load downloads.
         </div>
       </section>
     );
   }
 
   return (
-    <section className="rounded-xl border border-border/60 bg-card overflow-hidden">
-      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border/60">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">Latest Downloads</h2>
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground/10 px-1.5 text-[11px] font-medium text-muted-foreground tabular-nums">
-            {sortedDownloads.length}
-          </span>
-        </div>
-        {downloadsFetching && (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-        )}
-      </header>
+    <section>
+      <SectionHeading
+        title="Latest Downloads"
+        count={sortedDownloads.length}
+        actions={
+          downloadsFetching ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-3" aria-label="Refreshing downloads" />
+          ) : undefined
+        }
+      />
 
+      <div className="overflow-hidden rounded-lg border border-rule-2 bg-paper-1 shadow-paper">
       {downloadsLoading ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+        <div role="status" className="flex items-center justify-center gap-2 px-4 py-10 text-center text-sm text-ink-3">
+          <Loader2 className="h-4 w-4 animate-spin" />
           Loading downloads…
         </div>
       ) : visibleDownloads.length === 0 ? (
         <div className="px-4 py-10 text-center">
-          <Download className="mx-auto mb-2 h-5 w-5 text-muted-foreground/60" />
-          <p className="text-xs text-muted-foreground">
+          <Download className="mx-auto mb-2 h-5 w-5 text-ink-3" strokeWidth={1.5} />
+          <p className="font-serif text-[16px] italic text-ink-2">
             No downloads yet for this series.
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-border/40">
+        <div className="divide-y divide-rule">
           {visibleDownloads.map((download, index) => (
             <DownloadItem
               key={`${download.id ?? download.title}-${download.chapter ?? ''}-${download.provider}-${download.scheduledDateUTC}-${index}`}
@@ -174,22 +173,22 @@ export const DownloadsPanel = memo(({ seriesId, isDeleting }: { seriesId: string
       )}
 
       {sortedDownloads.length > 0 && (
-        <footer className="flex items-center justify-between gap-2 border-t border-border/40 px-4 py-2.5 text-[11px] text-muted-foreground">
+        <footer className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-rule bg-paper px-3.5 py-2 font-mono text-[11px] text-ink-3 sm:px-4">
           <span className="tabular-nums">
             {activeCount > 0 && (
-              <span className="text-primary">{activeCount} active</span>
+              <span className="font-semibold text-info">{activeCount} active</span>
             )}
             {activeCount > 0 && (queuedCount > 0 || failedCount > 0) && (
               <span className="mx-1.5">·</span>
             )}
             {queuedCount > 0 && (
-              <span className="text-amber-500">{queuedCount} queued</span>
+              <span className="font-semibold text-warn">{queuedCount} queued</span>
             )}
             {queuedCount > 0 && failedCount > 0 && (
               <span className="mx-1.5">·</span>
             )}
             {failedCount > 0 && (
-              <span className="text-destructive">{failedCount} failed</span>
+              <span className="font-semibold text-bad">{failedCount} failed</span>
             )}
             {activeCount === 0 && queuedCount === 0 && failedCount === 0 && (
               <span>All caught up</span>
@@ -197,12 +196,13 @@ export const DownloadsPanel = memo(({ seriesId, isDeleting }: { seriesId: string
           </span>
           <Link
             href="/queue"
-            className="font-medium text-primary hover:underline"
+            className="inline-flex min-h-9 items-center rounded-sm font-sans text-[12.5px] font-semibold text-accent-ink underline-offset-4 outline-none hover:underline focus-visible:underline max-sm:min-h-11"
           >
             View full queue →
           </Link>
         </footer>
       )}
+      </div>
     </section>
   );
 });

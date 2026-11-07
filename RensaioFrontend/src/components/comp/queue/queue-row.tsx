@@ -2,8 +2,25 @@
 
 import React, { memo, useCallback } from 'react';
 import Image from 'next/image';
-import { ArrowUpRight, Trash2, RotateCcw, X } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Trash2,
+  RotateCcw,
+  X,
+  MoreHorizontal,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  ArrowDownToLine,
+} from 'lucide-react';
 import { formatThumbnailUrl } from '@/lib/utils/thumbnail';
+import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,178 +54,140 @@ export interface QueueRowCallbacks {
 }
 
 // ---------------------------------------------------------------------------
-// Status dot
+// Status tag — always icon + label, never colour alone
 // ---------------------------------------------------------------------------
 
-const DOT_STYLES: Record<RowStatus, { bg: string; shadow: string }> = {
-  completed: {
-    bg: 'bg-[hsl(142_60%_48%)]',
-    shadow: '0 0 0 2px hsla(142,60%,48%,0.10)',
-  },
-  failed: {
-    bg: 'bg-[hsl(0_68%_55%)]',
-    shadow: '0 0 0 2px hsla(0,68%,55%,0.10)',
-  },
-  downloading: {
-    bg: 'bg-[hsl(210_85%_58%)]',
-    shadow: '0 0 0 2px hsla(210,85%,58%,0.10)',
-  },
-  queued: {
-    bg: 'bg-[hsl(38_88%_55%)]',
-    shadow: '0 0 0 2px hsla(38,88%,55%,0.10)',
-  },
+const STATUS_META: Record<
+  RowStatus,
+  { label: string; Icon: React.ComponentType<{ className?: string }>; cls: string }
+> = {
+  completed: { label: 'Completed', Icon: CheckCircle2, cls: 'bg-ok-soft text-ok' },
+  failed: { label: 'Failed', Icon: AlertTriangle, cls: 'bg-bad-soft text-bad' },
+  downloading: { label: 'Downloading', Icon: ArrowDownToLine, cls: 'bg-info-soft text-info' },
+  queued: { label: 'Queued', Icon: Clock, cls: 'bg-warn-soft text-warn' },
 };
 
-const STATUS_LABELS: Record<RowStatus, string> = {
-  completed: 'Completed',
-  failed: 'Failed',
-  downloading: 'Downloading',
-  queued: 'Queued',
-};
-
-interface StatusDotProps {
+export const StatusTag = memo(function StatusTag({
+  status,
+  className,
+}: {
   status: RowStatus;
-}
-
-const StatusDot = memo(function StatusDot({ status }: StatusDotProps) {
-  const { bg, shadow } = DOT_STYLES[status];
+  className?: string;
+}) {
+  const { label, Icon, cls } = STATUS_META[status];
   return (
     <span
-      className={`inline-block w-[7px] h-[7px] rounded-full flex-none ${bg}`}
-      style={{ boxShadow: shadow }}
-      aria-label={STATUS_LABELS[status]}
-    />
+      className={cn(
+        'inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-[4px] px-1.5 text-[11.5px] font-semibold leading-none',
+        cls,
+        className,
+      )}
+    >
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      {label}
+    </span>
   );
 });
 
 // ---------------------------------------------------------------------------
-// Thumbnail
+// Cover thumbnail (portrait, like a printed spine)
 // ---------------------------------------------------------------------------
 
-interface ThumbnailProps {
+export const QueueCover = memo(function QueueCover({
+  src,
+  alt,
+  width = 30,
+  height = 42,
+  className,
+}: {
   src?: string;
   alt: string;
-}
-
-const Thumbnail = memo(function Thumbnail({ src, alt }: ThumbnailProps) {
+  width?: number;
+  height?: number;
+  className?: string;
+}) {
   return (
-    <div className="relative w-9 h-9 rounded-md overflow-hidden flex-none">
+    <div
+      className={cn(
+        'relative flex-none overflow-hidden rounded-[3px] bg-paper-3 shadow-[0_1px_0_hsl(0_0%_0%/.06)]',
+        className,
+      )}
+      style={{ width, height }}
+    >
       <Image
         src={formatThumbnailUrl(src)}
         alt={alt}
-        width={36}
-        height={36}
-        className="object-cover w-full h-full"
+        width={width * 2}
+        height={height * 2}
+        className="h-full w-full object-cover"
         onError={(e) => {
           (e.target as HTMLImageElement).src = '/rensaio.png';
         }}
       />
-      {/* subtle inset shadow to show image boundary */}
       <span
-        className="absolute inset-0 rounded-md pointer-events-none"
-        style={{ boxShadow: 'inset 0 0 0 1px hsla(0 0% 100% / 0.05)' }}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[3px] shadow-[inset_0_0_0_1px_var(--rule)]"
       />
     </div>
   );
 });
 
 // ---------------------------------------------------------------------------
-// Icon button
+// Row actions menu — Radix dropdown, anchored to its own trigger
 // ---------------------------------------------------------------------------
 
-interface IconBtnProps {
-  title: string;
-  onClick: (e: React.MouseEvent) => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}
-
-const IconBtn = memo(function IconBtn({ title, onClick, disabled, children }: IconBtnProps) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      className="w-7 h-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors duration-[120ms] disabled:pointer-events-none disabled:opacity-50"
-    >
-      {children}
-    </button>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Action icons per status
-// ---------------------------------------------------------------------------
-
-interface ActionIconsProps {
+interface RowMenuProps {
   item: QueueRowItem;
   callbacks: QueueRowCallbacks;
 }
 
-const ActionIcons = memo(function ActionIcons({ item, callbacks }: ActionIconsProps) {
-  const handleRetry = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      callbacks.onRetry?.(item.id);
-    },
-    [item.id, callbacks],
-  );
+const RowMenu = memo(function RowMenu({ item, callbacks }: RowMenuProps) {
+  const label = [item.seriesTitle, item.chapterLabel].filter(Boolean).join(' ');
 
-  const handleRemove = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      callbacks.onRemove?.(item.id);
-    },
-    [item.id, callbacks],
-  );
-
-  const handleCancel = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      callbacks.onCancel?.(item.id);
-    },
-    [item.id, callbacks],
-  );
-
-  const handleOpen = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (item.url) callbacks.onOpen?.(item.url);
-    },
-    [item.url, callbacks],
-  );
-
-  if (item.status === 'queued') {
-    return (
-      <IconBtn title="Cancel" onClick={handleCancel}>
-        <X size={14} />
-      </IconBtn>
-    );
-  }
-
-  // completed or failed
   return (
-    <>
-      {item.url && (
-        <IconBtn title="Open source" onClick={handleOpen}>
-          <ArrowUpRight size={14} />
-        </IconBtn>
-      )}
-      {item.status === 'failed' && (
-        <IconBtn title="Retry download" onClick={handleRetry}>
-          <RotateCcw size={14} />
-        </IconBtn>
-      )}
-      <IconBtn title="Remove from history" onClick={handleRemove}>
-        <Trash2 size={14} />
-      </IconBtn>
-    </>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger
+        aria-label={`Actions for ${label}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-3 outline-none transition-colors duration-150 hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-hover data-[state=open]:text-ink max-sm:h-11 max-sm:w-11"
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom" className="min-w-[188px]">
+        {item.status === 'queued' ? (
+          <DropdownMenuItem onSelect={() => callbacks.onCancel?.(item.id)}>
+            <X className="h-4 w-4" aria-hidden="true" />
+            Cancel
+          </DropdownMenuItem>
+        ) : (
+          <>
+            {item.url && (
+              <DropdownMenuItem onSelect={() => item.url && callbacks.onOpen?.(item.url)}>
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                Open source
+              </DropdownMenuItem>
+            )}
+            {item.status === 'failed' && (
+              <DropdownMenuItem onSelect={() => callbacks.onRetry?.(item.id)}>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Retry download
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onSelect={() => callbacks.onRemove?.(item.id)}
+              className="text-bad focus:bg-bad-soft focus:text-bad"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Remove from history
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 });
 
 // ---------------------------------------------------------------------------
-// QueueRow
+// QueueRow — one line of the history ledger
 // ---------------------------------------------------------------------------
 
 interface QueueRowProps {
@@ -216,14 +195,9 @@ interface QueueRowProps {
   callbacks: QueueRowCallbacks;
 }
 
-// Returns true when the row has hover-reveal action icons.
-// Downloading rows are read-only (SignalR only) — no actions shown.
-function hasHoverActions(status: RowStatus): boolean {
-  return status !== 'downloading';
-}
-
 const QueueRowInner = function QueueRow({ item, callbacks }: QueueRowProps) {
-  const showActions = hasHoverActions(item.status);
+  // Downloading rows are read-only (SignalR only) — no actions shown.
+  const showActions = item.status !== 'downloading';
   const isDownloading = item.status === 'downloading';
   const hasProgress =
     isDownloading && typeof item.progress === 'number' && item.progress > 0;
@@ -238,91 +212,109 @@ const QueueRowInner = function QueueRow({ item, callbacks }: QueueRowProps) {
     [item.id, callbacks],
   );
 
-  const providerScanlator = [item.provider, item.scanlator]
+  // Skip the scanlator when it just repeats the provider ("Asura Scans · Asura Scans").
+  const providerScanlator = [
+    item.provider,
+    item.scanlator && item.scanlator !== item.provider ? item.scanlator : undefined,
+  ]
     .filter(Boolean)
     .join(' · ');
 
-  // Downloading rows show "42%" instead of the "downloading" text label
+  // Downloading rows show "42%". Rows with no real time only carry their
+  // status word ("queued"), which the status tag already shows, so leave it out.
   const rightLabel = hasProgress
     ? `${Math.round(progressPct)}%`
-    : item.displayTime;
+    : item.displayTime === item.status
+      ? ''
+      : item.displayTime;
 
   return (
-    <div
-      className="group flex items-center gap-4 px-3 py-3.5 transition-colors duration-[120ms] relative border-t border-white/[0.04] first:border-t-0 hover:bg-white/[0.018]"
+    <li
+      className={cn(
+        'group relative grid items-center gap-x-3 border-t border-rule px-3 py-2.5 transition-colors duration-150 first:border-t-0 hover:bg-hover/60 sm:px-4',
+        'grid-cols-[30px_minmax(0,1fr)_auto]',
+        'md:grid-cols-[104px_30px_minmax(0,1fr)_auto_32px] md:gap-x-4',
+      )}
     >
-      {/* Status dot */}
-      <StatusDot status={item.status} />
+      {/* Status tag — its own column on desktop */}
+      <div className="hidden md:block">
+        <StatusTag status={item.status} />
+      </div>
 
-      {/* Thumbnail */}
-      <Thumbnail src={item.thumbnailUrl} alt={item.seriesTitle} />
+      <div>
+        <QueueCover src={item.thumbnailUrl} alt="" />
+      </div>
 
-      {/* Text content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="text-[14px] font-semibold truncate leading-snug">
+      {/* Title + meta */}
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-baseline gap-x-2">
+          <span className="min-w-0 truncate text-[14px] font-semibold leading-snug text-ink" title={item.seriesTitle}>
             {item.seriesTitle}
           </span>
-          <span className="text-[13px] text-muted-foreground truncate flex-shrink-0">
-            {item.chapterLabel}
-          </span>
+          {item.chapterLabel && (
+            <span className="hidden flex-none whitespace-nowrap font-mono text-[12px] font-medium text-ink-3 md:inline">
+              {item.chapterLabel}
+            </span>
+          )}
+        </div>
+        {/* Phone: chapter + time on their own line so the title keeps the width */}
+        <div className="mt-0.5 flex min-w-0 items-center gap-x-1.5 font-mono text-[11.5px] tabular-nums text-ink-3 md:hidden">
+          {item.chapterLabel && <span className="min-w-0 truncate font-medium text-ink-2">{item.chapterLabel}</span>}
+          {item.chapterLabel && rightLabel && <span aria-hidden="true">·</span>}
+          {rightLabel && (
+            <span className={cn('flex-none whitespace-nowrap', isDownloading && 'text-info')}>{rightLabel}</span>
+          )}
+        </div>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
+          <StatusTag status={item.status} className="md:hidden" />
+          {providerScanlator && <span className="min-w-0 truncate">{providerScanlator}</span>}
           {typeof item.retries === 'number' && item.retries > 0 && (
             <span
-              className="ml-0.5 flex-none text-[12px] text-muted-foreground/70 tabular-nums"
+              className="inline-flex flex-none items-center gap-1 font-mono tabular-nums"
               title={`Retried ${item.retries} time${item.retries === 1 ? '' : 's'}`}
             >
-              ×{item.retries}
+              <RotateCcw className="h-3 w-3" aria-hidden="true" />
+              {item.retries}×
+              <span className="sr-only"> retries</span>
             </span>
           )}
           {item.hasRetry && (
-            <a
-              href="#"
+            <button
+              type="button"
               onClick={handleRetryInline}
-              className="ml-1 flex-none text-[12px] font-medium text-destructive/80 hover:text-destructive hover:underline underline-offset-2 transition-colors duration-[120ms]"
+              className="flex-none rounded-[3px] font-semibold text-accent-ink underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring max-sm:-my-2 max-sm:inline-flex max-sm:min-h-[44px] max-sm:items-center max-sm:px-1.5"
             >
               Retry
-            </a>
+            </button>
           )}
         </div>
-        {providerScanlator && (
-          <div className="mt-0.5 text-[12px] text-muted-foreground truncate">
-            {providerScanlator}
-          </div>
-        )}
       </div>
 
-      {/* Right-edge slot: time/percentage (default) vs action icons (hover) */}
-      <div className="flex items-center gap-1 flex-none relative">
-        {/* Time / percentage label — hidden on hover when there are action icons to show */}
-        <span
-          className={`text-[12px] whitespace-nowrap transition-opacity duration-[120ms] ${
-            isDownloading ? 'tabular-nums text-[hsl(210_85%_70%)]' : 'text-muted-foreground'
-          }${showActions ? ' group-hover:opacity-0' : ''}`}
-        >
-          {rightLabel}
-        </span>
-
-        {/* Action icons — shown on hover, overlaid on same position */}
-        {showActions && (
-          <div className="absolute right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-[120ms]">
-            <ActionIcons item={item} callbacks={callbacks} />
-          </div>
+      {/* Desktop: time / percentage column */}
+      <span
+        className={cn(
+          'hidden whitespace-nowrap text-right font-mono text-[11.5px] tabular-nums md:block',
+          isDownloading ? 'text-info' : 'text-ink-3',
         )}
+      >
+        {rightLabel}
+      </span>
+
+      {/* Row menu */}
+      <div className="flex w-8 justify-end max-sm:w-11">
+        {showActions && <RowMenu item={item} callbacks={callbacks} />}
       </div>
 
-      {/* Thin progress bar across the very bottom of downloading rows */}
+      {/* Hairline progress bar across the very bottom of downloading rows */}
       {isDownloading && (
-        <div
-          className="absolute left-0 right-0 bottom-0 h-[1.5px] overflow-hidden pointer-events-none"
-          aria-hidden="true"
-        >
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] overflow-hidden" aria-hidden="true">
           <div
-            className="h-full bg-[hsl(210_85%_58%)] transition-[width] duration-300 ease-out"
+            className="h-full bg-primary transition-[width] duration-300 ease-out"
             style={{ width: `${progressPct}%` }}
           />
         </div>
       )}
-    </div>
+    </li>
   );
 };
 QueueRowInner.displayName = 'QueueRow';

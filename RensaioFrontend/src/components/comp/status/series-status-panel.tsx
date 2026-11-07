@@ -3,12 +3,15 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ExternalLink } from 'lucide-react';
-import { type SeriesHealth } from '@/lib/api/types';
-import { AlertBadge } from '@/components/comp/status/alert-badge';
+import { ArrowUpRight, CalendarClock, Loader2 } from 'lucide-react';
+import { HealthStatusLevel, type SeriesHealth } from '@/lib/api/types';
+import { AlertBadgeWithLabel } from '@/components/comp/status/alert-badge';
+import { StatusNotice } from '@/components/comp/status/status-notice';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { formatThumbnailUrl } from '@/lib/utils/thumbnail';
 import { seriesService } from '@/lib/api/services/seriesService';
+import { cn } from '@/lib/utils';
 
 interface SeriesStatusPanelProps {
   series: SeriesHealth[];
@@ -16,25 +19,36 @@ interface SeriesStatusPanelProps {
   canAdmin: boolean;
 }
 
-/** Small translucent meta pill (provider tags, days-without-release). */
-function MetaPill({ children }: { children: React.ReactNode }) {
+/** Mono "code" chip for provider tags. */
+export function SourceChip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+    <span className="inline-flex h-[22px] max-w-full items-center truncate rounded-[4px] border border-rule bg-paper-2 px-1.5 font-mono text-[11px] font-medium text-ink-2">
       {children}
     </span>
   );
 }
 
-/** Glass dismiss action — replaces the old shadcn outline Button. */
-function DismissButton({ onClick }: { onClick: () => void }) {
+/** Days without a release, spelled out for assistive tech. */
+export function DaysPill({ days }: { days: number }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-white/[0.07] hover:text-foreground"
+    <span
+      className="inline-flex h-[22px] flex-none items-center gap-1 rounded-[4px] border border-rule px-1.5 font-mono text-[11px] font-semibold tabular-nums text-ink-2"
+      title={`${days} days without a release`}
     >
-      Dismiss
-    </button>
+      <CalendarClock className="h-3 w-3 text-ink-3" aria-hidden="true" />
+      {days}d
+      <span className="sr-only"> without a release</span>
+    </span>
+  );
+}
+
+/** Left-edge level stripe: a printer's mark, paired with the label tag. */
+export function LevelStripe({ level }: { level: HealthStatusLevel }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn('absolute inset-y-0 left-0 w-[3px]', level === HealthStatusLevel.Red ? 'bg-bad' : 'bg-warn')}
+    />
   );
 }
 
@@ -46,13 +60,7 @@ export function SeriesStatusPanel({ series, onClearAlert, canAdmin }: SeriesStat
   const [savingCadence, setSavingCadence] = useState<Record<string, boolean>>({});
 
   if (series.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.02] py-12 text-muted-foreground">
-        <CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
-        <p className="text-lg font-medium text-foreground">All series are healthy</p>
-        <p className="text-sm">No series alerts at this time</p>
-      </div>
-    );
+    return <StatusNotice title="All series are healthy" body="No series alerts at this time" />;
   }
 
   // Sort: Red first, then Yellow
@@ -81,105 +89,110 @@ export function SeriesStatusPanel({ series, onClearAlert, canAdmin }: SeriesStat
     }
   };
 
-  const levelAccent = (level: number) =>
-    level === 2
-      ? "border-red-500/25 hover:border-red-500/40"
-      : "border-amber-500/25 hover:border-amber-500/40";
-
   return (
-    <div className="space-y-2">
+    <ul className="overflow-hidden rounded-lg border border-rule bg-paper-1 shadow-paper">
       {sorted.map((s) => {
         const input = cadenceInputs[s.id] ?? '';
         const parsed = parseInt(input, 10);
         const hasValidInput = input !== '' && !isNaN(parsed) && parsed > 0;
         const isSaving = savingCadence[s.id] ?? false;
+        const cadenceId = `cadence-${s.id}`;
 
         return (
-        <div
-          key={s.id}
-          className={`rounded-xl border bg-white/[0.02] px-4 py-3 transition-colors ${levelAccent(s.level)}`}
-        >
-          <div className="flex items-center gap-3">
-            {/* Thumbnail on the left */}
-            <div className="relative flex-shrink-0">
+          <li
+            key={s.id}
+            className="relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-3.5 gap-y-3 border-t border-rule py-3.5 pl-4 pr-3 first:border-t-0 sm:pr-4 md:grid-cols-[40px_minmax(0,1fr)_auto]"
+          >
+            <LevelStripe level={s.level} />
+
+            <div className="relative h-[54px] w-10 overflow-hidden rounded-[3px] bg-paper-3">
               <Image
                 src={formatThumbnailUrl(s.thumbnailUrl)}
-                alt={s.title}
-                width={48}
-                height={64}
-                className="rounded-md object-cover"
+                alt=""
+                width={80}
+                height={108}
+                className="h-full w-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = '/rensaio.png';
                 }}
               />
+              <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[3px] shadow-[inset_0_0_0_1px_var(--rule)]" />
             </div>
 
-            {/* Content area */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                {/* Status icon in front of title */}
-                <AlertBadge level={s.level} />
-                {/* Title with link icon at the end */}
-                <span
-                  className="flex items-center gap-1 truncate text-sm font-medium transition-colors cursor-pointer hover:text-primary"
+            {/* Content */}
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <button
+                  type="button"
                   onClick={() => handleSeriesClick(s.id)}
                   title={`View ${s.title} details`}
+                  className="group/title inline-flex min-w-0 max-w-full items-center gap-1 rounded-[3px] text-left text-[14.5px] font-semibold leading-snug text-ink outline-none transition-colors hover:text-accent-ink focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {s.title}
-                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground hover:text-primary" />
-                </span>
+                  <span className="min-w-0 truncate">{s.title}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-ink-3 group-hover/title:text-accent-ink" aria-hidden="true" />
+                </button>
+                <AlertBadgeWithLabel level={s.level} />
               </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">{s.message}</p>
-              {s.providers.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
+              <p className="mt-1 text-[12.5px] leading-snug text-ink-2">{s.message}</p>
+              {(s.providers.length > 0 || s.daysWithoutRelease != null) && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {s.daysWithoutRelease != null && <DaysPill days={s.daysWithoutRelease} />}
                   {s.providers.map((p) => (
-                    <MetaPill key={p.providerId}>
+                    <SourceChip key={p.providerId}>
                       {p.providerName} ({p.language})
-                    </MetaPill>
+                    </SourceChip>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Actions on the right — cadence edit (admin) + dismiss */}
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              {/* Cadence edit: label + input + save (admin only) */}
-              {canAdmin && (
+            {/* Actions — cadence edit (admin) + dismiss */}
+            {canAdmin && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 md:col-span-1 md:flex-col md:items-end md:justify-center">
                 <div className="flex items-center gap-1.5">
-                  <span className="whitespace-nowrap text-[11px] text-muted-foreground">Cadence:</span>
+                  <label htmlFor={cadenceId} className="whitespace-nowrap text-[11.5px] font-medium text-ink-3">
+                    Cadence:
+                  </label>
                   <Input
+                    id={cadenceId}
                     type="number"
                     min="1"
                     step="1"
+                    inputMode="numeric"
                     placeholder={s.releaseCadenceDays?.toString() ?? 'auto'}
                     value={cadenceInputs[s.id] ?? ''}
                     onChange={(e) => setCadenceInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') void handleSaveCadence(s.id);
                     }}
-                    className="h-7 w-16 text-right font-mono text-xs"
+                    aria-describedby={`${cadenceId}-unit`}
+                    className="h-8 w-[68px] text-right font-mono text-xs max-sm:h-11"
                   />
-                  <button
-                    type="button"
+                  <span id={`${cadenceId}-unit`} className="text-[11.5px] text-ink-3">days</span>
+                  <Button
+                    variant="outline"
+                    size="xs"
                     disabled={!hasValidInput || isSaving}
                     onClick={() => void handleSaveCadence(s.id)}
-                    className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-white/[0.07] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                    className="max-sm:min-h-11 max-sm:px-3"
                   >
-                    {isSaving ? '…' : 'Save'}
-                  </button>
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-label="Saving" /> : 'Save'}
+                  </Button>
                 </div>
-              )}
-              {/* Days badge + dismiss */}
-              <div className="flex items-center gap-2">
-                {s.daysWithoutRelease != null && <MetaPill>{s.daysWithoutRelease}d</MetaPill>}
-                {canAdmin && <DismissButton onClick={() => onClearAlert(0, s.id)} />}
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => onClearAlert(0, s.id)}
+                  className="ml-auto text-ink-3 max-sm:min-h-11 max-sm:px-3 md:ml-0"
+                >
+                  Dismiss
+                </Button>
               </div>
-            </div>
-          </div>
-        </div>
+            )}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

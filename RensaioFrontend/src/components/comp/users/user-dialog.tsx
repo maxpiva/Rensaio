@@ -10,14 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -25,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { UserIcon, Upload, RefreshCw, Route, Copy, Check } from 'lucide-react';
+import { UserIcon, Upload, RefreshCw, Route, Copy, Check, Pencil, Loader2 } from 'lucide-react';
+import { UsersDialogHeading, UsersErrorNote, usersFieldLabel } from './users-dialog-heading';
 
 interface EditUserDialogProps {
   user: User;
@@ -46,7 +40,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
   const [avatarBase64, setAvatarBase64] = useState<string | undefined>(undefined);
   const [avatarContentType, setAvatarContentType] = useState<string | undefined>(undefined);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
-    user.avatarBase64 ? `data:${user.avatarContentType || 'image/png'};base64,${user.avatarBase64}` : null
+    user.avatarBase64 ? `data:${user.avatarContentType?.length ? user.avatarContentType : 'image/png'};base64,${user.avatarBase64}` : null
   );
   const [error, setError] = useState('');
   const [gravatarEmail, setGravatarEmail] = useState('');
@@ -60,7 +54,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
       setAvatarBase64(undefined);
       setAvatarContentType(undefined);
       setAvatarPreview(
-        user.avatarBase64 ? `data:${user.avatarContentType || 'image/png'};base64,${user.avatarBase64}` : null
+        user.avatarBase64 ? `data:${user.avatarContentType?.length ? user.avatarContentType : 'image/png'};base64,${user.avatarBase64}` : null
       );
       setError('');
       setGravatarEmail('');
@@ -117,7 +111,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
   }
 
   const handleCopyOpds = async () => {
-    const externalDomain = settings?.externalDomain || "http://localhost:9833";
+    const externalDomain = settings?.externalDomain?.length ? settings.externalDomain : "http://localhost:9833";
     const fullOpdsUrl = `${externalDomain}/${user.opdsPath}`;
     try {
       await navigator.clipboard.writeText(fullOpdsUrl);
@@ -170,40 +164,38 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit User: {user.username}</DialogTitle>
-          <DialogDescription>
-            Update user settings and avatar.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
-              {error}
-            </div>
-          )}
+        <UsersDialogHeading
+          icon={Pencil}
+          action="Edit User:"
+          subject={user.username}
+          description="Update user settings and avatar."
+        />
+        <div className="space-y-5">
+          {error && <UsersErrorNote>{error}</UsersErrorNote>}
 
           {/* Avatar */}
           <div className="space-y-2">
-            <Label>Avatar</Label>
+            <Label className={usersFieldLabel}>Avatar</Label>
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-rule bg-paper-2">
                 {avatarPreview && !removeAvatar ? (
-                  <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
+                  // eslint-disable-next-line @next/next/no-img-element -- data: URI preview
+                  <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
                 ) : (
-                  <UserIcon className="w-8 h-8 text-muted-foreground" />
+                  <UserIcon className="h-7 w-7 text-ink-3" aria-hidden="true" />
                 )}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="w-4 h-4 mr-2" />
+                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   Upload Image
                 </Button>
+                <p className="text-[11.5px] text-ink-3">PNG, JPEG, GIF or WebP · under 2MB</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -217,7 +209,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
 
           {/* Gravatar */}
           <div className="space-y-2">
-            <Label htmlFor="gravatar">Get from Gravatar</Label>
+            <Label htmlFor="gravatar" className={usersFieldLabel}>Get from Gravatar</Label>
             <div className="flex gap-2">
               <Input
                 id="gravatar"
@@ -225,45 +217,50 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
                 placeholder="Enter email for Gravatar"
                 value={gravatarEmail}
                 onChange={(e) => setGravatarEmail(e.target.value)}
+                className="min-w-0 flex-1"
               />
-              <Button type="button" variant="secondary" onClick={handleGravatarFetch} size="sm">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleGravatarFetch}
+                className="shrink-0"
+              >
                 Fetch
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs leading-relaxed text-ink-3">
               Email is used only on the frontend to fetch the Gravatar image. It is never sent to the backend.
             </p>
           </div>
 
           {/* Remove avatar */}
           {avatarPreview && !removeAvatar && (
-            <div className="flex items-center gap-2">
+            <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-rule bg-paper-1 px-3 py-2">
+              <Label htmlFor="remove-avatar" className="cursor-pointer">Remove avatar</Label>
               <Switch
                 id="remove-avatar"
                 checked={removeAvatar}
                 onCheckedChange={setRemoveAvatar}
               />
-              <Label htmlFor="remove-avatar">Remove avatar</Label>
             </div>
           )}
 
           {/* OPDS Path */}
           <div className="space-y-2">
-            <Label>OPDS Path</Label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <div className="flex items-center gap-2 w-full p-2 rounded-md border bg-muted/30 text-xs font-mono text-muted-foreground pr-10">
-                  <Route className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{user.opdsPath}</span>
-                </div>
+            <Label className={usersFieldLabel}>OPDS Path</Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-rule bg-paper-2 py-1 pl-2.5 pr-1 font-mono text-xs text-ink-2 max-sm:min-h-11">
+                <Route className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate" title={user.opdsPath}>{user.opdsPath}</span>
                 <button
                   type="button"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-colors"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-10 max-sm:w-10"
                   onClick={handleCopyOpds}
                   title="Copy OPDS URL"
+                  aria-label={copied ? 'OPDS URL copied' : 'Copy OPDS URL'}
                 >
                   {copied ? (
-                    <Check className="h-3.5 w-3.5 text-green-500" />
+                    <Check className="h-3.5 w-3.5 text-ok" />
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}
@@ -273,13 +270,14 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
                 type="button"
                 variant="outline"
                 size="sm"
+                className="shrink-0"
                 onClick={async () => {
                   const result = await regenerateOpds.mutateAsync(user.id);
                   // Update display by refreshing parent when dialog reopens
                 }}
                 disabled={regenerateOpds.isPending}
               >
-                <RefreshCw className={`h-3 w-3 mr-1 ${regenerateOpds.isPending ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${regenerateOpds.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
                 {regenerateOpds.isPending ? 'Regenerating...' : 'Regenerate'}
               </Button>
             </div>
@@ -288,12 +286,12 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
           {/* Level - only show if allowed by admin hierarchy */}
           {canChangeLevelOrActive && (
             <div className="space-y-2">
-              <Label htmlFor="level">Level</Label>
+              <Label htmlFor="level" className={usersFieldLabel}>Level</Label>
               <Select
                 value={level.toString()}
-                onValueChange={(v) => setLevel(Number(v) as UserLevel)}
+                onValueChange={(v) => setLevel(Number(v))}
               >
-                <SelectTrigger>
+                <SelectTrigger id="level">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -307,13 +305,13 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
 
           {/* Active status - only show if allowed by admin hierarchy */}
           {canChangeLevelOrActive && (
-            <div className="flex items-center gap-2">
+            <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-rule bg-paper-1 px-3 py-2">
+              <Label htmlFor="is-active" className="cursor-pointer">Active</Label>
               <Switch
                 id="is-active"
                 checked={isActive}
                 onCheckedChange={setIsActive}
               />
-              <Label htmlFor="is-active">Active</Label>
             </div>
           )}
         </div>
@@ -322,6 +320,7 @@ export function EditUserDialog({ user, open, onOpenChange }: EditUserDialogProps
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={updateUser.isPending}>
+            {updateUser.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
             {updateUser.isPending ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>

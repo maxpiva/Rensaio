@@ -2,7 +2,8 @@
 
 import React, { useState, useCallback } from 'react';
 import ReactCountryFlag from "react-country-flag";
-import { Wrench } from "lucide-react";
+import { Wrench, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -100,9 +101,13 @@ export function SourceRow({
 
   const rowContent = (
     <div
-      className={`src-row${isFailing ? ' is-failing' : ''}`}
+      className={cn(
+        "relative flex items-center gap-3 border-b border-rule px-3 py-2.5 transition-colors last:border-b-0 hover:bg-hover md:gap-4 md:px-4 md:py-3",
+        isFailing &&
+          "bg-bad-soft/50 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-bad",
+      )}
     >
-      {/* Thumbnail — responsive size via CSS classes on wrapper */}
+      {/* Thumbnail — responsive size via wrapper visibility */}
       <div className="md:hidden">
         <SourceThumb extension={extension} size="sm" />
       </div>
@@ -111,37 +116,46 @@ export function SourceRow({
       </div>
 
       {/* Middle: name + meta */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         {/* Line 1: name + flag + badges */}
-        <div className="flex items-center gap-1.5 md:gap-2">
-          {isFailing && <span className="dot-fail" aria-hidden="true" />}
-          <span className="font-semibold text-[14px] md:text-[15px] truncate text-foreground">
+        <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
+          <span className="truncate text-[14px] font-semibold text-ink md:text-[14.5px]">
             {extension.name}
           </span>
           <ReactCountryFlag
             countryCode={countryCode}
             svg
-            style={{ width: '16px', height: '12px', flexShrink: 0 }}
+            style={{ width: '16px', height: '12px', flexShrink: 0, borderRadius: 2 }}
             title={`${primaryLanguage.toUpperCase()} (${countryCode})`}
           />
-          {isNsfw && <span className="nsfw-pill">18+</span>}
+          {isNsfw && (
+            <span className="shrink-0 rounded-[3px] border border-bad/35 px-1 py-px font-mono text-[10px] font-semibold leading-none text-bad">
+              18+
+            </span>
+          )}
+          {isFailing && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-[4px] bg-bad-soft px-1.5 py-0.5 text-[11px] font-semibold leading-none text-bad">
+              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              Failing
+            </span>
+          )}
         </div>
 
-        {/* Line 2: version · languages (muted) + Local badge + wrench */}
-        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+        {/* Line 2: version · languages (mono) + Local badge + wrench */}
+        <div className="mt-1 flex min-w-0 items-center gap-1.5">
           {meta ? (
-            <span className="text-[12px] md:text-[13px] text-muted-foreground truncate">
+            <span className="truncate font-mono text-[11.5px] text-ink-3 md:text-[12px]">
               {meta}
             </span>
           ) : null}
           {isLocalEntry && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-medium whitespace-nowrap leading-none">
+            <span className="shrink-0 whitespace-nowrap rounded-[4px] bg-warn-soft px-1.5 py-0.5 text-[11px] font-semibold leading-none text-warn">
               Local
             </span>
           )}
           {showWrench && (
             <button
-              className="inline-flex items-center justify-center w-5 h-5 rounded text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors flex-shrink-0"
+              className="-my-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] text-ink-3 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/40 max-sm:-my-3 max-sm:h-11 max-sm:w-11"
               onClick={() => setVersionDialogOpen(true)}
               aria-label={`Select version for ${extension.name}`}
             >
@@ -152,7 +166,7 @@ export function SourceRow({
       </div>
 
       {/* Right: action area */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
         {mode === 'installed' && onUninstall ? (
           <RowActionsInstalled
             extension={extension}

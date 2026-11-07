@@ -3,16 +3,14 @@
 import React, { useState } from 'react';
 import { UserManager } from '@/components/comp/users/user-manager';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { PageHeader } from '@/components/comp/layout/page-header';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  UsersDialogHeading,
+  UsersErrorNote,
+  usersFieldLabel,
+} from '@/components/comp/users/users-dialog-heading';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -49,72 +47,77 @@ export default function UsersPage() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground">
-          Manage user accounts, invite new users, and configure access permissions.
-        </p>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add User
+  const createDialog = (
+    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
+          Add User
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleCreate} className="grid gap-4">
+          <UsersDialogHeading
+            icon={UserPlus}
+            action="Create New User"
+            description="Create a new user. They will need to be invited to set their password."
+          />
+          <div className="space-y-4">
+            {createError && <UsersErrorNote>{createError}</UsersErrorNote>}
+            <div className="space-y-2">
+              <Label htmlFor="new-username" className={usersFieldLabel}>Username</Label>
+              <Input
+                id="new-username"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="Enter username"
+                required
+                minLength={3}
+                maxLength={32}
+                autoComplete="off"
+                aria-invalid={createError ? true : undefined}
+              />
+              <p className="text-xs text-ink-3">3–32 characters.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-level" className={usersFieldLabel}>Level</Label>
+              <Select
+                value={newLevel.toString()}
+                onValueChange={(v) => setNewLevel(Number(v))}
+              >
+                <SelectTrigger id="new-level">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UserLevel.User.toString()}>User</SelectItem>
+                  <SelectItem value={UserLevel.Manager.toString()}>Manager</SelectItem>
+                  <SelectItem value={UserLevel.Admin.toString()}>Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={createUser.isPending}>
+              {createUser.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {createUser.isPending ? 'Creating...' : 'Create User'}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={handleCreate}>
-              <DialogHeader>
-                <DialogTitle>Create New User</DialogTitle>
-                <DialogDescription>
-                  Create a new user. They will need to be invited to set their password.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                {createError && (
-                  <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
-                    {createError}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="new-username">Username</Label>
-                  <Input
-                    id="new-username"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    placeholder="Enter username"
-                    required
-                    minLength={3}
-                    maxLength={32}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-level">Level</Label>
-                  <Select
-                    value={newLevel.toString()}
-                    onValueChange={(v) => setNewLevel(Number(v) as UserLevel)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UserLevel.User.toString()}>User</SelectItem>
-                      <SelectItem value={UserLevel.Manager.toString()}>Manager</SelectItem>
-                      <SelectItem value={UserLevel.Admin.toString()}>Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createUser.isPending}>
-                  {createUser.isPending ? 'Creating...' : 'Create User'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  return (
+    <div className="space-y-6 pb-6 md:space-y-8">
+      <PageHeader
+        folio="08"
+        eyebrow="Manage · Users"
+        title={<em>Users</em>}
+        description="Manage user accounts, invite new users, and configure access permissions."
+        actions={createDialog}
+        tate="会員"
+      />
       <UserManager />
     </div>
   );

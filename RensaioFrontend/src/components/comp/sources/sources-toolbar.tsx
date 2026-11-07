@@ -28,6 +28,17 @@ import { NsfwVisibility } from "@/lib/api/types";
 
 export type SortOption = 'name-asc' | 'name-desc';
 
+
+/** Paper filter chip. `on` = filter active (crimson tint). 44px tall on phone. */
+function chipClass(on: boolean): string {
+  return [
+    "inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] border px-2.5 text-[12.5px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/40 max-md:h-11 max-md:px-3",
+    on
+      ? "border-accent-line bg-accent-soft text-accent-ink"
+      : "border-rule-2 bg-paper-1 text-ink-2 hover:border-ink-3 hover:text-ink",
+  ].join(" ");
+}
+
 interface SourcesToolbarProps {
   hideNsfw: boolean;
   setHideNsfw: (v: boolean) => void;
@@ -90,12 +101,12 @@ export function SourcesToolbar({
   return (
     <>
       {/* ── Desktop toolbar (md and up) ── */}
-      <div className="hidden md:flex flex-wrap items-center gap-2 pb-4 border-b border-white/5">
+      <div className="hidden md:flex flex-wrap items-center gap-2 pb-4 border-b border-rule">
         {/* Language chip → DropdownMenu with checkbox list (mirrors MultiSelect, chip-styled) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className={`src-chip${selectedLanguages.length > 0 ? ' is-on' : ''}`}
+              className={chipClass(selectedLanguages.length > 0)}
               aria-label="Filter by language"
             >
               <Languages className="h-3.5 w-3.5" />
@@ -145,7 +156,7 @@ export function SourcesToolbar({
         {/* NSFW chip — hidden if AlwaysHide */}
         {nsfwVisibility !== NsfwVisibility.AlwaysHide && (
           <button
-            className={`src-chip${hideNsfw ? '' : ' is-on'}`}
+            className={chipClass(!hideNsfw)}
             onClick={() => setHideNsfw(!hideNsfw)}
             aria-pressed={!hideNsfw}
             aria-label="Toggle NSFW sources"
@@ -158,7 +169,7 @@ export function SourcesToolbar({
         {/* Sort chip */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="src-chip" aria-label="Sort order">
+            <button className={chipClass(false)} aria-label="Sort order">
               <ArrowDownAZ className="h-3.5 w-3.5" />
               <span>Sort: {sortLabel}</span>
             </button>
@@ -185,7 +196,7 @@ export function SourcesToolbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-rule-2 bg-paper-1 text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               aria-label="More options"
             >
               <MoreVertical className="h-4 w-4" />
@@ -211,10 +222,10 @@ export function SourcesToolbar({
       </div>
 
       {/* ── Mobile toolbar (below md) ── */}
-      <div className="md:hidden flex items-center gap-2 pb-3 border-b border-white/5 overflow-x-auto scrollbar-hide">
+      <div className="md:hidden flex items-center gap-2 pb-3 border-b border-rule overflow-x-auto scrollbar-hide">
         {/* Language chip → sheet (safer than a floating dropdown on small screens) */}
         <button
-          className={`src-chip${selectedLanguages.length > 0 ? ' is-on' : ''}`}
+          className={chipClass(selectedLanguages.length > 0)}
           onClick={() => setLangSheetOpen(true)}
           aria-label="Filter by language"
         >
@@ -225,7 +236,7 @@ export function SourcesToolbar({
         {/* NSFW chip */}
         {nsfwVisibility !== NsfwVisibility.AlwaysHide && (
           <button
-            className={`src-chip${hideNsfw ? '' : ' is-on'}`}
+            className={chipClass(!hideNsfw)}
             onClick={() => setHideNsfw(!hideNsfw)}
             aria-pressed={!hideNsfw}
             aria-label="Toggle NSFW sources"
@@ -237,7 +248,7 @@ export function SourcesToolbar({
         {/* Sort chip (icon + label on mobile) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="src-chip" aria-label={`Sort: ${sortLabel}`}>
+            <button className={chipClass(false)} aria-label={`Sort: ${sortLabel}`}>
               <ArrowDownAZ className="h-3.5 w-3.5" />
               <span>{sortLabel}</span>
             </button>
@@ -264,7 +275,7 @@ export function SourcesToolbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors shrink-0"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-rule-2 bg-paper-1 text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               aria-label="More options"
             >
               <MoreVertical className="h-4 w-4" />

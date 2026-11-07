@@ -15,17 +15,16 @@ import {
   DrawerDescription,
   DrawerFooter,
 } from '@/components/ui/drawer';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, ExternalLink } from 'lucide-react';
+import { Plus, ExternalLink, BookOpen } from 'lucide-react';
 import Image from 'next/image';
 import { type LatestSeriesInfo, InLibraryStatus } from '@/lib/api/types';
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-series-step";
-import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
+import { SeriesStatusTag } from "@/components/comp/series/cloud-latest-status";
 
 interface CloudLatestDetailsModalProps {
   open: boolean;
@@ -34,13 +33,15 @@ interface CloudLatestDetailsModalProps {
   onAddSeries?: () => void;
 }
 
+const DROP_CAP =
+  "first-letter:float-left first-letter:mr-2 first-letter:mt-1 first-letter:font-serif first-letter:text-[2.9em] first-letter:leading-[0.8] first-letter:text-ink";
+
 export const CloudLatestDetailsModal: React.FC<CloudLatestDetailsModalProps> = ({
   open,
   onOpenChange,
   item,
   onAddSeries,
 }) => {
-  const statusDisplay = getStatusDisplay(item.status);
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const handleViewSource = () => {
@@ -62,30 +63,42 @@ export const CloudLatestDetailsModal: React.FC<CloudLatestDetailsModalProps> = (
     return `Updated ${month} ${year}`;
   };
 
-  const sourceBadge = (clickable: boolean) => (
-    <span
-      className={`inline-flex items-center gap-1 bg-accent text-accent-foreground rounded px-2 py-0.5 text-sm font-medium border border-border max-w-full ${
-        clickable ? "cursor-pointer hover:bg-accent/80 transition-colors" : ""
-      }`}
-      onClick={clickable ? handleViewSource : undefined}
-      title={clickable ? "Click to open in the source" : undefined}
-    >
-      <ReactCountryFlag
-        countryCode={getCountryCodeForLanguage(item.language)}
-        svg
-        className="shrink-0"
-        style={{
-          width: '16px',
-          height: '12px',
-          borderRadius: '2px',
-          border: '1px solid #ccc',
-        }}
-        title={item.language.toUpperCase()}
-      />
-      <span className="truncate">{item.provider}</span>
-      {clickable && <ExternalLink className="h-3 w-3 shrink-0" />}
-    </span>
-  );
+  const chapters = item.chapterCount ?? item.latestChapter;
+  const hasChapters = chapters !== undefined && chapters !== null;
+  const updated = formatUpdatedDate();
+  const canAdd = item.inLibrary === InLibraryStatus.NotInLibrary && onAddSeries;
+  // The drop cap only reads well on a real paragraph, not a one-liner.
+  const dropCap = (item.description?.length ?? 0) > 160 ? DROP_CAP : undefined;
+
+  const sourceBadge = (clickable: boolean) => {
+    const inner = (
+      <>
+        <ReactCountryFlag
+          countryCode={getCountryCodeForLanguage(item.language)}
+          svg
+          className="shrink-0"
+          style={{ width: '16px', height: '12px', borderRadius: '2px' }}
+          title={item.language.toUpperCase()}
+        />
+        <span className="truncate">{item.provider}</span>
+        {clickable && <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />}
+      </>
+    );
+    const base =
+      "inline-flex max-w-full items-center gap-1.5 rounded-[4px] border border-rule bg-paper-2 px-2 py-1 font-mono text-[11.5px] text-ink-2";
+    return clickable ? (
+      <button
+        type="button"
+        className={cn(base, "cursor-pointer transition-colors hover:border-accent-line hover:text-accent-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:min-h-11 max-md:px-3")}
+        onClick={handleViewSource}
+        title="Click to open in the source"
+      >
+        {inner}
+      </button>
+    ) : (
+      <span className={base}>{inner}</span>
+    );
+  };
 
   const byline = () => {
     const parts: string[] = [];
@@ -94,109 +107,103 @@ export const CloudLatestDetailsModal: React.FC<CloudLatestDetailsModalProps> = (
     return parts.length > 0 ? parts.join(" · ") : null;
   };
 
+  const cover = (width: string) => (
+    <div className={cn("relative shrink-0", width)}>
+      {/* Offset print shadow */}
+      <div aria-hidden className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-[3px] bg-rule-2" />
+      <div className="relative aspect-[2/3] overflow-hidden rounded-[3px] bg-paper-2 ring-1 ring-rule">
+        <Image
+          src={formatThumbnailUrl(item.thumbnailUrl)}
+          alt={item.title}
+          fill
+          className="object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src !== window.location.origin + '/rensaio.png') {
+              target.src = '/rensaio.png';
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const genres = (size: string) =>
+    item.genre && item.genre.length > 0 ? (
+      <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
+        {item.genre.map((g) => (
+          <li
+            key={g}
+            className={cn("inline-flex items-center rounded-full border border-rule-2 px-2.5 py-0.5 text-ink-2", size)}
+          >
+            {g}
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
+  const metaTags = (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <SeriesStatusTag status={item.status} />
+      {hasChapters && (
+        <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] border border-rule bg-paper-1 px-2 text-[11.5px] font-semibold text-ink-2">
+          <BookOpen className="h-3 w-3" aria-hidden />
+          {chapters} chapters
+        </span>
+      )}
+    </div>
+  );
+
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[95vw] md:max-w-[580px] p-0 overflow-hidden">
-          <DialogTitle className="sr-only">{item.title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Details for {item.title}
-          </DialogDescription>
+        <DialogContent className="w-[95vw] gap-0 overflow-hidden p-0 sm:p-0 md:max-w-[620px]">
+          {/* Masthead */}
+          <div className="border-b border-rule px-6 pb-4 pr-14 pt-5">
+            <p className="paper-eyebrow truncate">
+              {item.provider}
+              {updated && <span> · {updated}</span>}
+            </p>
+            <DialogTitle className="mt-1.5 font-serif text-[26px] font-normal leading-tight tracking-[-0.01em] text-ink">
+              {item.title}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Details for {item.title}
+            </DialogDescription>
+          </div>
 
           {/* Content area */}
-          <div className="p-5 flex gap-0 items-start">
-            {/* Cover wrap */}
-            <div className="shrink-0 w-[120px]">
-              <div className="w-[120px] aspect-[2/3] rounded-xl overflow-hidden bg-muted border border-border shadow-md relative">
-                <Image
-                  src={formatThumbnailUrl(item.thumbnailUrl)}
-                  alt={item.title}
-                  fill
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== window.location.origin + '/rensaio.png') {
-                      target.src = '/rensaio.png';
-                    }
-                  }}
-                />
-              </div>
-              {/* Source badge below cover */}
-              <div className="mt-2 w-full flex justify-center">
+          <div className="flex items-start gap-6 px-6 py-5">
+            <div className="flex w-[140px] shrink-0 flex-col items-center gap-3">
+              {cover("w-[140px]")}
+              <div className="mt-1 flex w-full justify-center">
                 {item.url ? sourceBadge(true) : sourceBadge(false)}
               </div>
             </div>
 
-            {/* Metadata */}
-            <div className="flex-1 min-w-0 pl-[18px]">
-              {/* Title + status */}
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="text-[17px] font-bold tracking-tight leading-tight">
-                  {item.title}
-                </span>
-                <Badge className={`text-xs shrink-0 ${statusDisplay.color}`}>
-                  {statusDisplay.text}
-                </Badge>
-              </div>
-
-              {/* Byline */}
+            <div className="min-w-0 flex-1 space-y-3">
+              {metaTags}
               {byline() && (
-                <div className="text-[12.5px] text-muted-foreground mb-2">
-                  {byline()}
-                </div>
+                <p className="text-[13px] text-ink-3">{byline()}</p>
               )}
-
-              {/* Genre tags */}
-              {item.genre && item.genre.length > 0 && (
-                <div className="flex flex-wrap gap-[5px] mt-2">
-                  {item.genre.map((g) => (
-                    <span
-                      key={g}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted border border-border text-[11px] text-muted-foreground"
-                    >
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Description */}
-              <p className="text-[12.5px] text-muted-foreground leading-relaxed mt-2.5 line-clamp-4">
-                {item.description || "No description available"}
+              <p className={cn("line-clamp-6 text-[14px] leading-relaxed text-ink-2", dropCap)}>
+                {item.description?.length ? item.description : "No description available"}
               </p>
-
-              {/* Chapter count + date */}
-              <div className="mt-3 text-[11.5px] text-muted-foreground/60">
-                {(item.chapterCount ?? item.latestChapter) != null && (
-                  <span>{item.chapterCount ?? item.latestChapter} chapters</span>
-                )}
-                {(item.chapterCount ?? item.latestChapter) != null && formatUpdatedDate() && " · "}
-                {formatUpdatedDate() && <span>{formatUpdatedDate()}</span>}
-              </div>
+              {genres("text-[11.5px]")}
             </div>
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card/50">
-            <div className="text-[11.5px] text-muted-foreground/60">
-              {item.provider && <span>{item.provider}</span>}
-            </div>
-            <div className="flex gap-2">
+          <div className="flex items-center justify-end gap-3 border-t border-rule bg-paper-1 px-6 py-3.5">
+            <div className="flex shrink-0 gap-2">
               {item.url && (
-                <Button
-                  variant="outline"
-                  className="gap-1"
-                  onClick={handleViewSource}
-                >
+                <Button variant="outline" className="gap-1.5" onClick={handleViewSource}>
                   <ExternalLink className="h-4 w-4" />
                   View Source
                 </Button>
               )}
-              {item.inLibrary === InLibraryStatus.NotInLibrary && onAddSeries && (
-                <Button
-                  className="gap-1"
-                  onClick={handleAddSeries}
-                >
+              {canAdd && (
+                <Button className="gap-1.5" onClick={handleAddSeries}>
                   <Plus className="h-4 w-4" />
                   Add to Library
                 </Button>
@@ -210,96 +217,57 @@ export const CloudLatestDetailsModal: React.FC<CloudLatestDetailsModalProps> = (
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="bg-paper">
         <DrawerHeader className="sr-only">
           <DrawerTitle>{item.title}</DrawerTitle>
           <DrawerDescription>Details for {item.title}</DrawerDescription>
         </DrawerHeader>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1" data-vaul-no-drag>
-          {/* Cover section */}
-          <div className="flex flex-col items-center px-5 py-3 border-b border-border">
-            <div className="w-[90px] aspect-[2/3] rounded-xl overflow-hidden bg-muted border border-border shadow-md relative mb-2.5">
-              <Image
-                src={formatThumbnailUrl(item.thumbnailUrl)}
-                alt={item.title}
-                fill
-                className="object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (target.src !== window.location.origin + '/rensaio.png') {
-                    target.src = '/rensaio.png';
-                  }
-                }}
-              />
-            </div>
-            <div className="text-center text-sm font-bold tracking-tight leading-tight mb-1">
-              {item.title}
-            </div>
-            {byline() && (
-              <div className="text-center text-[11px] text-muted-foreground mb-1.5">
-                {byline()}
-              </div>
-            )}
-            <div className="flex justify-center gap-1">
-              <Badge className={`text-xs ${statusDisplay.color}`}>
-                {statusDisplay.text}
-              </Badge>
-              {(item.chapterCount ?? item.latestChapter) != null && (
-                <Badge variant="secondary" className="text-xs">
-                  {item.chapterCount ?? item.latestChapter} chapters
-                </Badge>
+        <div className="flex-1 overflow-y-auto" data-vaul-no-drag>
+          {/* Masthead */}
+          <div className="flex gap-4 border-b border-rule px-5 pb-5 pt-3">
+            {cover("w-[96px]")}
+            <div className="min-w-0 flex-1 pt-1">
+              <p className="paper-eyebrow truncate">{item.provider}</p>
+              <p aria-hidden className="mt-1 font-serif text-[21px] leading-tight text-ink [overflow-wrap:anywhere]">
+                {item.title}
+              </p>
+              {byline() && (
+                <p className="mt-1 text-[12px] text-ink-3">{byline()}</p>
+              )}
+              <div className="mt-2.5">{metaTags}</div>
+              {updated && (
+                <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink-3">{updated}</p>
               )}
             </div>
           </div>
 
-          {/* Tags section */}
-          {item.genre && item.genre.length > 0 && (
-            <div className="px-3.5 py-2.5 border-b border-border">
-              <div className="flex flex-wrap gap-1">
-                {item.genre.map((g) => (
-                  <span
-                    key={g}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted border border-border text-[10px] text-muted-foreground"
-                  >
-                    {g}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Description section */}
-          <div className="px-3.5 py-2.5 border-b border-border">
-            <p className="text-[11.5px] text-muted-foreground leading-relaxed">
-              {item.description || "No description available"}
+          {/* Description */}
+          <div className="space-y-3 border-b border-rule px-5 py-4">
+            <p className={cn("text-[13.5px] leading-relaxed text-ink-2", dropCap)}>
+              {item.description?.length ? item.description : "No description available"}
             </p>
+            {genres("text-[11px]")}
           </div>
 
-          {/* Source badges section */}
-          <div className="px-3.5 py-2 border-b border-border flex gap-[5px] flex-wrap">
+          {/* Source */}
+          <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+            <span className="paper-eyebrow">Source</span>
             {item.url ? sourceBadge(true) : sourceBadge(false)}
           </div>
         </div>
 
         {/* Footer */}
-        <DrawerFooter className="flex-col gap-1.5 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {item.inLibrary === InLibraryStatus.NotInLibrary && onAddSeries && (
-            <Button
-              className="w-full gap-1"
-              onClick={handleAddSeries}
-            >
+        <DrawerFooter className="flex-col gap-2 border-t border-rule bg-paper-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {canAdd && (
+            <Button className="h-11 w-full gap-1.5" onClick={handleAddSeries}>
               <Plus className="h-4 w-4" />
               Add to Library
             </Button>
           )}
           {item.url && (
-            <Button
-              variant="outline"
-              className="w-full gap-1"
-              onClick={handleViewSource}
-            >
+            <Button variant="outline" className="h-11 w-full gap-1.5" onClick={handleViewSource}>
               <ExternalLink className="h-4 w-4" />
               View Source
             </Button>

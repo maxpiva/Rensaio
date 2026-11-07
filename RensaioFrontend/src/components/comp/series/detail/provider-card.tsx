@@ -18,6 +18,7 @@ import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 import { ProviderMatchDialog } from "@/components/dialogs/provider-match-dialog";
 import { useSetProviderMatch } from "@/lib/api/hooks/useSeries";
 import { useToast } from "@/hooks/use-toast";
+import { getStatusTone } from "./status-tone";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Small relative-time helper (mirrors the format used in the cinematic mockup)
@@ -67,23 +68,22 @@ function PillToggle({
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       aria-pressed={checked}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+      className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-accent-soft max-sm:h-11 max-sm:px-3.5 ${
         checked
-          ? "border-primary/40 bg-primary/15 text-primary"
-          : "border-border/40 bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+          ? "border-accent-line bg-accent-soft text-accent-ink"
+          : "border-rule-2 bg-paper text-ink-3 hover:border-rule-3 hover:text-ink"
       } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${
-          checked
-            ? "bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]"
-            : "bg-foreground/30"
+        aria-hidden="true"
+        className={`inline-block h-1.5 w-1.5 rounded-full transition-colors ${
+          checked ? "bg-accent-ink" : "bg-ink-3/40"
         }`}
       />
       {shortLabel ? (
         <>
-          <span className="lg:hidden">{shortLabel}</span>
-          <span className="hidden lg:inline">{label}</span>
+          <span className="sm:hidden">{shortLabel}</span>
+          <span className="hidden sm:inline">{label}</span>
         </>
       ) : (
         label
@@ -188,10 +188,10 @@ export const ProviderCard = ({
     setMatchMutation.mutate(updatedMatch, {
       onSuccess: () => {
         setMatchDialogOpen(false);
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: ["series", "detail", seriesId],
         });
-        queryClient.invalidateQueries({ queryKey: ["series", "library"] });
+        void queryClient.invalidateQueries({ queryKey: ["series", "library"] });
       },
       onError: (error) => {
         console.error("Failed to save match:", error);
@@ -223,6 +223,7 @@ export const ProviderCard = ({
   };
 
   const status = getStatusDisplay(provider.status);
+  const tone = getStatusTone(provider.status);
   const relativeTime = formatRelative(provider.lastChangeUTC);
 
   const providerLabel = provider.url ? (
@@ -230,27 +231,32 @@ export const ProviderCard = ({
       href={provider.url}
       target="_blank"
       rel="noreferrer"
-      className="font-medium text-foreground hover:text-primary hover:underline"
+      className="rounded-sm font-semibold text-ink underline-offset-[3px] outline-none hover:text-accent-ink hover:underline focus-visible:underline"
     >
       {provider.provider}
     </a>
   ) : (
-    <span className="font-medium text-foreground">{provider.provider}</span>
+    <span className="font-semibold text-ink">{provider.provider}</span>
   );
+
+  const iconBtn =
+    "inline-flex h-9 w-9 items-center justify-center rounded-md border outline-none transition-colors active:scale-95 focus-visible:ring-[3px] focus-visible:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11 max-sm:w-11";
 
   return (
     <div
-      className={`group relative rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border ${
-        isDisabled ? "opacity-60" : ""
-      } ${isUnknown ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}`}
+      className={`group relative flex flex-col rounded-lg border bg-paper-1 p-3.5 shadow-paper transition-[border-color,opacity] sm:p-4 ${
+        isUnknown
+          ? "border-warn/45 bg-[linear-gradient(0deg,var(--warn-soft),var(--warn-soft)),var(--paper-1)]"
+          : "border-rule-2 hover:border-rule-3"
+      } ${isDisabled ? "opacity-60" : ""}`}
     >
-      <div className="flex flex-wrap items-start gap-3 lg:flex-nowrap lg:gap-4">
+      <div className="flex items-start gap-3.5">
         {/* Thumbnail */}
         <div className="shrink-0">
           <img
             src={formatThumbnailUrl(provider.thumbnailUrl)}
             alt={provider.title}
-            className="h-[84px] w-14 rounded-md object-cover ring-1 ring-white/[0.06] sm:h-24 sm:w-16"
+            className="h-[84px] w-14 rounded-[3px] bg-paper-2 object-cover shadow-paper ring-1 ring-ink/10 sm:h-24 sm:w-16"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               if (
@@ -263,20 +269,20 @@ export const ProviderCard = ({
           />
         </div>
 
-        {/* Center column */}
+        {/* Info column */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div
-            className="truncate text-sm font-medium leading-tight"
+            className="line-clamp-2 font-serif text-[17px] leading-tight tracking-[-0.01em] text-ink"
             title={provider.title}
           >
             {provider.title}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-ink-2">
             {providerLabel}
 
             {provider.scanlator && provider.scanlator !== provider.provider && (
-              <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+              <span className="max-w-full truncate rounded-[3px] bg-paper-2 px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.06em] text-ink-2">
                 {provider.scanlator}
               </span>
             )}
@@ -288,21 +294,21 @@ export const ProviderCard = ({
                 width: "16px",
                 height: "12px",
                 borderRadius: "2px",
-                border: "1px solid hsl(var(--border))",
+                border: "1px solid var(--rule-2)",
                 flexShrink: 0,
               }}
               title={provider.lang.toUpperCase()}
             />
+          </div>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-foreground/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${status.color}`}
-              />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-[0.08em] ${tone.chip}`}>
+              <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 rounded-full ${tone.fill}`} />
               {status.text}
             </span>
 
             {provider.isUninstalled && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-destructive">
+              <span className="inline-flex items-center gap-1 rounded-[3px] border border-bad/30 bg-bad-soft px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-bad">
                 <AlertTriangle className="h-3 w-3" />
                 Uninstalled
               </span>
@@ -310,7 +316,7 @@ export const ProviderCard = ({
 
             {useStorage && !isUnknown && (
               <span
-                className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary"
+                className="inline-flex items-center gap-1 rounded-[3px] border border-accent-line bg-accent-soft px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-ink"
                 title="Permanent source — its files are kept as the series' storage copy"
               >
                 <Archive className="h-3 w-3" />
@@ -319,112 +325,120 @@ export const ProviderCard = ({
             )}
           </div>
 
-          <div className="text-xs tabular-nums text-muted-foreground">
+          <div className="font-mono text-[11.5px] tabular-nums text-ink-3">
             Ch. {provider.chapterList}
             {relativeTime && (
               <>
-                <span className="mx-1.5 text-foreground/30">·</span>
+                <span aria-hidden="true" className="mx-1.5 text-rule-3">·</span>
                 updated {relativeTime}
               </>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Right controls */}
-        {canEdit && (
-          <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/40 pt-3 lg:w-auto lg:shrink-0 lg:flex-nowrap lg:flex-row lg:items-center lg:border-t-0 lg:pt-0">
-            {!isUnknown && (
-              <>
-                <div className="flex flex-wrap items-center gap-1">
-                  <PillToggle
-                    label="Permanent Source"
-                    shortLabel="Perm"
-                    checked={useStorage}
-                    onChange={(v) => onUseStorageChange(provider.id, v)}
-                    disabled={isDisabled}
-                  />
-                  <PillToggle
-                    label="Use as Cover"
-                    shortLabel="Cover"
-                    checked={useCover}
-                    onChange={(v) => onUseCoverChange(provider.id, v)}
-                    disabled={isDisabled || hasUnknownThumbnail}
-                  />
-                  <PillToggle
-                    label="Use as Title"
-                    shortLabel="Title"
-                    checked={useTitle}
-                    onChange={(v) => onUseTitleChange(provider.id, v)}
-                    disabled={isDisabled}
-                  />
-                </div>
+      {/* Controls */}
+      {canEdit && (
+        <div className="mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-2.5 border-t border-dashed border-rule-2 pt-3.5">
+          {!isUnknown && (
+            <div className="flex w-full flex-wrap items-center gap-1.5">
+              <PillToggle
+                label="Permanent Source"
+                shortLabel="Perm"
+                checked={useStorage}
+                onChange={(v) => onUseStorageChange(provider.id, v)}
+                disabled={isDisabled}
+              />
+              <PillToggle
+                label="Use as Cover"
+                shortLabel="Cover"
+                checked={useCover}
+                onChange={(v) => onUseCoverChange(provider.id, v)}
+                disabled={isDisabled || hasUnknownThumbnail}
+              />
+              <PillToggle
+                label="Use as Title"
+                shortLabel="Title"
+                checked={useTitle}
+                onChange={(v) => onUseTitleChange(provider.id, v)}
+                disabled={isDisabled}
+              />
+            </div>
+          )}
 
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground lg:border-l lg:border-border/40 lg:pl-2">
-                  <span className="uppercase tracking-wide">After Ch.</span>
-                  <input
-                    type="number"
-                    value={localFromChapter}
-                    onChange={(e) => setLocalFromChapter(e.target.value)}
-                    onBlur={handleFromChapterBlur}
-                    onKeyDown={handleFromChapterKeyDown}
-                    disabled={isDisabled}
-                    min={0}
-                    step={1}
-                    placeholder="0"
-                    className="h-7 w-16 rounded-md border border-border/60 bg-background px-2 text-xs tabular-nums text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring/60 disabled:opacity-50"
-                  />
-                </div>
-              </>
-            )}
+          {!isUnknown && (
+            <label className="flex items-center gap-2">
+              <span className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-3">After Ch.</span>
+              <input
+                type="number"
+                value={localFromChapter}
+                onChange={(e) => setLocalFromChapter(e.target.value)}
+                onBlur={handleFromChapterBlur}
+                onKeyDown={handleFromChapterKeyDown}
+                disabled={isDisabled}
+                min={0}
+                step={1}
+                placeholder="0"
+                className="h-9 w-20 rounded-md border border-input bg-paper px-2.5 font-mono text-[13px] tabular-nums text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-3/70 focus-visible:border-accent-ink focus-visible:ring-[3px] focus-visible:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11"
+              />
+            </label>
+          )}
 
-            {/* Icon button cluster */}
-            <div className="ml-auto flex items-center gap-1 lg:ml-0 lg:border-l lg:border-border/40 lg:pl-2">
-              {!isUnknown && !provider.isUninstalled && (
-                <button
-                  type="button"
-                  onClick={handleEnableDisable}
-                  title={isEnabled ? "Disable" : "Enable"}
-                  aria-label={isEnabled ? "Disable source" : "Enable source"}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                    isEnabled
-                      ? "border-green-500/40 bg-green-500/[0.06] text-green-500 hover:bg-green-500/[0.14] active:bg-green-500/[0.20]"
-                      : "border-border/60 bg-muted/40 text-muted-foreground hover:bg-foreground/[0.08] active:bg-foreground/[0.12]"
-                  }`}
-                >
-                  {isEnabled ? (
-                    <Power className="h-4 w-4" />
-                  ) : (
-                    <PowerOff className="h-4 w-4" />
-                  )}
-                </button>
-              )}
+          {isUnknown && (
+            <p className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] font-medium text-warn">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Unassigned — search for a match</span>
+            </p>
+          )}
 
-              {isUnknown && (
-                <button
-                  type="button"
-                  onClick={handleMatch}
-                  disabled={isLoadingMatch}
-                  title="Search match"
-                  aria-label="Search match"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-foreground/[0.03] text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
-              )}
-
+          {/* Icon button cluster */}
+          <div className="ml-auto flex items-center gap-1.5">
+            {!isUnknown && !provider.isUninstalled && (
               <button
                 type="button"
-                onClick={handleDelete}
-                title="Delete source"
-                aria-label="Delete source"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-foreground/[0.03] text-destructive/70 transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleEnableDisable}
+                title={isEnabled ? "Disable" : "Enable"}
+                aria-label={isEnabled ? "Disable source" : "Enable source"}
+                aria-pressed={isEnabled}
+                className={`${iconBtn} ${
+                  isEnabled
+                    ? "border-ok/35 bg-ok-soft text-ok hover:border-ok/60"
+                    : "border-rule-2 bg-paper text-ink-3 hover:bg-hover hover:text-ink"
+                }`}
               >
-                <Trash2 className="h-4 w-4" />
+                {isEnabled ? (
+                  <Power className="h-4 w-4" />
+                ) : (
+                  <PowerOff className="h-4 w-4" />
+                )}
               </button>
-            </div>
+            )}
+
+            {isUnknown && (
+              <button
+                type="button"
+                onClick={handleMatch}
+                disabled={isLoadingMatch}
+                title="Search match"
+                aria-label="Search match"
+                className={`${iconBtn} border-accent-line bg-accent-soft text-accent-ink hover:border-accent-ink`}
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDelete}
+              title="Delete source"
+              aria-label="Delete source"
+              className={`${iconBtn} border-rule-2 bg-paper text-ink-3 hover:border-bad/40 hover:bg-bad-soft hover:text-bad`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Provider Match Dialog */}
       <ProviderMatchDialog
@@ -441,7 +455,12 @@ export const ProviderCard = ({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove this source?</DialogTitle>
+            <DialogTitle className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-bad-soft text-bad">
+                <Trash2 className="h-4 w-4" />
+              </span>
+              Remove this source?
+            </DialogTitle>
             <DialogDescription>
               {provider.scanlator
                 ? `Remove ${provider.provider} (${provider.scanlator}) from this series`
@@ -449,7 +468,7 @@ export const ProviderCard = ({
               . This won&apos;t delete downloaded files.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-2 gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(false)}>
               Cancel
             </Button>

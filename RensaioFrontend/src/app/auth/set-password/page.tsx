@@ -7,7 +7,9 @@ import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowRight } from 'lucide-react';
+import { AuthFrame, AuthHeading, AuthNote } from '../../login/auth-frame';
 
 function SetPasswordForm() {
   const searchParams = useSearchParams();
@@ -15,8 +17,8 @@ function SetPasswordForm() {
   const setPasswordMutation = useSetPassword();
   const { setAuthFromToken } = useAuth();
 
-  const username = searchParams.get('username') || '';
-  const token = searchParams.get('token') || '';
+  const username = searchParams.get('username') ?? '';
+  const token = searchParams.get('token') ?? '';
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -54,81 +56,80 @@ function SetPasswordForm() {
 
   if (!username || !token) {
     return (
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader>
-          <CardTitle>Invalid Link</CardTitle>
-          <CardDescription>
-            This invitation link is invalid or has expired. Please contact your administrator
-            to receive a new invitation.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="w-full max-w-[380px] motion-safe:animate-paper-rise">
+        <AuthHeading
+          eyebrow="Invitation"
+          title={<>Invalid <em>link</em>.</>}
+        />
+        <AuthNote>
+          This invitation link is invalid or has expired. Please contact your administrator
+          to receive a new invitation.
+        </AuthNote>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-md mx-4">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Set Your Password</CardTitle>
-        <CardDescription className="text-center">
-          Hello {username}! Please set your password to continue.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
-              {error}
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="password">New Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Enter your new password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="Confirm your new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={setPasswordMutation.isPending}>
-            {setPasswordMutation.isPending ? 'Setting password...' : 'Set Password & Log In'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="w-full max-w-[380px] motion-safe:animate-paper-rise">
+      <AuthHeading
+        id="set-password-title"
+        eyebrow="Invitation"
+        title={<>Set your <em>password</em>.</>}
+        description={<>Hello <b className="font-mono text-[12.5px] font-semibold text-ink">{username}</b>! Please set your password to continue.</>}
+      />
+      <form onSubmit={handleSubmit} aria-labelledby="set-password-title" className="grid gap-4">
+        {error && <AuthNote className="-mt-2">{error}</AuthNote>}
+        <div className="grid gap-1.5">
+          <Label htmlFor="password">New Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Enter your new password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            autoFocus
+          />
+          <p className="text-[12.5px] leading-[1.5] text-ink-3">At least 6 characters.</p>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Confirm your new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            minLength={6}
+          />
+        </div>
+        <Button type="submit" className="mt-1 h-[42px] w-full" disabled={setPasswordMutation.isPending}>
+          {setPasswordMutation.isPending ? 'Setting password...' : 'Set Password & Log In'}
+          {!setPasswordMutation.isPending && <ArrowRight aria-hidden="true" />}
+        </Button>
+      </form>
+    </div>
   );
 }
 
 export default function SetPasswordPage() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <AuthFrame tagline={<>Your shelf is <em>waiting</em>.</>}>
       <Suspense
         fallback={
-          <Card className="w-full max-w-md mx-4">
-            <CardHeader>
-              <CardTitle>Loading...</CardTitle>
-            </CardHeader>
-          </Card>
+          <div className="w-full max-w-[380px]" role="status">
+            <Skeleton className="mb-3 h-2.5 w-28" />
+            <Skeleton className="mb-7 h-10 w-64" />
+            <span className="sr-only">Loading...</span>
+          </div>
         }
       >
         <SetPasswordForm />
       </Suspense>
-    </div>
+    </AuthFrame>
   );
 }

@@ -2,9 +2,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, AlertCircle, Loader2, FileText } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Clock, Loader2, FileText } from 'lucide-react';
 import { useUpdateAllSeries } from '@/lib/api/hooks/useSeries';
 import { useSignalRProgress } from '@/lib/api/hooks/useSetupWizard';
 import { JobType } from '@/lib/api/types';
@@ -28,39 +27,37 @@ function JobProgress({
   message,
   errorMessage
 }: JobProgressProps) {
-  const getIcon = () => {
-    if (isFailed) return <AlertCircle className="h-5 w-5 text-destructive" />;
-    if (isCompleted) return <CheckCircle className="h-5 w-5 text-primary" />;
-    if (isActive) return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
-    return <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />;
-  };
+  // Status is always icon + label.
+  const state = isFailed
+    ? { label: 'Failed', cls: 'bg-bad-soft text-bad', icon: <AlertCircle className="h-3 w-3" aria-hidden="true" /> }
+    : isCompleted
+      ? { label: 'Done', cls: 'bg-ok-soft text-ok', icon: <CheckCircle className="h-3 w-3" aria-hidden="true" /> }
+      : isActive
+        ? { label: 'Running', cls: 'bg-accent-soft text-accent-ink', icon: <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" /> }
+        : { label: 'Waiting', cls: 'bg-paper-3 text-ink-2', icon: <Clock className="h-3 w-3" aria-hidden="true" /> };
 
   return (
-    <Card className={`w-full ${isActive ? 'ring-2 ring-primary' : ''}`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-3 text-base">
-          {getIcon()}
-          <span>{title}</span>
-          {isFailed && (
-            <span className="text-sm text-destructive font-normal">Failed</span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2">
-          <Progress value={progress} className="h-2" />
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>{message ?? 'Waiting...'}</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          {errorMessage && (
-            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-              {errorMessage}
-            </div>
-          )}
+    <div
+      className={`rounded-md border bg-paper-1 p-3.5 ${isActive ? 'border-accent-line' : 'border-rule'}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[13.5px] font-semibold text-ink">{title}</span>
+        <span className={`inline-flex h-[22px] items-center gap-1 rounded-[4px] px-1.5 text-[11.5px] font-semibold ${state.cls}`}>
+          {state.icon}
+          {state.label}
+        </span>
+      </div>
+      <Progress value={progress} className="mt-3 h-[3px]" aria-label={`${title} progress`} />
+      <div className="mt-1.5 flex justify-between gap-3 font-mono text-[11px] text-ink-3">
+        <span className="min-w-0 truncate">{message ?? 'Waiting...'}</span>
+        <span className="tabular-nums">{Math.round(progress)}%</span>
+      </div>
+      {errorMessage && (
+        <div role="alert" className="mt-2.5 rounded-[4px] border border-bad/25 bg-bad-soft px-2.5 py-2 text-[12.5px] text-bad">
+          {errorMessage}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -104,62 +101,68 @@ export function JobsPanel() {
   const showUpdateAllSeriesProgress = updateAllSeriesProgress !== null || isUpdateAllSeriesRunning;
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="p-3 pb-0 flex-shrink-0">
-        <CardTitle className="text-md">Jobs</CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 p-3 space-y-4">
-        <div className="space-y-4">
-          {/* Update All Series Button */}
-          <div className="space-y-2">
-            <Button 
-              size="sm"
-              className="gap-1"
-              onClick={handleUpdateAllSeries}
-              disabled={updateAllSeriesMutation.isPending || isUpdateAllSeriesRunning}
-            >
-              <FileText className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Update All Series
-              </span>
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Applies the selected title to the entire series. This process updates titles for consistency, rewrites the ComicInfo.xml, and sets the series cover to the one you selected.<br/>
-⚠️ Note: This may also rename files and convert your series into .cbz archives, but only if the ComicInfo metadata has been updated.
-            </p>
+    <div className="space-y-4">
+      {/* Update All Series */}
+      <section aria-labelledby="job-update-all" className="rounded-lg border border-rule bg-paper-1/60 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="paper-eyebrow mb-1.5 text-ink-3">Library job</p>
+            <h3 id="job-update-all" className="font-serif text-[19px] leading-tight text-ink">
+              Update All Series
+            </h3>
           </div>
-
-          {/* Progress Bar - Show ONLY when we receive SignalR messages */}
-          {showUpdateAllSeriesProgress && (
-            <div className="space-y-2">
-              <JobProgress
-                title="Updating All Series"
-                isActive={!isUpdateAllSeriesCompleted && !isUpdateAllSeriesFailed && updateAllSeriesProgress !== null}
-                isCompleted={isUpdateAllSeriesCompleted}
-                isFailed={isUpdateAllSeriesFailed}
-                progress={updateAllSeriesProgressValue || 0}
-                message={updateAllSeriesProgress?.message || 'Processing...'}
-                errorMessage={updateAllSeriesProgress?.errorMessage}
-              />
-            </div>
-          )}
-
-          {/* Completion message */}
-          {isUpdateAllSeriesCompleted && (
-            <div className="bg-secondary border border-green-200 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-primary" />
-                <span className="font-medium">
-                  Update All Series completed successfully!
-                </span>
-              </div>
-              <p className="text-sm mt-1 text-muted-foreground">
-                All series have been updated with consistent naming and metadata.
-              </p>
-            </div>
-          )}
+          <Button
+            size="sm"
+            className="gap-1.5 max-sm:min-h-11 max-sm:w-full"
+            onClick={handleUpdateAllSeries}
+            disabled={updateAllSeriesMutation.isPending || isUpdateAllSeriesRunning}
+          >
+            {updateAllSeriesMutation.isPending || isUpdateAllSeriesRunning ? (
+              <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
+            ) : (
+              <FileText className="h-4 w-4" aria-hidden="true" />
+            )}
+            Update All Series
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
+          Applies the selected title to the entire series. This process updates titles for consistency, rewrites the ComicInfo.xml, and sets the series cover to the one you selected.
+        </p>
+        <p className="mt-2.5 flex gap-2 rounded-[4px] border border-warn/25 bg-warn-soft px-2.5 py-2 text-[12.5px] leading-relaxed text-warn">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none" aria-hidden="true" />
+          <span>
+            <b className="font-semibold">Note:</b> This may also rename files and convert your series into .cbz archives, but only if the ComicInfo metadata has been updated.
+          </span>
+        </p>
+      </section>
+
+      {/* Progress — show ONLY when we receive SignalR messages */}
+      {showUpdateAllSeriesProgress && (
+        <JobProgress
+          title="Updating All Series"
+          isActive={!isUpdateAllSeriesCompleted && !isUpdateAllSeriesFailed && updateAllSeriesProgress !== null}
+          isCompleted={isUpdateAllSeriesCompleted}
+          isFailed={isUpdateAllSeriesFailed}
+          progress={updateAllSeriesProgressValue || 0}
+          message={updateAllSeriesProgress?.message?.length ? updateAllSeriesProgress.message : 'Processing...'}
+          errorMessage={updateAllSeriesProgress?.errorMessage}
+        />
+      )}
+
+      {/* Completion message */}
+      {isUpdateAllSeriesCompleted && (
+        <div role="status" className="rounded-md border border-ok/25 bg-ok-soft p-3.5">
+          <div className="flex items-center gap-2 text-ok">
+            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            <span className="text-[13.5px] font-semibold">
+              Update All Series completed successfully!
+            </span>
+          </div>
+          <p className="mt-1 text-[12.5px] text-ink-2">
+            All series have been updated with consistent naming and metadata.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

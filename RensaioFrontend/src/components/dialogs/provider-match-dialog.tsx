@@ -7,10 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Globe, Plus } from "lucide-react";
+import { AlertTriangle, Globe, Link2, Plus } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { type ProviderMatch, type ProviderMatchChapter, type MatchInfo, NEW_PROVIDER_SENTINEL } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
+
+/** The backend has sent PascalCase property names in the past; both shapes are accepted. */
+type LegacyProviderMatch = ProviderMatch & {
+  Chapters?: ProviderMatchChapter[];
+  MatchInfos?: MatchInfo[];
+};
+
+/** Column widths shared by the list header and each row (desktop). */
+const COLS = {
+  filename: "sm:w-[35%]",
+  name: "sm:w-[35%]",
+  source: "sm:w-[20%]",
+  number: "sm:w-[10%]",
+} as const;
 
 // Memoized row component to prevent unnecessary re-renders
 const ChapterRow = memo(({
@@ -30,51 +45,73 @@ const ChapterRow = memo(({
   onChapterChange: (index: number, field: keyof ProviderMatchChapter, value: string | number | null) => void;
   renderProviderWithFlag: (matchInfoId: string | null | undefined) => React.ReactNode;
 }) => {
-  const fieldLabel = "mb-1 block text-[11px] font-medium uppercase tracking-wide opacity-70 sm:hidden";
+  const fieldLabel = "paper-eyebrow mb-1 block text-[10px] sm:hidden";
+  const cellInput =
+    "h-8 bg-paper text-[13px] sm:h-7 sm:border-transparent sm:bg-transparent sm:px-2 sm:hover:border-rule-2 sm:focus-visible:bg-paper";
 
   return (
     <div
-      className={`m-1 flex flex-col gap-2 rounded border p-2 cursor-pointer transition-colors sm:flex-row sm:items-center sm:gap-4 sm:border-transparent ${
+      aria-selected={isSelected}
+      role="option"
+      className={cn(
+        "relative flex cursor-pointer flex-col gap-2 border-b border-rule px-3 py-3 transition-colors last:border-b-0 sm:flex-row sm:items-center sm:gap-3 sm:py-1.5 sm:pl-11 sm:pr-3",
+        "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:transition-colors",
         isSelected
-          ? 'bg-primary text-primary-foreground border-primary'
-          : 'bg-card hover:bg-muted sm:bg-transparent'
-      }`}
+          ? "bg-accent-soft before:bg-primary"
+          : "hover:bg-hover before:bg-transparent",
+      )}
       onMouseDown={() => onMouseDown(index)}
       onMouseEnter={() => onMouseEnter(index)}
     >
-      <div className="w-full min-w-0 sm:w-[35%]">
+      <span
+        aria-hidden
+        className={cn(
+          "absolute right-3 top-3 font-mono text-[10.5px] tabular-nums sm:left-3 sm:right-auto sm:top-1/2 sm:-translate-y-1/2",
+          isSelected ? "text-accent-ink" : "text-ink-3",
+        )}
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <div className={cn("w-full min-w-0", COLS.filename)}>
         <span className={fieldLabel}>Filename</span>
         <Input
-          className="h-8 text-sm sm:h-7"
+          className={cn(cellInput, "font-mono sm:text-[12px]")}
           value={chapter.filename}
           onChange={(e) => onChapterChange(index, 'filename', e.target.value)}
           onMouseDown={(e) => e.stopPropagation()}
         />
       </div>
-      <div className="w-full min-w-0 sm:w-[35%]">
+      <div className={cn("w-full min-w-0", COLS.name)}>
         <span className={fieldLabel}>Name</span>
         <Input
           value={chapter.chapterName}
           onChange={(e) => onChapterChange(index, 'chapterName', e.target.value)}
-          className="h-8 text-sm sm:h-7"
+          className={cellInput}
           onMouseDown={(e) => e.stopPropagation()}
         />
       </div>
       <div className="flex w-full items-end gap-2 sm:contents">
-        <div className="min-w-0 flex-1 sm:w-[20%] sm:flex-none">
+        <div className={cn("min-w-0 flex-1 sm:flex-none", COLS.source)}>
           <span className={fieldLabel}>Source</span>
-          <div className="h-8 px-3 py-1 text-sm text-foreground bg-muted rounded border border-input flex items-center pointer-events-none select-none sm:h-7">
+          <div
+            className={cn(
+              "pointer-events-none flex h-11 min-w-0 select-none items-center rounded-md border px-2.5 text-[12.5px] sm:h-7",
+              chapter.matchInfoId
+                ? "border-rule-2 bg-paper-2 text-ink"
+                : "border-dashed border-warn/45 bg-warn-soft text-warn",
+            )}
+          >
             {renderProviderWithFlag(chapter.matchInfoId)}
           </div>
         </div>
-        <div className="w-20 shrink-0 sm:w-[10%]">
+        <div className={cn("w-24 shrink-0", COLS.number)}>
           <span className={fieldLabel}>Number</span>
           <Input
             type="number"
             step="0.1"
-            value={chapter.chapterNumber || ""}
+            value={chapter.chapterNumber === 0 ? "" : (chapter.chapterNumber ?? "")}
             onChange={(e) => onChapterChange(index, 'chapterNumber', e.target.value ? parseFloat(e.target.value) : null)}
-            className="h-8 text-sm text-right tabular-nums font-mono sm:h-7"
+            className={cn(cellInput, "text-right font-mono tabular-nums")}
             onMouseDown={(e) => e.stopPropagation()}
           />
         </div>
@@ -128,7 +165,8 @@ export function ProviderMatchDialog({
   // Initialize state when providerMatch changes
   useEffect(() => {
     // Handle both lowercase and uppercase property names from backend
-    const chapters = providerMatch?.chapters || (providerMatch as any)?.Chapters;
+    const legacy: LegacyProviderMatch | null = providerMatch;
+    const chapters = providerMatch?.chapters ?? legacy?.Chapters;
     if (providerMatch && chapters) {
       setChapters([...chapters]);
       setSelectedChapterIndexes(new Set());
@@ -335,14 +373,6 @@ export function ProviderMatchDialog({
     }
   };
 
-  const handleSelectAllButton = () => {
-    setSelectedChapterIndexes(new Set(chapters.map((_, index) => index)));
-  };
-
-  const handleSelectNone = () => {
-    setSelectedChapterIndexes(new Set());
-  };
-
   const handleMatchSelected = () => {
     if (!selectedMatchInfoId) return;
 
@@ -403,21 +433,22 @@ export function ProviderMatchDialog({
   }, []);
 
   // Get the correct property names (handle both cases)
-  const backendChapters = providerMatch?.chapters || (providerMatch as any)?.Chapters;
-  const backendMatchInfos = providerMatch?.matchInfos || (providerMatch as any)?.MatchInfos;
+  const legacyMatch: LegacyProviderMatch | null = providerMatch;
+  const backendChapters = providerMatch?.chapters ?? legacyMatch?.Chapters;
+  const backendMatchInfos = providerMatch?.matchInfos ?? legacyMatch?.MatchInfos;
 
   // Filter out deleted providers from the available match infos
-  const availableMatchInfos = React.useMemo(() => {
+  const availableMatchInfos = React.useMemo((): MatchInfo[] => {
     if (!backendMatchInfos) return [];
     
-    return backendMatchInfos.filter((matchInfo: any) => {
+    return backendMatchInfos.filter((matchInfo) => {
       // Check if this provider is marked as deleted using the matchInfo.id
       const isDeleted = deletedProviderStates[matchInfo.id] === true;
       return !isDeleted;
     });
   }, [backendMatchInfos, deletedProviderStates]);
 
-  const getMatchInfo = useCallback((matchInfoId: string | null | undefined): any => {
+  const getMatchInfo = useCallback((matchInfoId: string | null | undefined): MatchInfo | null | undefined => {
     // Handle the sentinel (new provider) case
     if (matchInfoId === NEW_PROVIDER_SENTINEL) {
       return {
@@ -428,31 +459,26 @@ export function ProviderMatchDialog({
       };
     }
     // Use filtered available match infos instead of backend match infos
-    if (!matchInfoId || !availableMatchInfos) return null;
-    return availableMatchInfos.find((m: any) => m.id === matchInfoId);
+    if (!matchInfoId) return null;
+    return availableMatchInfos.find((m) => m.id === matchInfoId);
   }, [availableMatchInfos, newProviderName, newProviderScanlator, newProviderLanguage]);
-
-  const getProviderName = useCallback((matchInfoId: string | null | undefined): string => {
-    const matchInfo = getMatchInfo(matchInfoId);
-    return matchInfo?.provider || "Unknown";
-  }, [getMatchInfo]);
 
   const renderProviderWithFlag = useCallback((matchInfoId: string | null | undefined) => {
     const matchInfo = getMatchInfo(matchInfoId);
     if (!matchInfo) {
       return (
-        <div className="flex items-center gap-2 text-sm">
-          <span>Unknown</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate">Unknown</span>
         </div>
       );
     }
 
-    const language = matchInfo.language || "all";
+    const language = matchInfo.language?.length ? matchInfo.language : "all";
     
     return (
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex min-w-0 items-center gap-2">
         {language === "all" ? (
-          <Globe size={16} />
+          <Globe size={14} className="shrink-0 text-ink-3" />
         ) : (
           <ReactCountryFlag
             countryCode={getCountryCodeForLanguage(language)}
@@ -460,11 +486,12 @@ export function ProviderMatchDialog({
             style={{
               width: "16px",
               height: "12px",
+              flexShrink: 0,
             }}
             title={`${language.toUpperCase()}`}
           />
         )}
-        <span>{matchInfo.provider}{(matchInfo.provider!=matchInfo.scanlator && matchInfo.scanlator) ? ` • ${matchInfo.scanlator}` : ''}</span>
+        <span className="truncate">{matchInfo.provider}{(matchInfo.provider!=matchInfo.scanlator && matchInfo.scanlator) ? ` • ${matchInfo.scanlator}` : ''}</span>
       </div>
     );
   }, [getMatchInfo]);
@@ -484,7 +511,7 @@ export function ProviderMatchDialog({
 
     // Build the matchInfos list, including the sentinel entry if needed
     const hasNewProvider = chapters.some(ch => ch.matchInfoId === NEW_PROVIDER_SENTINEL);
-    let matchInfos = backendMatchInfos ? [...backendMatchInfos] : [];
+    const matchInfos: MatchInfo[] = backendMatchInfos ? [...backendMatchInfos] : [];
 
     if (hasNewProvider) {
       // Add the sentinel MatchInfo so the backend knows what provider to create
@@ -504,52 +531,78 @@ export function ProviderMatchDialog({
     onSave(updatedMatch);
   };
 
+  const allSelected = selectedChapterIndexes.size === chapters.length && chapters.length > 0;
+  const trayLabel = "paper-eyebrow shrink-0 text-[10px] sm:w-[84px]";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-[85vw] h-[92dvh] max-h-[92dvh] sm:h-[88vh] sm:max-h-[88vh] flex flex-col gap-3 sm:gap-4 bg-background overflow-x-hidden overflow-y-hidden">
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Match Source to Chapters</DialogTitle>
+      <DialogContent className="flex h-[92dvh] max-h-[92dvh] w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] flex-col gap-3 overflow-x-hidden overflow-y-auto p-3 sm:h-[88vh] sm:overflow-y-hidden sm:max-h-[88vh] sm:w-[92vw] sm:max-w-6xl sm:gap-4 sm:p-6">
+        <DialogHeader className="shrink-0 pr-12">
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-ink">
+              <Link2 className="h-4 w-4" />
+            </span>
+            Match Source to Chapters
+          </DialogTitle>
         </DialogHeader>
 
         {/* Show loading state when data is being fetched */}
         {isLoadingData ? (
-          <div className="flex-1 flex items-center justify-center min-h-64">
-            <div className="text-center">
-              <div className="text-lg font-medium">Loading match data...</div>
-              <div className="text-sm text-muted-foreground mt-2">Please wait while we fetch the sources information.</div>
+          <div role="status" aria-busy="true" className="flex min-h-64 flex-1 flex-col overflow-hidden rounded-lg border border-rule-2 bg-paper-1">
+            <div className="border-b border-rule px-4 py-5 text-center">
+              <div className="font-serif text-[19px] text-ink">Loading match data...</div>
+              <div className="mt-1 text-[13px] text-ink-3">Please wait while we fetch the sources information.</div>
+            </div>
+            <div aria-hidden className="flex-1 divide-y divide-rule">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3">
+                  <div className="skeleton-shimmer h-3 w-6 rounded-[2px]" />
+                  <div className="skeleton-shimmer h-6 flex-[3.5] rounded-[3px]" />
+                  <div className="skeleton-shimmer hidden h-6 flex-[3.5] rounded-[3px] sm:block" />
+                  <div className="skeleton-shimmer hidden h-6 flex-[2] rounded-[3px] sm:block" />
+                  <div className="skeleton-shimmer h-6 w-14 rounded-[3px]" />
+                </div>
+              ))}
             </div>
           </div>
         ) : !providerMatch || !backendChapters ? (
-          <div className="flex-1 flex items-center justify-center min-h-64">
+          <div role="alert" className="flex min-h-64 flex-1 items-center justify-center rounded-lg border border-bad/30 bg-bad-soft px-6">
             <div className="text-center">
-              <div className="text-lg font-medium text-red-500">Failed to load match data</div>
-              <div className="text-sm text-muted-foreground mt-2">Please try again.</div>
+              <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-bad" />
+              <div className="font-serif text-[20px] text-bad">Failed to load match data</div>
+              <div className="mt-1 text-[13px] text-ink-2">Please try again.</div>
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
             {/* Chapter list container — owns its own scrolling, never overlaps the controls */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden border rounded-md bg-card">
-              <div className="shrink-0 p-3 border-b bg-muted">
-                <div className="flex items-center gap-4 text-sm font-medium">
-                  <Checkbox
-                    checked={selectedChapterIndexes.size === chapters.length && chapters.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
-                  <span className="sm:hidden">Select all</span>
-                  <div className="hidden sm:block sm:w-[35%]">Filename</div>
-                  <div className="hidden sm:block sm:w-[35%]">Name</div>
-                  <div className="hidden sm:block sm:w-[20%]">Source</div>
-                  <div className="hidden sm:block sm:w-[10%]">Number</div>
+            <div className="flex min-h-[176px] flex-1 flex-col overflow-hidden rounded-lg border border-rule-2 bg-paper-1 shadow-paper sm:min-h-0">
+              <div className="shrink-0 border-b border-rule-2 bg-paper-2/70 px-3 py-2.5">
+                <div className="relative flex items-center gap-3 sm:pl-8">
+                  <span className="flex items-center sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={handleSelectAll}
+                      aria-label="Select all chapters"
+                    />
+                  </span>
+                  <span className="paper-eyebrow text-[10px] sm:hidden">Select all</span>
+                  <span className="ml-auto font-mono text-[11px] text-ink-3 sm:hidden">
+                    {chapters.length} ch.
+                  </span>
+                  <div className={cn("paper-eyebrow hidden text-[10px] sm:block sm:pl-2", COLS.filename)}>Filename</div>
+                  <div className={cn("paper-eyebrow hidden text-[10px] sm:block sm:pl-2", COLS.name)}>Name</div>
+                  <div className={cn("paper-eyebrow hidden text-[10px] sm:block", COLS.source)}>Source</div>
+                  <div className={cn("paper-eyebrow hidden text-right text-[10px] sm:block sm:pr-2", COLS.number)}>Number</div>
                 </div>
               </div>
               <div
-                className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 ref={setScrollContainer}
               >
-                <div className="p-2 select-none">
+                <div className="select-none" role="listbox" aria-multiselectable="true" aria-label="Chapters">
                   {chapters.map((chapter, index) => (
                     <ChapterRow
                       key={index}
@@ -567,28 +620,28 @@ export function ProviderMatchDialog({
             </div>
 
             {/* Bottom control area — separate solid container, sits below the list */}
-            <div className="shrink-0 flex flex-col gap-3 p-3 border rounded-md bg-card">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-2 sm:gap-4">
-                  <Label className="text-sm font-medium shrink-0">Providers:</Label>
+            <div className="flex shrink-0 flex-col gap-3 rounded-lg border border-rule-2 bg-paper-1 p-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-6 lg:gap-y-3">
+              <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                <Label className={trayLabel}>Providers</Label>
+                <div className="flex min-w-0 items-center gap-2">
                   <Select
                     value={selectedMatchInfoId === NEW_PROVIDER_SENTINEL ? "__new__" : selectedMatchInfoId}
                     onValueChange={handleProviderSelect}
                   >
-                    <SelectTrigger className="flex-1 min-w-0 sm:flex-none sm:w-48">
+                    <SelectTrigger className="min-w-0 flex-1 sm:w-56 sm:flex-none" aria-label="Source to assign">
                       <SelectValue placeholder="Select source">
                         {selectedMatchInfoId && renderProviderWithFlag(selectedMatchInfoId)}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {availableMatchInfos?.filter((matchInfo: any) => matchInfo.id).map((matchInfo: any) => (
+                      {availableMatchInfos.filter((matchInfo) => matchInfo.id).map((matchInfo) => (
                         <SelectItem key={matchInfo.id} value={matchInfo.id}>
                           {renderProviderWithFlag(matchInfo.id)}
                         </SelectItem>
-                      )) || []}
+                      ))}
                       <SelectItem value="__new__">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Plus size={16} />
+                        <div className="flex items-center gap-2 text-accent-ink">
+                          <Plus size={14} />
                           <span>Create New Provider</span>
                         </div>
                       </SelectItem>
@@ -597,35 +650,38 @@ export function ProviderMatchDialog({
                   <Button
                     onClick={handleMatchSelected}
                     disabled={!selectedMatchInfoId || selectedChapterIndexes.size === 0 || selectedMatchInfoId === "__new__"}
-                    size="sm"
                     className="shrink-0"
                   >
                     Match
                   </Button>
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2 sm:gap-4">
-                  <Label className="text-sm font-medium shrink-0">Range Fill:</Label>
+              <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                <Label className={cn(trayLabel, "lg:w-auto")}>Range Fill</Label>
+                <div className="flex min-w-0 items-center gap-2">
                   <Input
                     type="number"
                     step="0.1"
                     placeholder="Start"
+                    aria-label="Range start"
                     value={rangeStart}
                     onChange={(e) => setRangeStart(e.target.value)}
-                    className="w-full min-w-0 h-8 sm:w-20"
+                    className="w-full min-w-0 font-mono sm:w-24"
                   />
                   <Input
                     type="number"
                     step="0.1"
                     placeholder="Step"
+                    aria-label="Range step"
                     value={rangeStep}
                     onChange={(e) => setRangeStep(e.target.value)}
-                    className="w-full min-w-0 h-8 sm:w-20"
+                    className="w-full min-w-0 font-mono sm:w-20"
                   />
                   <Button
+                    variant="outline"
                     onClick={handleFillRange}
                     disabled={!rangeStart || !rangeStep || selectedChapterIndexes.size === 0}
-                    size="sm"
                     className="shrink-0"
                   >
                     Fill
@@ -635,46 +691,47 @@ export function ProviderMatchDialog({
 
               {/* New provider creation form - shown when "Create New Provider" is selected */}
               {showNewProviderForm && (
-                <div className="flex flex-col gap-3 p-3 bg-background border rounded-md sm:flex-row sm:items-end sm:gap-4">
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs text-muted-foreground">Name</Label>
+                <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2.5 rounded-md border border-dashed border-accent-line bg-paper p-3 motion-safe:animate-paper-rise sm:flex sm:flex-row sm:flex-wrap sm:items-end sm:gap-4 lg:basis-full">
+                  <div className="col-span-2 flex flex-col gap-1.5">
+                    <Label htmlFor="pmd-new-name" className="paper-eyebrow text-[10px]">Name</Label>
                     <Input
+                      id="pmd-new-name"
                       placeholder="Provider name"
                       value={newProviderName}
                       onChange={(e) => setNewProviderName(e.target.value)}
-                      className="h-8 w-full sm:w-44"
+                      className="w-full sm:w-48"
                     />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs text-muted-foreground">Scanlator</Label>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="pmd-new-scanlator" className="paper-eyebrow text-[10px]">Scanlator</Label>
                     <Input
+                      id="pmd-new-scanlator"
                       placeholder="Scanlator (optional)"
                       value={newProviderScanlator}
                       onChange={(e) => setNewProviderScanlator(e.target.value)}
-                      className="h-8 w-full sm:w-36"
+                      className="w-full sm:w-40"
                     />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs text-muted-foreground">Language</Label>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="pmd-new-lang" className="paper-eyebrow text-[10px]">Language</Label>
                     <Input
+                      id="pmd-new-lang"
                       placeholder="en"
                       value={newProviderLanguage}
                       onChange={(e) => setNewProviderLanguage(e.target.value)}
-                      className="h-8 w-full sm:w-20"
+                      className="w-full font-mono sm:w-20"
                     />
                   </div>
-                  <div className="flex items-end gap-2 sm:mt-auto">
+                  <div className="col-span-2 grid grid-cols-2 gap-2 sm:flex sm:items-end">
                     <Button
                       onClick={handleNewProviderConfirm}
                       disabled={!newProviderName.trim()}
-                      size="sm"
                       variant="default"
                     >
                       Create
                     </Button>
                     <Button
                       onClick={handleNewProviderCancel}
-                      size="sm"
                       variant="outline"
                     >
                       Cancel
@@ -685,9 +742,9 @@ export function ProviderMatchDialog({
             </div>
           </div>
         )}
-        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
-          <div className="flex items-center justify-center text-sm text-muted-foreground sm:mr-auto">
-            ({selectedChapterIndexes.size} of {chapters.length} selected)
+        <DialogFooter className="shrink-0 pt-3 max-sm:grid max-sm:grid-cols-2 sm:items-center">
+          <div className="flex items-center justify-center font-mono text-[11.5px] text-ink-3 max-sm:col-span-2 sm:mr-auto sm:justify-start">
+            <span className="tabular-nums">({selectedChapterIndexes.size} of {chapters.length} selected)</span>
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

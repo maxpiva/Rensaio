@@ -10,6 +10,9 @@ import {
   X,
 } from "lucide-react";
 import React from "react";
+import { Button } from "@/components/ui/button";
+import { DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { useAddSeries } from "@/lib/api/hooks/useSeries";
 import { useAugmentSeries } from "@/lib/api/hooks/useSearch";
 import { useToast } from "@/hooks/use-toast";
@@ -51,13 +54,20 @@ export function AddSeriesSteps({
 }: AddSeriesStepsProps) {
   const [formState, setFormState] = React.useState<AddSeriesState>({
     selectedLinkedSeries: [],
-    searchKeyword: title || "",
+    searchKeyword: title ?? "",
     allLinkedSeries: [],
     fullSeries: [],
     originalAugmentedResponse: undefined,
     storagePath: undefined,
   });
   const [error, setError] = React.useState<string | null>(null);
+  // The search step already renders its own query error inline; remember it so
+  // the dialog-level alert doesn't print the same message a second time.
+  const [searchError, setSearchError] = React.useState<string | null>(null);
+  const setSearchStepError = React.useCallback<React.Dispatch<React.SetStateAction<string | null>>>((value) => {
+    setError(value);
+    setSearchError(value);
+  }, []);
   const [isLoading, setIsLoading] = React.useState(false);
   const [canProgress, setCanProgress] = React.useState(false);
   const [pendingNextStep, setPendingNextStep] = React.useState(false);
@@ -85,7 +95,9 @@ export function AddSeriesSteps({
       const finalAugmentedResponse: AugmentedResponse = {
         ...formState.originalAugmentedResponse,
         series: selectedSeries,
-        storageFolderPath: formState.storagePath || formState.originalAugmentedResponse.storageFolderPath,
+        storageFolderPath: formState.storagePath?.length
+          ? formState.storagePath
+          : formState.originalAugmentedResponse.storageFolderPath,
         existingSeries: isAddSourcesMode || formState.originalAugmentedResponse.existingSeries,
         existingSeriesId: (isAddSourcesMode && seriesId) ? seriesId : formState.originalAugmentedResponse.existingSeriesId,
       };
@@ -197,38 +209,63 @@ export function AddSeriesSteps({
   };
 
   const { label, icon } = getButtonLabel();
+  const stageNumber = isStage0 ? 0 : 1;
 
   return (
-    <div className="cmd-card">
-      <button
-        type="button"
-        className="cmd-close"
-        aria-label="Close"
-        onClick={() => onOpenChange?.(false)}
-      >
-        <X className="h-4 w-4" />
-      </button>
-      <div className="stage-label">
-        <span className="eyebrow">{getStageLabel()}</span>
-        {title && isAddSourcesMode && (
-          <span style={{ fontSize: "11px", color: "hsl(var(--as-fg-muted))", marginLeft: "8px", fontStyle: "italic" }}>{title}</span>
-        )}
-      </div>
-      <div className="editorial-rule" />
+    <div className="relative flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:max-h-[86dvh] border border-rule-2 bg-paper text-ink shadow-lift">
+      {/* ── Masthead ─────────────────────────────────────────────── */}
+      {/* Tighter on phones so the results keep room when the keyboard is up */}
+      <header className="relative shrink-0 px-5 pb-3 pt-4 sm:px-7 sm:pb-4 sm:pt-6">
+        <button
+          type="button"
+          className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-9 sm:w-9"
+          aria-label="Close"
+          onClick={() => onOpenChange?.(false)}
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-      {isStage0 ? (
-        <div className="stage-enter">
+        <p className="paper-eyebrow pr-12 text-accent-ink">{getStageLabel()}</p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-12 sm:mt-1.5">
+          <DialogTitle className="paper-display text-[22px] leading-[1.05] tracking-[-0.02em] sm:text-[30px]">
+            Add <em>{isAddSourcesMode ? "sources" : "series"}</em>
+          </DialogTitle>
+          {title && isAddSourcesMode && (
+            <span className="min-w-0 truncate font-serif text-[15px] italic text-ink-2">{title}</span>
+          )}
+        </div>
+
+        {/* Two-stage track: done = ink, current = crimson, upcoming = hairline */}
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-4" aria-hidden="true">
+          {[0, 1].map((step) => (
+            <span
+              key={step}
+              className={cn(
+                "h-[3px] rounded-full transition-colors duration-300",
+                step < stageNumber && "bg-ink",
+                step === stageNumber && "bg-primary",
+                step > stageNumber && "bg-rule-2",
+              )}
+            />
+          ))}
+        </div>
+      </header>
+
+      {/* ── Stage body (each step owns its own scroll area) ───────── */}
+      <div
+        key={stageNumber}
+        className="flex min-h-0 flex-1 flex-col motion-safe:animate-paper-rise"
+      >
+        {isStage0 ? (
           <SearchSeriesStep
             formState={formState}
             setFormState={setFormState}
-            setError={setError}
+            setError={setSearchStepError}
             setIsLoading={setIsLoading}
             setCanProgress={setCanProgress}
             existingSources={existingSources}
           />
-        </div>
-      ) : (
-        <div className="stage-enter">
+        ) : (
           <ConfirmSeriesStep
             formState={formState}
             setFormState={setFormState}
@@ -238,40 +275,52 @@ export function AddSeriesSteps({
             isAddSourcesMode={isAddSourcesMode}
             existingSources={existingSources}
           />
+        )}
+      </div>
+
+      {error && !(isStage0 && error === searchError) && (
+        <div
+          role="alert"
+          className="mx-5 mb-3 flex shrink-0 items-start gap-2 rounded-md border border-bad/30 bg-bad-soft px-3 py-2 text-[13px] leading-snug text-bad sm:mx-7"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">{error}</span>
         </div>
       )}
 
-      {error && (
-        <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded text-destructive text-sm" style={{ background: "hsla(0 0% 100% / 0.04)", border: "1px solid hsla(0 84% 60% / 0.25)" }}>
-          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="cta-row">
-        <div className="left-meta font-mono">
+      {/* ── Footer ────────────────────────────────────────────────── */}
+      {/* On phones the search stage uses one row (count + Next; Back is
+          always disabled there) so the results get the height instead. */}
+      <footer
+        className={cn(
+          "flex shrink-0 gap-2.5 border-t border-rule bg-paper-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-7",
+          isStage0 ? "flex-row items-center justify-between" : "flex-col",
+        )}
+      >
+        <p className="min-w-0 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3 tabular-nums" aria-live="polite">
           {getLeftMetaCopy()}
-        </div>
-        <div className="cta-buttons">
-          <button
+        </p>
+        <div className={cn("flex gap-2", isStage0 && "shrink-0")}>
+          <Button
             type="button"
-            className="btn-ghost"
+            variant="ghost"
+            className={cn("max-sm:flex-1", isStage0 && "max-sm:hidden")}
             onClick={handlePrev}
             disabled={currentStep === 0}
           >
             Back
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn-primary"
+            className={cn("gap-1.5 sm:min-w-[8.5rem]", isStage0 ? "max-sm:min-w-[7.5rem]" : "max-sm:flex-[2]")}
             onClick={isStage0 ? handleNext : handleSubmit}
             disabled={!canProgress || isLoading || isPending}
           >
             {icon}
             {label}
-          </button>
+          </Button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

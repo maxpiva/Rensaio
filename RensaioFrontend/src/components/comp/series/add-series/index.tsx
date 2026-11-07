@@ -60,13 +60,13 @@ export function AddSeries({
   const [internalOpen, setInternalOpen] = useState(false);
 
   // Use controlled or internal state
-  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
-  const setOpen = onOpenChange || setInternalOpen;
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
 
   // Determine mode booleans
   const isAddSourcesMode = !!(title && existingSources && seriesId);
 
-  const triggerElement = triggerButton || <AddSeriesButton />;
+  const triggerElement = triggerButton ?? <AddSeriesButton />;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -74,7 +74,8 @@ export function AddSeries({
         {triggerElement}
       </DialogTrigger>
       <DialogContent
-        className="bg-transparent border-0 shadow-none p-0 max-h-none overflow-visible w-[calc(100vw-24px)] sm:w-[min(980px,calc(100vw-48px))] max-w-none top-[8dvh] sm:top-[10dvh] translate-y-0 [&>button]:hidden"
+        className="bg-transparent border-0 shadow-none p-0 max-h-none overflow-visible w-[calc(100vw-24px)] sm:w-[min(860px,calc(100vw-48px))] max-w-none top-3 sm:top-[8dvh] translate-y-0 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&>button]:hidden"
+        aria-describedby={undefined}
         onInteractOutside={(e) => {
           // Allow tap-outside dismiss on mobile; prevent on desktop
           if (!window.matchMedia("(max-width: 640px)").matches) {

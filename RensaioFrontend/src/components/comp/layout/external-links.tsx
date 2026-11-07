@@ -3,12 +3,13 @@
 import type { ReactNode } from "react";
 import { Globe } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 /**
  * External links (GitHub / Discord / Website).
  *
- * The old vertical sidebar carried these at the bottom; the redesigned command
- * bar dropped them, so this restores the project links in the new chrome. Used
- * in the user-avatar dropdown (desktop + mobile) and the mobile nav drawer.
+ * Shown in the desktop sidebar foot, the user-avatar dropdown and the phone
+ * More sheet.
  */
 
 export interface ExternalLinkDef {
@@ -64,12 +65,11 @@ export const externalLinks: ExternalLinkDef[] = [
 ];
 
 /**
- * Horizontal row of project links. Compact icon buttons sized to sit in a
- * dropdown footer or the bottom of the mobile nav drawer.
+ * Horizontal row of project links. Compact icon buttons (44px on phone).
  */
 export function ExternalLinks({ className = "" }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center gap-1 ${className}`}>
+    <div className={cn("flex items-center justify-center gap-1", className)}>
       {externalLinks.map((link) => (
         <a
           key={link.name}
@@ -78,7 +78,7 @@ export function ExternalLinks({ className = "" }: { className?: string }) {
           rel="noopener noreferrer"
           title={link.name}
           aria-label={link.name}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-11 max-sm:w-11"
         >
           {link.icon}
         </a>

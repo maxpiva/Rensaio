@@ -9,7 +9,7 @@ export default function ContributionLayout({
   children: React.ReactNode;
 }) {
   return (
-    <PageLayout mainClassName="p-4 pb-16 sm:px-6 sm:py-4 sm:pb-4 overflow-y-auto">
+    <PageLayout mainClassName="overflow-y-auto px-4 pb-10 pt-5 sm:px-8 sm:pt-7">
       {children}
     </PageLayout>
   );

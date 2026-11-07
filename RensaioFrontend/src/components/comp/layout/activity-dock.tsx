@@ -123,12 +123,9 @@ export function ActivityDock() {
 
   return (
     <div
-      className="fixed z-30 right-3 lg:right-5 pointer-events-none"
-      style={{
-        // Sit above the safe-area bottom inset on mobile so it doesn't crash
-        // into the OS home indicator.
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
-      }}
+      // Phone: sits above the bottom tab bar (52px + safe-area inset).
+      // Desktop: floats bottom-right of the content column.
+      className="activity-dock fixed z-30 right-3 pointer-events-none bottom-[calc(env(safe-area-inset-bottom,0px)+64px)] lg:right-5 lg:bottom-5"
     >
       <AnimatePresence>
         <motion.div
@@ -137,7 +134,7 @@ export function ActivityDock() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 16, scale: 0.97 }}
           transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-          className="pointer-events-auto w-[min(92vw,360px)] rounded-xl border border-border bg-background/95 shadow-lg backdrop-blur-md overflow-hidden"
+          className="pointer-events-auto w-[min(calc(100vw-24px),320px)] rounded-lg border border-rule-2 bg-glass shadow-lift backdrop-blur-xl backdrop-saturate-150 overflow-hidden"
         >
           {/* Header / collapsed row */}
           <DockRow
@@ -156,16 +153,16 @@ export function ActivityDock() {
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                className="border-t border-border overflow-hidden"
+                className="border-t border-rule overflow-hidden"
               >
-                <div className="max-h-72 overflow-y-auto divide-y divide-border/60">
+                <div className="max-h-72 overflow-y-auto divide-y divide-rule">
                   {list.slice(1).map((d) => (
                     <DockItem key={d.id} item={d} />
                   ))}
                 </div>
                 <Link
                   href="/queue"
-                  className="flex items-center justify-center gap-1 border-t border-border bg-muted/30 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  className="flex min-h-9 items-center justify-center gap-1.5 border-t border-rule py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-3 transition-colors hover:bg-hover hover:text-accent-ink max-sm:min-h-11"
                 >
                   View full queue
                   <ExternalLink className="h-3 w-3" />
@@ -203,7 +200,7 @@ function DockRow({
   return (
     <div className="flex items-stretch gap-3 px-3 py-2.5">
       {/* Thumbnail */}
-      <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
+      <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-[3px] bg-paper-3 shadow-print">
         {card.thumbnailUrl ? (
           <Image
             src={formatThumbnailUrl(card.thumbnailUrl)}
@@ -214,7 +211,7 @@ function DockRow({
             unoptimized
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+          <div className="flex h-full w-full items-center justify-center text-ink-3">
             <Download className="h-4 w-4" />
           </div>
         )}
@@ -224,29 +221,29 @@ function DockRow({
       <div className="flex-1 min-w-0 flex flex-col justify-center">
         <div className="flex items-center gap-1.5 min-w-0">
           {failed && (
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-bad" aria-label="Failed" />
           )}
-          <p className="truncate text-xs font-medium text-foreground">
+          <p className="truncate text-[12.5px] font-semibold text-ink">
             {card.title ?? "Download"}
           </p>
         </div>
 
         <div className="mt-1 flex items-center gap-2">
-          <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+          <div className="flex-1 h-[3px] rounded-full bg-paper-3 overflow-hidden">
             <div
               className={`h-full transition-[width] duration-300 ease-out ${
-                failed ? "bg-destructive" : "bg-primary"
+                failed ? "bg-bad" : "bg-primary"
               }`}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-[10px] font-medium tabular-nums text-muted-foreground shrink-0">
+          <span className={`font-mono text-[10.5px] font-semibold tabular-nums shrink-0 ${failed ? "text-bad" : "text-ink-2"}`}>
             {failed ? "Error" : `${progress}%`}
           </span>
         </div>
 
         {card.chapterName && (
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+          <p className="mt-0.5 truncate font-mono text-[10px] text-ink-3">
             {card.chapterName}
           </p>
         )}
@@ -258,7 +255,7 @@ function DockRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             onClick={onToggleExpand}
             aria-label={expanded ? "Collapse queue" : "Show all downloads"}
             aria-expanded={expanded}
@@ -268,7 +265,7 @@ function DockRow({
             ) : (
               <div className="relative">
                 <ChevronUp className="h-4 w-4" />
-                <span className="absolute -top-1.5 -right-1.5 h-3.5 min-w-[14px] rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center px-0.5 tabular-nums">
+                <span className="absolute -top-1.5 -right-2 h-3.5 min-w-[14px] rounded-full bg-primary text-primary-foreground font-mono text-[8.5px] font-bold flex items-center justify-center px-0.5 tabular-nums">
                   +{extraCount}
                 </span>
               </div>
@@ -278,7 +275,7 @@ function DockRow({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8"
           onClick={onDismiss}
           aria-label="Hide download dock"
         >
@@ -302,7 +299,7 @@ function DockItem({
 
   return (
     <div className="flex items-center gap-3 px-3 py-2">
-      <div className="relative h-10 w-7.5 shrink-0 overflow-hidden rounded bg-muted">
+      <div className="relative h-10 w-7.5 shrink-0 overflow-hidden rounded-[3px] bg-paper-3">
         {card.thumbnailUrl ? (
           <Image
             src={formatThumbnailUrl(card.thumbnailUrl)}
@@ -315,19 +312,19 @@ function DockItem({
         ) : null}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="truncate text-xs font-medium text-foreground">
+        <p className="truncate text-[12.5px] font-medium text-ink">
           {card.title ?? "Download"}
         </p>
         <div className="mt-1 flex items-center gap-2">
-          <div className="flex-1 h-0.5 rounded-full bg-muted overflow-hidden">
+          <div className="flex-1 h-0.5 rounded-full bg-paper-3 overflow-hidden">
             <div
               className={`h-full transition-[width] duration-300 ${
-                failed ? "bg-destructive" : "bg-primary"
+                failed ? "bg-bad" : "bg-primary"
               }`}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-[10px] font-medium tabular-nums text-muted-foreground shrink-0">
+          <span className={`font-mono text-[10px] font-medium tabular-nums shrink-0 ${failed ? "text-bad" : "text-ink-3"}`}>
             {failed ? "Error" : `${progress}%`}
           </span>
         </div>

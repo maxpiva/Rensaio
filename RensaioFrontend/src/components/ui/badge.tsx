@@ -6,21 +6,28 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-[4px] border px-2 text-[11.5px] font-semibold leading-none transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 [&_svg]:h-3 [&_svg]:w-3 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground shadow",
+          "border-transparent bg-primary text-primary-foreground",
         primary:
-          "border-transparent bg-background text-secondary-foreground hover:bg-background/80",
+          "border-rule bg-paper-1 text-ink-2",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-rule bg-paper-2 text-ink-2",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
-        outline: "text-foreground",
+          "border-transparent bg-destructive text-destructive-foreground",
+        outline: "border-rule-2 bg-transparent text-ink-2",
         poster:
-          "border-transparent bg-card/80 text-secondary-foreground/80",        
+          "border-transparent bg-paper-1/85 text-ink-2 backdrop-blur-sm",
+        /* Paper status tags (additive). Pair with an icon: status is
+           never colour-only. */
+        accent: "border-accent-line bg-accent-soft text-accent-ink",
+        ok: "border-transparent bg-ok-soft text-ok",
+        warn: "border-transparent bg-warn-soft text-warn",
+        bad: "border-transparent bg-bad-soft text-bad",
+        info: "border-transparent bg-info-soft text-info",
       },
     },
     defaultVariants: {

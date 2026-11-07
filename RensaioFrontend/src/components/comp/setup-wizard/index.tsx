@@ -13,6 +13,7 @@ import { FinishStep } from "./steps/finish-step";
 import { IdentifyUserStep } from "./steps/identify-user-step";
 
 import {
+  WizardError,
   WizardShell,
   type WizardStep,
 } from "@/components/comp/import-wizard/wizard-shell";
@@ -109,16 +110,15 @@ export function SetupWizard() {
       canPrevious={currentStep > 0}
       canNext={canProgress}
       isLoading={isLoading}
-      nextLabel={isLastStep ? "Finish" : "Continue →"}
+      nextLabel={isLastStep ? "Finish" : "Continue"}
       onPrevious={() => previousStep()}
       onNext={handleNext}
       // First-time setup is mandatory: no close / escape / outside-click dismissal.
       dismissable={false}
+      kicker="First-run setup"
     >
       {error && (
-        <div className="mb-4 list-disc space-y-1 rounded-lg border bg-destructive/10 p-2 text-[0.8rem] font-medium text-destructive">
-          {error}
-        </div>
+        <WizardError>{error}</WizardError>
       )}
 
       {currentStep === 0 && (

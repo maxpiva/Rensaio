@@ -10,12 +10,24 @@ import "./list-series.css";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LastChapterBadge } from "@/components/ui/last-chapter-badge";
 import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-series-step";
-import { Badge } from "@/components/ui/badge";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
-import { AlertTriangle, Database, ExternalLink, Pause } from "lucide-react";
+import { AlertTriangle, BookOpen, Database, ExternalLink, Pause, SearchX } from "lucide-react";
 import { getStatusDisplay } from "@/lib/utils/series-status";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+import { getStatusTone } from "@/components/comp/series/detail/status-tone";
+
+// Caption / badge scale per card-size option (keyed by the option's `text`).
+const CARD_SCALE: Record<
+  string,
+  { title: string; meta: string; badge: string; marker: string; markerIcon: string; compact: boolean; showMeta: boolean }
+> = {
+  "text-[0.4rem]": { title: "text-[11px]", meta: "text-[9px]", badge: "top-1 right-1 px-1 py-0 text-[8px]", marker: "p-0.5 text-[8px]", markerIcon: "h-2.5 w-2.5", compact: true, showMeta: false },
+  "text-xs": { title: "text-[13px]", meta: "text-[9.5px]", badge: "top-1.5 right-1.5 px-1.5 py-0.5 text-[10px]", marker: "px-1 py-0.5 text-[9px]", markerIcon: "h-3 w-3", compact: true, showMeta: true },
+  "text-sm": { title: "text-[15px]", meta: "text-[10px]", badge: "top-2 right-2 px-1.5 py-0.5 text-[11px]", marker: "px-1.5 py-0.5 text-[10px]", markerIcon: "h-3 w-3", compact: false, showMeta: true },
+  "text-base": { title: "text-[17px]", meta: "text-[10.5px]", badge: "top-2 right-2 px-2 py-0.5 text-xs", marker: "px-1.5 py-0.5 text-[10.5px]", markerIcon: "h-3.5 w-3.5", compact: false, showMeta: true },
+  "text-lg": { title: "text-[19px]", meta: "text-[11px]", badge: "top-2.5 right-2.5 px-2 py-0.5 text-[13px]", marker: "px-2 py-1 text-[11px]", markerIcon: "h-3.5 w-3.5", compact: false, showMeta: true },
+};
 
 // Eagerly load only the first row of covers to protect LCP. The grid is
 // responsive (columns recomputed on resize), so we use a safe upper bound
@@ -44,7 +56,7 @@ function getLastChangeRingColor(lastChangeUTC?: string | null): string | undefin
   // Return color index based on days (0-30), or undefined if over 31 days
   if (diffDays < 0 || diffDays > 31) return undefined;
   const colorIndex = Math.min(diffDays, 30);
-  return LAST_CHANGE_COLORS[colorIndex] || undefined;
+  return LAST_CHANGE_COLORS[colorIndex] ?? undefined;
 }
 export interface ListSeriesProps {
   filterFn?: (series: SeriesInfo) => boolean;
@@ -63,7 +75,6 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
   const gridRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
   const itemWidth = 272; // px (17rem + 1rem gap, adjust as needed)
-  const gap = 16; // px (1rem)
 
   // Use prop library if provided, otherwise use hook library
   const library = propLibrary ?? hookLibrary;
@@ -115,260 +126,265 @@ export function ListSeries({ filterFn, sortFn, cardWidth = "w-40", cardWidthOpti
     return () => window.removeEventListener("resize", updateColumns);
   }, [filteredLibrary?.length, cardWidth]);
   // Determine text size for the card title based on cardWidth
-  const textSize = cardWidthOptions?.find(opt => opt.value === cardWidth)?.text || "text-sm";
-  
+  const textSize = cardWidthOptions?.find(opt => opt.value === cardWidth)?.text ?? "text-sm";
+  const scale = CARD_SCALE[textSize] ?? CARD_SCALE["text-sm"]!;
+
   const handleSeriesClick = (seriesId: string) => {
     router.push(`/library/series?id=${seriesId}`);
   };
 
   // Calculate dummy items and remainder for layout
-  const items = filteredLibrary || [];
+  const items = filteredLibrary ?? [];
   const remainder = columns > 1 ? items.length % columns : 0;
   const dummyCount = remainder === 0 ? 0 : columns - remainder;
 
   // Empty / no-results state — rendered outside the grid so it isn't capped by
   // `.grid-auto-fit > *` (max-width: 17rem) and can center on the page.
   if (!isLoading && (filteredLibrary === undefined || filteredLibrary.length === 0)) {
+    const searching = !!debouncedSearchTerm.trim();
     return (
-      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 py-16 text-center">
-        <div className="rounded-full bg-muted p-5">
-          <svg className="h-10 w-10 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-          </svg>
+      <div className="flex min-h-[52vh] w-full flex-col items-center justify-center px-4 py-14 text-center motion-safe:animate-paper-rise">
+        <div className="relative mb-6">
+          <div className="h-[118px] w-[84px] -rotate-6 rounded-[3px] border border-rule-2 bg-paper-2 shadow-paper" />
+          <div className="absolute left-5 top-1 grid h-[118px] w-[84px] rotate-3 place-items-center rounded-[3px] border border-rule-2 bg-paper-1 shadow-lift">
+            {searching ? (
+              <SearchX className="h-7 w-7 text-ink-3" strokeWidth={1.5} />
+            ) : (
+              <BookOpen className="h-7 w-7 text-ink-3" strokeWidth={1.5} />
+            )}
+          </div>
+          <span
+            aria-hidden="true"
+            className="absolute -right-6 -top-2 grid h-7 w-7 rotate-6 place-items-center rounded-[3px] bg-primary font-jp text-[13px] font-bold text-primary-foreground shadow-[inset_0_0_0_1.5px_rgba(255,255,255,.3)]"
+          >
+            {searching ? "無" : "空"}
+          </span>
         </div>
-        <div>
-          <p className="text-base font-medium text-foreground">
-            {debouncedSearchTerm.trim() ? `No results for "${debouncedSearchTerm}"` : "No series found"}
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {debouncedSearchTerm.trim() ? "Try a different search term." : "Add some manga to get started."}
-          </p>
-        </div>
+        <p className="paper-eyebrow mb-2">{searching ? "Search" : "Empty shelf"}</p>
+        <p className="max-w-md font-serif text-[26px] leading-tight tracking-[-0.02em] text-ink text-balance sm:text-[30px]">
+          {searching ? `No results for \u201c${debouncedSearchTerm}\u201d` : "No series found"}
+        </p>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-2">
+          {searching ? "Try a different search term." : "Add some manga to get started."}
+        </p>
       </div>
     );
   }
 
   return (
     <TooltipProvider delayDuration={2000}>
-      <div className="flex flex-wrap gap-4 grid-auto-fit" ref={gridRef}>
+      <div
+        className="grid-auto-fit flex w-full flex-wrap gap-x-4 gap-y-6 sm:gap-y-7"
+        ref={gridRef}
+        aria-busy={isLoading || undefined}
+      >
         {isLoading ? (
           <>
             {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className={`relative ${cardWidth} rounded-md overflow-hidden`}
-                style={{ aspectRatio: "4/6" }}
-              >
-                <div className="w-full h-full skeleton-shimmer rounded-md" />
+              <div key={i} className={`relative ${cardWidth}`} aria-hidden="true">
+                <div className="skeleton-shimmer aspect-[2/3] w-full rounded-[3px]" />
+                <div className="skeleton-shimmer mt-2.5 h-3 w-4/5 rounded-[2px]" />
+                <div className="skeleton-shimmer mt-1.5 h-2.5 w-1/2 rounded-[2px]" />
               </div>
             ))}
+            <span className="sr-only">Loading library…</span>
           </>
         ) : (
           <>
             {items.map((series: SeriesInfo, index: number) => {
-        const ringColor = getLastChangeRingColor(series.lastChangeUTC);
-        const showRing = orderBy === "lastChange" && ringColor;
-        const isPriority = index < FIRST_ROW_PRIORITY_COUNT;
-        return (
-          <div
-            key={series.id}
-            className={`relative ${cardWidth} rounded-md shadow group transition-all duration-200`} style={{
-              aspectRatio: '4/6',
-              ...(showRing ? {
-                border: `1.5px solid #${ringColor}`,
-                borderRadius: '6px',
-                transition: 'all 0.2s ease-in-out',
-              } : {})
-            }}
-            onMouseEnter={(e) => {
-              if (showRing) {
-                e.currentTarget.style.borderWidth = '2.5px';
-                e.currentTarget.style.boxShadow = `0 4px 20px rgba(${parseInt(ringColor.slice(0, 2), 16)}, ${parseInt(ringColor.slice(2, 4), 16)}, ${parseInt(ringColor.slice(4, 6), 16)}, 0.3)`;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (showRing) {
-                e.currentTarget.style.borderWidth = '1.5px';
-                e.currentTarget.style.boxShadow = '';
-              }
-            }}
-          ><Tooltip>              <TooltipTrigger asChild>
-            <div
-              className={`relative w-full h-full rounded-md overflow-hidden cursor-pointer hover:scale-105 transition-transform ${showRing ? 'group-hover:shadow-lg' : ''
-                }`}
-              onClick={() => handleSeriesClick(series.id)}
-              style={{
-                ...(showRing ? {
-                  transition: 'all 0.2s ease-in-out',
-                } : {})
-              }}
-            ><Image
-                {...(isPriority ? { priority: true } : { loading: "lazy" as const })}
-                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
-                src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
-                alt={series.title}
-                fill
-                className="rounded-md object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (target.src !== window.location.origin + '/rensaio.png') {
-                    target.src = '/rensaio.png';
-                  }
-                }}
-              />
-
-              {/* Status bar — 2px strip across the top edge, color-coded by
-                  series.status. Lets the user spot ongoing / completed /
-                  hiatus / disabled at a glance without opening the card.
-                  Hidden while sorting by Last Change, where it would clash with
-                  the age-graded card border (the green "ongoing" strip made the
-                  Last Change colour grading look corrupted). */}
-              {!showRing && (
-                <div
-                  className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(series.status).color}`}
-                  aria-hidden
-                />
-              )}
-
-              {/* Provider Badge - Top Left */}
-              <div className={`absolute top-1 left-1 text-white font-semibold rounded px-2 py-0.5 shadow z-10 bg-black/70 max-w-[70%] truncate ${
-                textSize === 'text-[0.4rem]' ? 'text-[0.4rem]' :
-                textSize === 'text-base' ? 'text-sm' :
-                textSize === 'text-lg' ? 'text-base' :
-                'text-xs'
-              }`}>
-                {series.lastChangeProvider.provider}
-              </div>
-
-              {/* Attention dot — bottom-left of cover when this series has
-                  unassigned providers that need a manual match. Matches the
-                  "Unassigned" status-filter language. */}
-              {series.hasUnknown && (
-                <div
-                  className="absolute bottom-7 left-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500/95 text-amber-50 shadow ring-2 ring-background"
-                  title="Has unassigned providers"
-                >
-                  <AlertTriangle className="h-2.5 w-2.5" />
-                </div>
-              )}
-
-              <div className={`absolute bottom-0 left-0 w-full bg-black/60 text-white font-semibold px-2 py-1 rounded-b-md flex items-center justify-center ${textSize}`}>
-                {/* Paused indicator — flush on top of title bar, right-aligned.
-                    Uses a negative top offset equal to the icon height so it
-                    sits just above the title strip regardless of how many lines
-                    the title wraps to. */}
-                {series.pausedDownloads && (
-                  <div
-                    className={`absolute right-1 z-10 flex items-center justify-center rounded-full bg-yellow-500 text-black shadow ring-2 ring-background ${
-                      textSize === 'text-[0.4rem]' ? 'h-3 w-3 -top-3.5' :
-                      textSize === 'text-xs' ? 'h-4 w-4 -top-4.5' :
-                      textSize === 'text-base' ? 'h-6 w-6 -top-6.5' :
-                      textSize === 'text-lg' ? 'h-7 w-7 -top-7.5' :
-                      'h-5 w-5 -top-5.5'
-                    }`}
-                    title="Downloads paused"
-                  >
-                    <Pause className={`fill-current ${
-                      textSize === 'text-[0.4rem]' ? 'h-1.5 w-1.5' :
-                      textSize === 'text-xs' ? 'h-2 w-2' :
-                      textSize === 'text-base' ? 'h-3 w-3' :
-                      textSize === 'text-lg' ? 'h-3.5 w-3.5' :
-                      'h-2.5 w-2.5'
-                    }`} />
-                  </div>
-                )}
-                {series.title}
-              </div>
-
-            {/* Last Chapter Badge — inside the hover-scaled container so it
-                scales together with the other badges on hover. */}
-            {series.lastChapter !== undefined && (
-              <LastChapterBadge
-                lastChapter={series.lastChapter}
-                status={series.isActive ? series.status : SeriesStatus.DISABLED}
-                className={`${
-                  textSize === 'text-[0.4rem]' ? 'text-[0.4rem]' :
-                  textSize === 'text-base' ? 'text-sm' :
-                  textSize === 'text-lg' ? 'text-base' :
-                  'text-xs'
-                }`}
-              />)}
-            </div>
-          </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xl min-w-[22rem] p-0 bg-card border shadow-lg">
-                <div className="p-4 space-y-2">
-                  {/* Status Badge - Top Right */}
-                  <div className="absolute top-4 right-4">
-                    <Badge className={`text-xs ${getStatusDisplay(series.status).color}`}>
-                      {getStatusDisplay(series.status).text}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {(series.lastChapter) && (
-                      <Badge variant="secondary" className="shrink-0"> {series.lastChapter}
-                      </Badge>
-                    )}
-                    <h3 className="font-semibold text-base text-primary truncate">{series.title}</h3>
-                  </div>
-                  {(series.author || series.artist) && (
-                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                      {series.author && <span>by {series.author}</span>}
-                      {series.artist && series.artist !== series.author && <span>art by {series.artist}</span>}
-                    </div>
-                  )}
-                  {series.genre && series.genre.length > 0 && (
-                    <DynamicTags genres={series.genre} />
-                  )}
-                  <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">
-                    {series.description || "No description available"}
-                  </p>
-                  {series.providers && series.providers.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {series.providers.map((provider, index) => (
-                        provider.url ? (
-                          <span key={`${provider.provider}-${provider.language}-${provider.scanlator || 'no-scanlator'}-${index}`} className="inline-flex items-center gap-1 bg-accent text-accent-foreground rounded px-2 py-0.5 text-sm font-medium border border-border cursor-pointer hover:bg-accent/80 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (provider.url) {
-                                window.open(provider.url, '_blank', 'noopener,noreferrer');
+              const ringColor = getLastChangeRingColor(series.lastChangeUTC);
+              const showRing = orderBy === "lastChange" && ringColor;
+              const isPriority = index < FIRST_ROW_PRIORITY_COUNT;
+              const tone = getStatusTone(series.status);
+              const badgeTone = getStatusTone(series.isActive ? series.status : SeriesStatus.DISABLED);
+              const providerName = series.lastChangeProvider?.provider;
+              return (
+                <div key={series.id} className={`relative ${cardWidth} group`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        role="link"
+                        tabIndex={0}
+                        aria-label={series.title}
+                        onClick={() => handleSeriesClick(series.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleSeriesClick(series.id);
+                          }
+                        }}
+                        className="block cursor-pointer rounded-[4px] outline-none focus-visible:ring-[3px] focus-visible:ring-accent-soft focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+                      >
+                        {/* Cover */}
+                        <div
+                          className={`relative aspect-[2/3] w-full overflow-hidden rounded-[3px] bg-paper-2 shadow-paper ring-1 ring-ink/10 transition-[transform,box-shadow] duration-200 ease-out group-hover:-translate-y-1 group-hover:shadow-lift motion-reduce:transition-none motion-reduce:group-hover:translate-y-0`}
+                          style={
+                            showRing
+                              ? {
+                                  boxShadow: `0 0 0 2px hsl(var(--background)), 0 0 0 3.5px #${ringColor}`,
+                                }
+                              : undefined
+                          }
+                        >
+                          <Image
+                            {...(isPriority ? { priority: true } : { loading: "lazy" as const })}
+                            sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
+                            src={formatThumbnailUrl(series.thumbnailUrl) ?? '/placeholder.jpg'}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (target.src !== window.location.origin + '/rensaio.png') {
+                                target.src = '/rensaio.png';
                               }
                             }}
-                            title="Click to open in the source"
+                          />
+                          {/* Print sheen + spine shadow */}
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.18),transparent_7%,transparent_92%,rgba(255,255,255,.06))]"
+                          />
+
+                          {/* Status bar — strip across the top edge, color-coded by
+                              series.status. Hidden while sorting by Last Change,
+                              where it would clash with the age-graded ring. */}
+                          {!showRing && (
+                            <div
+                              className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-[3px] ${tone.fill}`}
+                              aria-hidden
+                            />
+                          )}
+
+                          {/* Last chapter — top right, tinted by status */}
+                          {series.lastChapter !== undefined && (
+                            <LastChapterBadge
+                              lastChapter={series.lastChapter}
+                              status={series.isActive ? series.status : SeriesStatus.DISABLED}
+                              className={`z-10 rounded-[3px] font-mono font-semibold tabular-nums text-paper shadow-[0_1px_3px_rgba(0,0,0,.35)] ${badgeTone.fill} ${scale.badge}`}
+                            />
+                          )}
+
+                          {/* Attention + paused markers — bottom of cover */}
+                          {(series.hasUnknown || series.pausedDownloads) && (
+                            <div className={`absolute bottom-1.5 left-1.5 right-1.5 z-10 flex items-center gap-1`}>
+                              {series.hasUnknown && (
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-[3px] bg-warn font-semibold text-paper shadow-[0_1px_3px_rgba(0,0,0,.35)] ${scale.marker}`}
+                                  title="Has unassigned providers"
+                                >
+                                  <AlertTriangle className={scale.markerIcon} />
+                                  {!scale.compact && <span>Unassigned</span>}
+                                </span>
+                              )}
+                              {series.pausedDownloads && (
+                                <span
+                                  className={`ml-auto inline-flex items-center gap-1 rounded-[3px] bg-ink/85 font-semibold text-paper shadow-[0_1px_3px_rgba(0,0,0,.35)] ${scale.marker}`}
+                                  title="Downloads paused"
+                                >
+                                  <Pause className={`fill-current ${scale.markerIcon}`} />
+                                  {!scale.compact && <span>Paused</span>}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Caption */}
+                        <div className="mt-2 min-w-0 px-0.5">
+                          <p
+                            className={`line-clamp-2 font-serif leading-[1.15] tracking-[-0.01em] text-ink transition-colors group-hover:text-accent-ink ${scale.title}`}
                           >
-                            <ExternalLink className="h-3 w-3" />
-                            {provider.provider}{provider.scanlator && provider.scanlator !== provider.provider && ` • ${provider.scanlator}`}
-                            <ReactCountryFlag
-                              countryCode={getCountryCodeForLanguage(provider.language)}
-                              svg
-                              style={{ width: '16px', height: '12px', borderRadius: '2px', border: '1px solid #ccc' }}
-                              title={provider.language.toUpperCase()}
-                            />
-                            {(provider.isStorage) && (
-                              <Database className="h-3.5 w-3.5 stroke-green-500" />
-                            )}
+                            {series.title}
+                          </p>
+                          {providerName && scale.showMeta && (
+                            <p className={`mt-1 flex items-center gap-1.5 truncate font-mono uppercase tracking-[0.06em] text-ink-3 ${scale.meta}`}>
+                              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.fill}`} />
+                              <span className="truncate">{providerName}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="min-w-[22rem] max-w-xl rounded-md border border-rule-2 bg-paper-1 p-0 text-ink shadow-lift"
+                    >
+                      <div className="space-y-2.5 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            {series.lastChapter ? (
+                              <p className="paper-eyebrow mb-1">Ch. {series.lastChapter}</p>
+                            ) : null}
+                            <h3 className="font-serif text-xl leading-tight tracking-[-0.015em] text-ink">{series.title}</h3>
+                          </div>
+                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-[3px] border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] ${tone.chip}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${tone.fill}`} />
+                            {getStatusDisplay(series.status).text}
                           </span>
-                        ) : (
-                          <span key={`${provider.provider}-${provider.language}-${provider.scanlator || 'no-scanlator'}-${index}`} className="inline-flex items-center gap-1 bg-accent text-accent-foreground rounded px-2 py-0.5 text-sm font-medium border border-border">
-                            {provider.provider}{provider.scanlator && provider.scanlator !== provider.provider && ` • ${provider.scanlator}`}
-                            <ReactCountryFlag
-                              countryCode={getCountryCodeForLanguage(provider.language)}
-                              svg
-                              style={{ width: '16px', height: '12px', borderRadius: '2px', border: '1px solid #ccc' }}
-                              title={provider.language.toUpperCase()}
-                            />
-                            {(provider.isStorage) && (
-                              <Database className="h-3.5 w-3.5 stroke-green-500" />
-                            )}
-                          </span>
-                        )
-                      ))}
-                    </div>
-                  )}
+                        </div>
+                        {(series.author || series.artist) && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-serif text-[13.5px] italic text-ink-2">
+                            {series.author && <span>by {series.author}</span>}
+                            {series.artist && series.artist !== series.author && <span>art by {series.artist}</span>}
+                          </div>
+                        )}
+                        {series.genre && series.genre.length > 0 && (
+                          <DynamicTags genres={series.genre} />
+                        )}
+                        <p className="line-clamp-4 whitespace-pre-line text-[13px] font-normal leading-relaxed text-ink-2">
+                          {series.description || "No description available"}
+                        </p>
+                        {series.providers && series.providers.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 border-t border-rule pt-2.5">
+                            {series.providers.map((provider, index) => {
+                              const key = `${provider.provider}-${provider.language}-${provider.scanlator || 'no-scanlator'}-${index}`;
+                              const body = (
+                                <>
+                                  {provider.url && <ExternalLink className="h-3 w-3 text-ink-3" />}
+                                  {provider.provider}{provider.scanlator && provider.scanlator !== provider.provider && ` \u2022 ${provider.scanlator}`}
+                                  <ReactCountryFlag
+                                    countryCode={getCountryCodeForLanguage(provider.language)}
+                                    svg
+                                    style={{ width: '16px', height: '12px', borderRadius: '2px', border: '1px solid var(--rule-2)' }}
+                                    title={provider.language.toUpperCase()}
+                                  />
+                                  {(provider.isStorage) && (
+                                    <Database className="h-3.5 w-3.5 text-ok" aria-label="Storage source" />
+                                  )}
+                                </>
+                              );
+                              return provider.url ? (
+                                <span
+                                  key={key}
+                                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-[4px] border border-rule-2 bg-paper px-2 py-0.5 text-[12.5px] font-medium text-ink transition-colors hover:border-accent-line hover:bg-accent-soft hover:text-accent-ink"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (provider.url) {
+                                      window.open(provider.url, '_blank', 'noopener,noreferrer');
+                                    }
+                                  }}
+                                  title="Click to open in the source"
+                                >
+                                  {body}
+                                </span>
+                              ) : (
+                                <span
+                                  key={key}
+                                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-rule-2 bg-paper px-2 py-0.5 text-[12.5px] font-medium text-ink"
+                                >
+                                  {body}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
-              </TooltipContent>            </Tooltip>
-          </div>
-        );
-      })}
+              );
+            })}
             {Array.from({ length: dummyCount }).map((_, i) => (
               <div key={`dummy-${i}`} className={cardWidth} style={{ visibility: "hidden", height: 0, margin: 0, padding: 0 }} />
             ))}

@@ -18,7 +18,7 @@ import {
 import {
   ErrorDownloadAction,
 } from '@/lib/api/types';
-import { AlertTriangle, ListChecks, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Inbox, ListChecks, RotateCcw, type LucideIcon } from 'lucide-react';
 import { JobsPanel } from '@/components/comp/jobs/jobs-panel';
 import { PageHeader, SectionHeading } from '@/components/comp/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -65,9 +65,11 @@ interface FilterPillsProps {
   value: FilterPill;
   onChange: (v: FilterPill) => void;
   counts: Record<FilterPill, number>;
+  /** Counts could not be loaded; show a dash instead of a misleading 0. */
+  unknown?: boolean;
 }
 
-const FilterPills = memo(function FilterPills({ value, onChange, counts }: FilterPillsProps) {
+const FilterPills = memo(function FilterPills({ value, onChange, counts, unknown = false }: FilterPillsProps) {
   const pills: FilterPill[] = ['all', 'completed', 'failed', 'queued'];
   return (
     <div
@@ -99,7 +101,7 @@ const FilterPills = memo(function FilterPills({ value, onChange, counts }: Filte
                 isActive ? 'text-paper/70' : 'text-ink-3',
               )}
             >
-              {counts[pill]}
+              {unknown ? '–' : counts[pill]}
             </span>
           </button>
         );
@@ -143,13 +145,13 @@ const SectionGroup = memo(function SectionGroup({ label, items, callbacks }: Sec
 // ---------------------------------------------------------------------------
 
 function QueueNotice({
-  glyph,
+  icon: Icon,
   title,
   body,
   tone = 'neutral',
   action,
 }: {
-  glyph: string;
+  icon: LucideIcon;
   title: string;
   body?: React.ReactNode;
   tone?: 'neutral' | 'bad';
@@ -163,11 +165,11 @@ function QueueNotice({
       <span
         aria-hidden="true"
         className={cn(
-          'mb-4 grid h-12 w-12 place-items-center rounded-full border font-jp text-[22px] leading-none',
+          'mb-4 grid h-12 w-12 place-items-center rounded-full border',
           tone === 'bad' ? 'border-bad/30 bg-bad-soft text-bad' : 'border-rule-2 bg-paper-2 text-ink-3',
         )}
       >
-        {glyph}
+        <Icon className="h-5 w-5" />
       </span>
       <p className="font-serif text-[20px] leading-tight text-ink">{title}</p>
       {body && <p className="mt-1.5 max-w-[46ch] text-[13px] leading-relaxed text-ink-3">{body}</p>}
@@ -480,11 +482,15 @@ export default function QueuePage() {
         title="The"
         accent="Queue."
         tate="印刷"
-        meta={[
-          `${totalCount} item${totalCount === 1 ? '' : 's'}`,
-          `${downloadingCount} downloading`,
-          `${counts.failed} failed`,
-        ]}
+        meta={
+          showError
+            ? 'Queue unavailable'
+            : [
+                `${totalCount} item${totalCount === 1 ? '' : 's'}`,
+                `${downloadingCount} downloading`,
+                `${counts.failed} failed`,
+              ]
+        }
         actions={
           <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setJobsOpen(true)}>
             <ListChecks className="h-4 w-4" aria-hidden="true" />
@@ -492,7 +498,7 @@ export default function QueuePage() {
           </Button>
         }
       >
-        <FilterPills value={filter} onChange={setFilter} counts={counts} />
+        <FilterPills value={filter} onChange={setFilter} counts={counts} unknown={showError} />
       </PageHeader>
 
       {hasError && !showError && (
@@ -514,7 +520,7 @@ export default function QueuePage() {
         <QueueSkeleton />
       ) : showError ? (
         <QueueNotice
-          glyph="断"
+          icon={AlertTriangle}
           tone="bad"
           title="Couldn’t load the queue"
           body="The server didn’t answer. Downloads keep running in the background."
@@ -527,7 +533,7 @@ export default function QueuePage() {
         />
       ) : visibleItems.length === 0 ? (
         <QueueNotice
-          glyph="閑"
+          icon={Inbox}
           title={filter === 'all' ? 'The press is quiet' : `Nothing ${FILTER_LABELS[filter].toLowerCase()}`}
           body={
             filter === 'all'

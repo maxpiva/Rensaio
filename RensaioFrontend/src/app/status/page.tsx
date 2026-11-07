@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Octagon, RotateCcw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleHelp, Octagon, RotateCcw } from 'lucide-react';
 import { useSeriesStatus, useProviderStatus, useClearAlert } from '@/lib/api/hooks/useStatus';
 import { ProviderStatusPanel } from '@/components/comp/status/provider-status-panel';
 import { SeriesStatusPanel } from '@/components/comp/status/series-status-panel';
@@ -21,14 +21,16 @@ interface StatTileProps {
   value: number;
   tone: "warning" | "critical";
   loading?: boolean;
+  /** The figure couldn't be loaded; show a neutral "Unknown" tag, not "Clear". */
+  unavailable?: boolean;
 }
 
 /**
  * Summary tile: a printed figure with a status tag underneath. The tag is
  * always icon + label ("Clear" / "Warning" / "Critical"), never colour alone.
  */
-function StatTile({ label, value, tone, loading }: StatTileProps) {
-  const active = value > 0;
+function StatTile({ label, value, tone, loading, unavailable = false }: StatTileProps) {
+  const active = !unavailable && value > 0;
   const toneText = tone === "critical" ? "text-bad" : "text-warn";
   const toneSoft = tone === "critical" ? "bg-bad-soft text-bad" : "bg-warn-soft text-warn";
   const ToneIcon = tone === "critical" ? Octagon : AlertTriangle;
@@ -56,10 +58,17 @@ function StatTile({ label, value, tone, loading }: StatTileProps) {
           active ? toneText : "text-ink-3/70",
         )}
       >
-        {loading ? <Skeleton className="h-10 w-10" /> : value}
+        {loading ? <Skeleton className="h-10 w-10" /> : unavailable ? "–" : value}
       </div>
       <div className="mt-3">
-        {active ? (
+        {loading ? (
+          <Skeleton className="h-[22px] w-16 rounded-[4px]" />
+        ) : unavailable ? (
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] bg-paper-2 px-1.5 text-[11.5px] font-semibold text-ink-2">
+            <CircleHelp className="h-3 w-3" aria-hidden="true" />
+            Unknown
+          </span>
+        ) : active ? (
           <span className={cn("inline-flex h-[22px] items-center gap-1 rounded-[4px] px-1.5 text-[11.5px] font-semibold", toneSoft)}>
             <ToneIcon className="h-3 w-3" aria-hidden="true" />
             {tone === "critical" ? "Critical" : "Warning"}
@@ -112,11 +121,16 @@ export default function StatusPage() {
   const totalAlerts = (series?.length ?? 0) + (providers?.length ?? 0);
   const anyCritical = seriesCritical + sourceCritical;
 
+  const seriesUnavailable = seriesQuery.isError && !series;
+  const providersUnavailable = providersQuery.isError && !providers;
+
   const description = seriesLoading || providersLoading
     ? "Health of your sources and series."
-    : totalAlerts === 0
-      ? "Health of your sources and series. Everything checks out."
-      : `Health of your sources and series. ${totalAlerts} alert${totalAlerts === 1 ? "" : "s"} need${totalAlerts === 1 ? "s" : ""} a look${anyCritical ? `, ${anyCritical} critical` : ""}.`;
+    : seriesUnavailable || providersUnavailable
+      ? "Health of your sources and series. Some checks couldn’t be loaded."
+      : totalAlerts === 0
+        ? "Health of your sources and series. Everything checks out."
+        : `Health of your sources and series. ${totalAlerts} alert${totalAlerts === 1 ? "" : "s"} need${totalAlerts === 1 ? "s" : ""} a look${anyCritical ? `, ${anyCritical} critical` : ""}.`;
 
   const errorNotice = (what: string, retry: () => void) => (
     <StatusNotice
@@ -145,10 +159,10 @@ export default function StatusPage() {
 
       {/* Summary tiles */}
       <section aria-label="Alert summary" className="mb-7 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
-        <StatTile label="Series Warnings" value={seriesWarnings} tone="warning" loading={seriesLoading} />
-        <StatTile label="Series Critical" value={seriesCritical} tone="critical" loading={seriesLoading} />
-        <StatTile label="Source Warnings" value={sourceWarnings} tone="warning" loading={providersLoading} />
-        <StatTile label="Source Critical" value={sourceCritical} tone="critical" loading={providersLoading} />
+        <StatTile label="Series Warnings" value={seriesWarnings} tone="warning" loading={seriesLoading} unavailable={seriesUnavailable} />
+        <StatTile label="Series Critical" value={seriesCritical} tone="critical" loading={seriesLoading} unavailable={seriesUnavailable} />
+        <StatTile label="Source Warnings" value={sourceWarnings} tone="warning" loading={providersLoading} unavailable={providersUnavailable} />
+        <StatTile label="Source Critical" value={sourceCritical} tone="critical" loading={providersLoading} unavailable={providersUnavailable} />
       </section>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)}>
@@ -157,13 +171,13 @@ export default function StatusPage() {
             <TabsTrigger value="series" className="min-w-[96px] max-sm:min-h-[38px]">
               Series
               <span className="font-mono text-[10.5px] font-medium tabular-nums opacity-70">
-                {series?.length ?? 0}
+                {seriesLoading || seriesUnavailable ? "–" : (series?.length ?? 0)}
               </span>
             </TabsTrigger>
             <TabsTrigger value="providers" className="min-w-[96px] max-sm:min-h-[38px]">
               Sources
               <span className="font-mono text-[10.5px] font-medium tabular-nums opacity-70">
-                {providers?.length ?? 0}
+                {providersLoading || providersUnavailable ? "–" : (providers?.length ?? 0)}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -173,7 +187,7 @@ export default function StatusPage() {
         <TabsContent value="providers" className="mt-0">
           {providersLoading ? (
             <PanelSkeleton rows={2} />
-          ) : providersQuery.isError && !providers ? (
+          ) : providersUnavailable ? (
             errorNotice("source", () => void providersQuery.refetch())
           ) : (
             <ProviderStatusPanel
@@ -187,7 +201,7 @@ export default function StatusPage() {
         <TabsContent value="series" className="mt-0">
           {seriesLoading ? (
             <PanelSkeleton rows={3} />
-          ) : seriesQuery.isError && !series ? (
+          ) : seriesUnavailable ? (
             errorNotice("series", () => void seriesQuery.refetch())
           ) : (
             <SeriesStatusPanel

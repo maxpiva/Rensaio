@@ -54,7 +54,12 @@ export function PullToRefresh({
 
   /** Returns true when a drawer/dialog overlay is open above the page. */
   const isDrawerOpen = useCallback(() => {
-    return !!document.querySelector("[data-drawer-event-blocker], [vaul-drawer]");
+    // vaul marks drawers with data-vaul-drawer; Radix dialogs and sheets are
+    // only in the DOM while open. Dragging inside either must not refresh
+    // the page behind it.
+    return !!document.querySelector(
+      "[data-drawer-event-blocker], [data-vaul-drawer], [role='dialog']",
+    );
   }, []);
 
   /** Get the scroll-top of the nearest scroll container (or window). */

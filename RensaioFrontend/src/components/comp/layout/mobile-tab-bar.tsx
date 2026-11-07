@@ -54,6 +54,17 @@ export function MobileTabBar() {
     setMoreOpen(false);
   }, [pathname]);
 
+  // Close it when the window grows to the desktop layout: the sheet's content
+  // is lg:hidden, but its overlay and modal lock would stay behind.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => {
+      if (mq.matches) setMoreOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   // Swipe-from-left-edge opens the More sheet (preserved gesture).
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
@@ -231,8 +242,10 @@ function MoreSheet({
 
   return (
     // A vaul drawer so the sheet can be dragged down to close; it draws the
-    // grab handle itself.
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    // grab handle itself. autoFocus moves focus into the sheet on open like
+    // the old Radix Sheet did (vaul turns that off by default; there are no
+    // text inputs here to pop up the keyboard).
+    <Drawer open={open} onOpenChange={onOpenChange} autoFocus>
       <DrawerContent
         className="pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-describedby={undefined}

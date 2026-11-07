@@ -3,23 +3,12 @@
 import "@/styles/globals.css";
 import React from "react";
 
+// Fonts are bundled locally (the `geist` package ships the font files), so
+// builds work offline. The display serif is a system stack (see globals.css,
+// --font-display) — next/font/google needs network at build time and breaks
+// Turbopack dev here, so it is intentionally not used.
 import { GeistSans } from "geist/font/sans";
-import { Fraunces, JetBrains_Mono } from "next/font/google";
-import { Toaster } from "sonner";
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-fraunces",
-  axes: ["opsz"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
-});
+import { GeistMono } from "geist/font/mono";
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,6 +20,7 @@ import { ClientSideSetupWizard } from "@/components/comp/setup-wizard/client-wra
 import { ImportProgressPill } from "@/components/comp/setup-wizard/import-progress-pill";
 import { ImportWizard } from "@/components/comp/import-wizard";
 import { FontLoader } from "@/components/ui/font-loader";
+import { Toaster } from "@/components/ui/sonner";
 import { SearchProvider } from "@/contexts/search-context";
 
 export default function RootLayout({
@@ -39,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         <title>Rensaiō</title>
         <meta name="description" content="Series Downloader" />
@@ -77,10 +67,10 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{
           __html: `
             /* Prevent any flash by setting initial colors immediately */
-            html { background: white; }
-            html.dark { background: hsl(20, 14.3%, 4.1%); }
+            html { background: #f5f1e8; }
+            html.dark { background: #15120e; }
             @media (prefers-color-scheme: dark) {
-              html:not(.light) { background: hsl(20, 14.3%, 4.1%); }
+              html:not(.light) { background: #15120e; }
             }
           `
         }} />
@@ -103,7 +93,7 @@ export default function RootLayout({
                       <ImportProgressPill />
                       <ImportWizard />
                       {children}
-                      <Toaster position="top-center" richColors />
+                      <Toaster />
                     </SearchProvider>
                   </ImportWizardProvider>
                 </SetupWizardProvider>

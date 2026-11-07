@@ -10,16 +10,17 @@ import {
 } from "@/components/ui/tooltip";
 import { usePermission } from "@/hooks/use-permission";
 import { useDownloadsMetrics } from "@/lib/api/hooks/useDownloads";
+import { cn } from "@/lib/utils";
 
 /**
- * Download status badges.
+ * Download status counters (active / queued / failed) linking to /queue.
  *
- * Restores the old sidebar's at-a-glance download counters (active / queued /
- * failed) that the redesigned command bar dropped. A single link to /queue with
- * three colour-coded counts. Hidden for users who can't see the queue.
+ * Paper look: a hairline-bordered segmented strip of mono counters — each
+ * segment is icon + number, colour only reinforces (the tooltip / aria label
+ * spells it out). Hidden for users who can't see the queue.
  *
- * `variant="bar"`  — compact horizontal cluster for the desktop command bar.
- * `variant="drawer"` — roomier row for the mobile nav drawer footer.
+ * `variant="bar"`    — compact strip for the desktop top bar.
+ * `variant="drawer"` — full-width strip for the phone More sheet.
  */
 export function DownloadStatus({
   variant = "bar",
@@ -35,67 +36,64 @@ export function DownloadStatus({
 
   const items = [
     {
-      label: "Active downloads",
+      key: "active",
+      label: "active",
       value: metrics.downloads,
       icon: Download,
-      color: "text-blue-500",
+      tone: metrics.downloads > 0 ? "text-accent-ink" : "text-ink-2",
     },
     {
-      label: "Queued downloads",
+      key: "queued",
+      label: "queued",
       value: metrics.queued,
       icon: Clock,
-      color: "text-yellow-500",
+      tone: "text-ink-2",
     },
     {
-      label: "Failed downloads",
+      key: "failed",
+      label: "failed",
       value: metrics.failed,
       icon: AlertTriangle,
-      color: "text-red-500",
+      tone: metrics.failed > 0 ? "text-bad" : "text-ink-2",
     },
   ];
 
-  if (variant === "drawer") {
-    return (
-      <Link
-        href="/queue"
-        className="flex items-center justify-around rounded-lg border border-border/60 bg-muted/30 px-2 py-2 transition-colors hover:bg-muted/50"
-      >
-        {items.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="flex items-center gap-1.5" title={label}>
-            <Icon className={`h-4 w-4 ${color}`} />
-            <span className={`text-xs font-semibold tabular-nums ${color}`}>
-              {value}
-            </span>
-          </div>
-        ))}
-      </Link>
-    );
-  }
+  const summary = `${metrics.downloads} active, ${metrics.queued} queued, ${metrics.failed} failed`;
+
+  const strip = (
+    <Link
+      href="/queue"
+      aria-label={`Download status: ${summary}. Open queue`}
+      className={cn(
+        "inline-flex items-stretch overflow-hidden rounded-md border border-rule bg-paper-1 transition-colors hover:border-rule-2",
+        variant === "bar" ? "h-9" : "h-11 w-full",
+      )}
+    >
+      {items.map(({ key, label, value, icon: Icon, tone }) => (
+        <span
+          key={key}
+          className={cn(
+            "flex items-center justify-center gap-1.5 px-2.5 font-mono text-[11.5px] font-semibold tabular-nums",
+            "[&+&]:border-l [&+&]:border-rule",
+            variant === "drawer" && "flex-1",
+            tone,
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          {value}
+          {variant === "drawer" && (
+            <span className="font-medium text-ink-3">{label}</span>
+          )}
+        </span>
+      ))}
+    </Link>
+  );
+
+  if (variant === "drawer") return strip;
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Link
-          href="/queue"
-          aria-label="Download status"
-          className="flex items-center gap-2 rounded-lg px-2 h-9 hover:bg-accent/60 transition-colors"
-        >
-          {items.map(({ label, value, icon: Icon, color }) => (
-            <span
-              key={label}
-              className="flex items-center gap-1"
-              title={label}
-            >
-              <Icon className={`h-4 w-4 ${color}`} />
-              <span
-                className={`text-xs font-semibold tabular-nums ${color}`}
-              >
-                {value}
-              </span>
-            </span>
-          ))}
-        </Link>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{strip}</TooltipTrigger>
       <TooltipContent side="bottom">
         {metrics.downloads} active · {metrics.queued} queued · {metrics.failed}{" "}
         failed

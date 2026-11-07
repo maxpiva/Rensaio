@@ -6,15 +6,13 @@ import { useAuthStatus } from '@/lib/api/hooks/useAuth';
 import { useSettings } from '@/lib/api/hooks/useSettings';
 import { type User } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Copy, RefreshCw } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Check, Copy, Mail, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { UsersDialogHeading, UsersErrorNote, usersFieldLabel } from './users-dialog-heading';
 
 interface InviteDialogProps {
   user: User;
@@ -38,7 +36,7 @@ export function InviteDialog({ user, open, onOpenChange }: InviteDialogProps) {
       setInviteMessage(null);
       setError('');
       setCopied(false);
-      handleGenerate();
+      void handleGenerate();
     }
   }, [open]);
 
@@ -67,33 +65,53 @@ export function InviteDialog({ user, open, onOpenChange }: InviteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Invite User: {user.username}</DialogTitle>
-          <DialogDescription>
-            Generate an invite message to share with the user. The message includes their unique
-            OPDS path and {authEnabled ? 'a link to set their password' : 'share instructions'}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">
-              {error}
+        <UsersDialogHeading
+          icon={Mail}
+          action="Invite User:"
+          subject={user.username}
+          description={
+            <>
+              Generate an invite message to share with the user. The message includes their unique
+              OPDS path and {authEnabled ? 'a link to set their password' : 'share instructions'}.
+            </>
+          }
+        />
+        <div className="space-y-4">
+          {error && <UsersErrorNote>{error}</UsersErrorNote>}
+
+          {!inviteMessage && !error && generateInvite.isPending && (
+            <div className="space-y-2" aria-busy="true">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-[136px] w-full" />
+              <span className="sr-only">Generating invite...</span>
             </div>
           )}
 
           {inviteMessage && (
             <div className="space-y-2">
-              <label htmlFor="invite-message" className="text-sm font-medium">Invite Message</label>
-              <textarea
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="invite-message" className={usersFieldLabel}>Invite Message</Label>
+                <span
+                  aria-live="polite"
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs font-medium text-ok transition-opacity',
+                    copied ? 'opacity-100' : 'opacity-0',
+                  )}
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  {copied ? 'Copied!' : ''}
+                </span>
+              </div>
+              <Textarea
                 id="invite-message"
                 value={inviteMessage}
                 readOnly
                 rows={6}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                className="font-mono text-[12.5px] leading-relaxed"
               />
               <div className="flex gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
-                  <Copy className="w-4 h-4 mr-2" />
+                  {copied ? <Check className="h-3.5 w-3.5 text-ok" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
                   {copied ? 'Copied!' : 'Copy to Clipboard'}
                 </Button>
               </div>
@@ -106,7 +124,7 @@ export function InviteDialog({ user, open, onOpenChange }: InviteDialogProps) {
           </Button>
           {inviteMessage && (
             <Button variant="secondary" onClick={handleGenerate} disabled={generateInvite.isPending}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${generateInvite.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${generateInvite.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
               {generateInvite.isPending ? 'Regenerating...' : 'Regenerate'}
             </Button>
           )}

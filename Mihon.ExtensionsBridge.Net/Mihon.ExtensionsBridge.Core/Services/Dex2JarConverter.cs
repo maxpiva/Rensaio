@@ -69,8 +69,14 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// <c>Object.&lt;init&gt;</c>). ART accepts it; the JVM verifier requires the direct superclass
         /// ("Call to wrong initialization method", MangaDex serialization DTOs). Unlike the 1.3.0 shape the
         /// receiver is the uninitialised <c>this</c>, not a NEW result.
+        /// Bumped to 1.5.2.1 for the transitive stripped-ctor synthesis (ported from upstream 34bf550,
+        /// where it is 1.5.5): the legacy `NEW Object` path synthesised only the requested class's ctor,
+        /// so `a extends c` (with `c`'s ctor also R8-stripped) emitted `a.<init> -> c.<init>()V` with no
+        /// `c.<init>` — `NoSuchMethodError: c.<init>()V` at `a.<clinit>`. It now plans the full
+        /// pass-through chain to `Object`, matching the general path. Extensions converted with 1.5.2
+        /// are re-run.
         /// </remarks>
-        public const string Version = "1.5.2";
+        public const string Version = "1.5.2.1";
 
         /// <summary>
         /// Classpath prefix used to redirect certain Android framework classes to compatibility replacements.

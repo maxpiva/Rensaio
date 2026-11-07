@@ -1061,12 +1061,22 @@ namespace Mihon.ExtensionsBridge.Core.Services
                     if (target == tin.desc || target == "java/lang/Object")
                         continue;
 
-                    // Legacy validated path: NEW java/lang/Object + ()V ctor rewrites directly.
+                    // Legacy path: NEW java/lang/Object + a no-arg ctor. Plan the FULL pass-through
+                    // chain to Object rather than synthesising only `target`'s ctor: when R8 also
+                    // stripped the intermediate superclasses' ()V ctors (e.g. `a extends c` where `c`
+                    // has no <init> at all), synthesising only `a.<init>` emitted
+                    // `a.<init> -> c.<init>()V` with no `c.<init>`, i.e. NoSuchMethodError: c.<init>()V.
+                    // Ported from upstream maxpiva/Rensaio 34bf550 (NetBrowser branch).
                     if (tin.desc == "java/lang/Object" && min.desc == "()V")
                     {
+                        var objChain = PlanConstructorChain(byName, target, "()V", "java/lang/Object",
+                            assumeExternalSuperHasCtor: true);
+                        if (objChain == null)
+                            continue; // cannot prove a complete chain to a concrete ctor: leave untouched
                         claimed[k] = true;
                         min.owner = target;
-                        ctorNeeded.Add((target, "()V", null));
+                        foreach (var link in objChain)
+                            ctorNeeded.Add(link);
                         tin.desc = target;
                         n++;
                         break;
@@ -1124,7 +1134,8 @@ namespace Mihon.ExtensionsBridge.Core.Services
         /// leaves the JAR before reaching <paramref name="provenOwner"/> (synthesis would be a guess).
         /// </summary>
         private static List<(string cls, string desc, string? superToCall)>? PlanConstructorChain(
-            Dictionary<string, ClassNode> byName, string target, string ctorDesc, string provenOwner)
+            Dictionary<string, ClassNode> byName, string target, string ctorDesc, string provenOwner,
+            bool assumeExternalSuperHasCtor = false)
         {
             var links = new List<(string cls, string desc, string? superToCall)>();
             string cur = target;
@@ -1133,7 +1144,14 @@ namespace Mihon.ExtensionsBridge.Core.Services
                 if (cur == provenOwner)
                     return links;
                 if (!byName.TryGetValue(cur, out var node))
-                    return null; // left the JAR before reaching the proven ctor owner
+                {
+                    // Left the JAR. For the legacy NEW-Object path the direct super is frequently a
+                    // LIBRARY class (android/java) that genuinely has the no-arg ctor, and the last
+                    // planned link already calls it — so accept the boundary rather than dropping a
+                    // valid repair. Other paths must reach the proven owner inside the JAR, so a guess
+                    // there is still refused.
+                    return assumeExternalSuperHasCtor ? links : null;
+                }
                 if (HasConstructor(node, ctorDesc))
                     return links; // already constructible from here
                 string sup = node.superName ?? "java/lang/Object";

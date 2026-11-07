@@ -152,7 +152,7 @@ export default function StatusPage() {
         folio="04"
         eyebrow="Status · Health report"
         title="Status"
-        accent="report."
+        accent="report"
         tate="診断"
         description={description}
       />

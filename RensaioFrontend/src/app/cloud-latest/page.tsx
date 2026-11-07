@@ -531,7 +531,7 @@ export default function CloudLatestPage() {
         folio="02"
         eyebrow="Just In · Cloud latest"
         title="Just"
-        accent="In."
+        accent="In"
         tate="新着"
         description="The newest chapters landing across your sources, freshest first."
         meta={[

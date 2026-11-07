@@ -228,7 +228,7 @@ export default function RootPage() {
           <div
             role="group"
             aria-label="Filter by status"
-            className="-mx-4 flex min-w-0 items-end gap-5 overflow-x-auto border-b border-rule px-4 [scrollbar-width:none] sm:-mx-0 sm:px-0 lg:flex-1 [&::-webkit-scrollbar]:hidden"
+            className="scroll-fade-x -mx-4 flex min-w-0 items-end gap-5 overflow-x-auto border-b border-rule px-4 max-sm:pr-8 [scrollbar-width:none] sm:-mx-0 sm:px-0 lg:flex-1 [&::-webkit-scrollbar]:hidden"
           >
             {statusTabs.map((t) => {
               const active = tab === t.value;
@@ -308,7 +308,7 @@ export default function RootPage() {
           </div>
         </div>
 
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+        <div className="scroll-fade-x -mx-4 flex items-center gap-2 overflow-x-auto px-4 max-sm:pr-8 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {/* Categories — only when categorized folders are enabled in settings */}
           {showCategoriesFilter && (
             <Select

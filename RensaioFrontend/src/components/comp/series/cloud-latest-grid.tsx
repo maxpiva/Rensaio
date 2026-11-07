@@ -39,10 +39,10 @@ const FIRST_ROW_PRIORITY_COUNT = 12;
 // options keep their own `text` class as a fallback for unknown widths.
 const CARD_TYPE: Record<string, { title: string; meta: string; showMeta: boolean; showStatus: boolean; compactTags: boolean }> = {
   "w-20": { title: "text-[10px] leading-tight", meta: "", showMeta: false, showStatus: false, compactTags: true },
-  "w-32": { title: "text-[12px] leading-snug", meta: "text-[10px]", showMeta: true, showStatus: false, compactTags: true },
-  "w-45": { title: "text-[13px] leading-snug", meta: "text-[10.5px]", showMeta: true, showStatus: true, compactTags: false },
-  "w-58": { title: "text-[14px] leading-snug", meta: "text-[11px]", showMeta: true, showStatus: true, compactTags: false },
-  "w-70": { title: "text-[15px] leading-snug", meta: "text-[11.5px]", showMeta: true, showStatus: true, compactTags: false },
+  "w-32": { title: "text-[13px] leading-[1.15]", meta: "text-[10px]", showMeta: true, showStatus: false, compactTags: true },
+  "w-45": { title: "text-[14.5px] leading-[1.15]", meta: "text-[10.5px]", showMeta: true, showStatus: true, compactTags: false },
+  "w-58": { title: "text-[16px] leading-[1.15]", meta: "text-[11px]", showMeta: true, showStatus: true, compactTags: false },
+  "w-70": { title: "text-[17px] leading-[1.15]", meta: "text-[11.5px]", showMeta: true, showStatus: true, compactTags: false },
 };
 
 interface CloudLatestGridProps {
@@ -177,7 +177,7 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
               </span>
 
               <span className="mt-2 block min-w-0 px-0.5">
-                <span className={cn("line-clamp-2 font-semibold text-ink [overflow-wrap:anywhere]", type.title)}>
+                <span className={cn("line-clamp-2 font-serif tracking-[-0.01em] text-ink [overflow-wrap:anywhere]", type.title)}>
                   {item.title}
                 </span>
                 {type.showMeta && (
@@ -185,7 +185,7 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
                     {hasChapter && (
                       <span className="shrink-0 font-semibold text-ink-2">Ch. {item.latestChapter}</span>
                     )}
-                    <span className="min-w-0 truncate">{item.provider}</span>
+                    <span className="min-w-0 truncate uppercase tracking-[0.06em]">{item.provider}</span>
                   </span>
                 )}
                 {type.showStatus && (

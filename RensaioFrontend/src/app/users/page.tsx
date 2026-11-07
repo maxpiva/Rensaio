@@ -116,7 +116,7 @@ export default function UsersPage() {
         title={<em>Users</em>}
         description="Manage user accounts, invite new users, and configure access permissions."
         actions={createDialog}
-        tate="利用者"
+        tate="会員"
       />
       <UserManager />
     </div>

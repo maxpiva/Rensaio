@@ -94,16 +94,16 @@ export function useManageSections(): SectionDef[] {
 
   const items: SectionDef[] = [];
   if (canManage) {
-    items.push({ name: "Mappings", href: "/external-mappings", icon: Database, hint: "External ids" });
+    items.push({ name: "Mappings", folio: "06", href: "/external-mappings", icon: Database, hint: "External ids" });
   }
   if (canOwner && settings?.contributionEnabled && settings?.contributionVerified) {
-    items.push({ name: "Contribution", href: "/contribution", icon: GitPullRequestArrow, hint: "Shared DB" });
+    items.push({ name: "Contribution", folio: "07", href: "/contribution", icon: GitPullRequestArrow, hint: "Shared DB" });
   }
   if (canAdmin) {
-    items.push({ name: "Users", href: "/users", icon: Users, hint: "Accounts" });
+    items.push({ name: "Users", folio: "08", href: "/users", icon: Users, hint: "Accounts" });
   }
   if (canOwner) {
-    items.push({ name: "Settings", href: "/settings", icon: Settings, hint: "Server" });
+    items.push({ name: "Settings", folio: "09", href: "/settings", icon: Settings, hint: "Server" });
   }
   return items;
 }
@@ -226,7 +226,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           <NavLabel>Manage</NavLabel>
           <nav aria-label="Manage" className="flex flex-col gap-px">
             {manage.map((s) => (
-              <SidebarNavItem key={s.href} item={s} onNavigate={onNavigate} />
+              <SidebarNavItem key={s.href} item={s} numbered onNavigate={onNavigate} />
             ))}
           </nav>
         </>

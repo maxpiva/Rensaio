@@ -2080,10 +2080,12 @@ export function SettingsManager({
       )}
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:mt-7 lg:grid-cols-[212px_minmax(0,1fr)] lg:gap-8">
-        {/* Section nav: horizontal sticky strip on phone, sticky rail on desktop */}
+        {/* Section nav: horizontal sticky strip on phone, sticky rail on desktop.
+            Its negative top/side insets mirror the page gutter in
+            app/settings/layout.tsx (pt-5 sm:pt-7, px-4 sm:px-8); change both together. */}
         <nav
           aria-label="Settings sections"
-          className="sticky top-[-16px] z-20 -mx-4 border-b border-rule bg-paper/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-paper/85 sm:-mx-6 sm:px-6 lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+          className="sticky top-[-20px] z-20 -mx-4 border-b border-rule bg-paper/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-paper/85 sm:top-[-28px] sm:-mx-8 sm:px-8 lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
         >
           <div
             ref={navScrollerRef}

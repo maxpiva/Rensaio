@@ -212,10 +212,21 @@ const QueueRowInner = function QueueRow({ item, callbacks }: QueueRowProps) {
     [item.id, callbacks],
   );
 
-  const providerScanlator = [item.provider, item.scanlator].filter(Boolean).join(' · ');
+  // Skip the scanlator when it just repeats the provider ("Asura Scans · Asura Scans").
+  const providerScanlator = [
+    item.provider,
+    item.scanlator && item.scanlator !== item.provider ? item.scanlator : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
-  // Downloading rows show "42%" instead of the "downloading" text label
-  const rightLabel = hasProgress ? `${Math.round(progressPct)}%` : item.displayTime;
+  // Downloading rows show "42%". Rows with no real time only carry their
+  // status word ("queued"), which the status tag already shows, so leave it out.
+  const rightLabel = hasProgress
+    ? `${Math.round(progressPct)}%`
+    : item.displayTime === item.status
+      ? ''
+      : item.displayTime;
 
   return (
     <li
@@ -249,8 +260,10 @@ const QueueRowInner = function QueueRow({ item, callbacks }: QueueRowProps) {
         {/* Phone: chapter + time on their own line so the title keeps the width */}
         <div className="mt-0.5 flex min-w-0 items-center gap-x-1.5 font-mono text-[11.5px] tabular-nums text-ink-3 md:hidden">
           {item.chapterLabel && <span className="min-w-0 truncate font-medium text-ink-2">{item.chapterLabel}</span>}
-          {item.chapterLabel && <span aria-hidden="true">·</span>}
-          <span className={cn('flex-none whitespace-nowrap', isDownloading && 'text-info')}>{rightLabel}</span>
+          {item.chapterLabel && rightLabel && <span aria-hidden="true">·</span>}
+          {rightLabel && (
+            <span className={cn('flex-none whitespace-nowrap', isDownloading && 'text-info')}>{rightLabel}</span>
+          )}
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
           <StatusTag status={item.status} className="md:hidden" />

@@ -490,13 +490,15 @@ export default function QueuePage() {
         folio="03"
         eyebrow="Queue · Downloads"
         title="The"
-        accent="Queue."
+        accent="Queue"
         tate="印刷"
         meta={
           showError
             ? 'Queue unavailable'
             : [
-                `${totalCount} item${totalCount === 1 ? '' : 's'}`,
+                unknownPills.has('all')
+                  ? '– items'
+                  : `${totalCount} item${totalCount === 1 ? '' : 's'}`,
                 `${downloadingCount} downloading`,
                 `${unknownPills.has('failed') ? '–' : counts.failed} failed`,
               ]

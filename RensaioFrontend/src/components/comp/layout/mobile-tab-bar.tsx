@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, LayoutGrid, Plus } from "lucide-react";
+import { Download, LayoutGrid, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import {
 import { LEVEL_LABEL, UserAvatar } from "@/components/comp/layout/user-menu";
 import { AddSeries } from "@/components/comp/series/add-series";
 import { useImportWizard } from "@/components/providers/import-wizard-provider";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { useAuth } from "@/contexts/auth-context";
 import { usePermission } from "@/hooks/use-permission";
 import { cn } from "@/lib/utils";
@@ -230,78 +230,87 @@ function MoreSheet({
   const isActive = useIsSectionActive();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="gap-0 px-3.5 pt-2.5 lg:hidden"
+    // A vaul drawer so the sheet can be dragged down to close; it draws the
+    // grab handle itself.
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent
+        className="pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-describedby={undefined}
       >
-        <div aria-hidden="true" className="mx-auto mb-1 h-[5px] w-10 rounded-full bg-rule-2" />
-        <SheetTitle className="sr-only">More</SheetTitle>
+        <DrawerTitle className="sr-only">More</DrawerTitle>
+        <DrawerClose className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <X className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </DrawerClose>
 
-        {user && (
-          <div className="flex items-center gap-[11px] px-1 pb-3 pt-2.5">
-            <UserAvatar
-              username={user.username}
-              avatarBase64={user.avatarBase64}
-              avatarContentType={user.avatarContentType}
-              className="h-10 w-10 text-[13px]"
-            />
-            <div className="min-w-0">
-              <div className="truncate font-serif text-lg leading-tight text-ink">
-                {user.username}
-              </div>
-              <div className="font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-ink-3">
-                {LEVEL_LABEL[user.level] ?? "User"}
+        {/* Scrolls inside the drawer on short screens. Not on DrawerContent:
+            vaul extends that element with a tall ::after for over-drag,
+            which would make it scrollable at every height. */}
+        <div className="min-h-0 overflow-y-auto px-3.5">
+          {user && (
+            <div className="flex items-center gap-[11px] px-1 pb-3 pt-2.5">
+              <UserAvatar
+                username={user.username}
+                avatarBase64={user.avatarBase64}
+                avatarContentType={user.avatarContentType}
+                className="h-10 w-10 text-[13px]"
+              />
+              <div className="min-w-0">
+                <div className="truncate font-serif text-lg leading-tight text-ink">
+                  {user.username}
+                </div>
+                <div className="font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-ink-3">
+                  {LEVEL_LABEL[user.level] ?? "User"}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-2 pb-2.5 pt-0.5">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => onOpenChange(false)}
-                aria-current={active ? "page" : undefined}
-                className="flex min-h-[96px] flex-col items-start gap-1 rounded-lg border border-rule bg-paper p-3 text-left transition-colors hover:border-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:border-accent-line aria-[current=page]:bg-accent-soft"
-              >
-                <Icon className="mb-auto h-5 w-5 text-accent-ink" aria-hidden="true" />
-                <b className="text-[13px] font-semibold leading-tight text-ink">{item.name}</b>
-                {item.hint ? (
-                  <span className="flex items-center gap-1 font-mono text-[10.5px] font-medium text-ink-3">
-                    {item.live ? <LiveDot /> : null}
-                    {item.hint}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
-          {canManage && (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false);
-                startWizard();
-              }}
-              className="flex min-h-[96px] flex-col items-start gap-1 rounded-lg border border-rule bg-paper p-3 text-left transition-colors hover:border-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Download className="mb-auto h-5 w-5 text-accent-ink" aria-hidden="true" />
-              <b className="text-[13px] font-semibold leading-tight text-ink">Import</b>
-              <span className="font-mono text-[10.5px] font-medium text-ink-3">From disk</span>
-            </button>
           )}
-        </div>
 
-        <div className="flex flex-col gap-2 border-t border-rule pt-3">
-          <DownloadStatus variant="drawer" />
-          <ExternalLinks />
+          <div className="grid grid-cols-3 gap-2 pb-2.5 pt-0.5">
+            {items.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => onOpenChange(false)}
+                  aria-current={active ? "page" : undefined}
+                  className="flex min-h-[96px] flex-col items-start gap-1 rounded-lg border border-rule bg-paper p-3 text-left transition-colors hover:border-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:border-accent-line aria-[current=page]:bg-accent-soft"
+                >
+                  <Icon className="mb-auto h-5 w-5 text-accent-ink" aria-hidden="true" />
+                  <b className="text-[13px] font-semibold leading-tight text-ink">{item.name}</b>
+                  {item.hint ? (
+                    <span className="flex items-center gap-1 font-mono text-[10.5px] font-medium text-ink-3">
+                      {item.live ? <LiveDot /> : null}
+                      {item.hint}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenChange(false);
+                  startWizard();
+                }}
+                className="flex min-h-[96px] flex-col items-start gap-1 rounded-lg border border-rule bg-paper p-3 text-left transition-colors hover:border-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Download className="mb-auto h-5 w-5 text-accent-ink" aria-hidden="true" />
+                <b className="text-[13px] font-semibold leading-tight text-ink">Import</b>
+                <span className="font-mono text-[10.5px] font-medium text-ink-3">From disk</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-rule pt-3">
+            <DownloadStatus variant="drawer" />
+            <ExternalLinks />
+          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

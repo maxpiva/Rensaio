@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
+import { Skeleton } from '@/components/ui/skeleton';
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  TooltipProvider 
+  TooltipProvider
 } from '@/components/ui/tooltip';
-import { Plus, Loader2, Heart, ExternalLink } from 'lucide-react';
+import { Plus, Loader2, ExternalLink, SearchX, TriangleAlert } from 'lucide-react';
 import Image from 'next/image';
 import { type LatestSeriesInfo, InLibraryStatus } from '@/lib/api/types';
 import { AddSeries } from '@/components/comp/series/add-series';
@@ -17,12 +17,16 @@ import ReactCountryFlag from "react-country-flag";
 import { usePermission } from '@/hooks/use-permission';
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { DynamicTags } from "@/components/comp/series/add-series/steps/confirm-series-step";
-import { LastChapterBadge } from "@/components/ui/last-chapter-badge";
-import { SeriesStatus } from "@/lib/api/types";
-import { getStatusDisplay } from "@/lib/utils/series-status";
 import { useRouter } from 'next/navigation';
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
+import { cn } from "@/lib/utils";
 import { CloudLatestDetailsModal } from '@/components/comp/series/cloud-latest-details-modal';
+import {
+  InLibraryTag,
+  SeriesStatusInline,
+  SeriesStatusTag,
+  formatFetchAge,
+} from '@/components/comp/series/cloud-latest-status';
 
 // Eagerly load only the first row of covers to protect LCP. The grid is
 // responsive (columns recomputed on resize), so we use a safe upper bound
@@ -31,35 +35,15 @@ import { CloudLatestDetailsModal } from '@/components/comp/series/cloud-latest-d
 // in sync with FIRST_ROW_PRIORITY_COUNT in list-series for consistency.
 const FIRST_ROW_PRIORITY_COUNT = 12;
 
-// Color array for the fetch date ring (31 colors from green to blue)
-const FETCH_DATE_COLORS = [
-  "00FF00", "22FF00", "44FF00", "66FF00", "88FF00", "AAFF00", "CCFF00", "FFFF00", 
-  "FFCC00", "FFAA00", "FF8800", "FF6600", "FF4400", "FF2200", "FF0000", "FF0022", 
-  "FF0044", "FF0066", "FF0088", "FF00AA", "FF00CC", "FF00FF", "CC00FF", "AA00FF", 
-  "8800FF", "6600FF", "4400FF", "2200FF", "0000FF", "2200FF", "4400FF"
-];
-
-// Function to get the ring color based on days since fetch date
-function getFetchDateRingColor(fetchDate?: string): string | null {
-  if (!fetchDate) return null;
-  
-  // Get current time in browser's local timezone, then convert to UTC
-  const nowLocal = new Date();
-  const nowUTC = new Date(nowLocal.getTime() + (nowLocal.getTimezoneOffset() * 60000));
-  
-  // fetchDate is already in UTC
-  const fetchUTC = new Date(fetchDate);
-  
-  // Calculate difference in UTC days
-  const nowUTCDay = Math.floor(nowUTC.getTime() / (1000 * 60 * 60 * 24));
-  const fetchUTCDay = Math.floor(fetchUTC.getTime() / (1000 * 60 * 60 * 24));
-  const diffDays = nowUTCDay - fetchUTCDay;
-  
-  // Return color index based on days (0-30), or null if over 31 days
-  if (diffDays < 0 || diffDays > 31) return null;
-  const colorIndex = Math.min(diffDays, 30);
-  return FETCH_DATE_COLORS[colorIndex] || null;
-}
+// Per-size type scale for the caption under each cover. The card-size
+// options keep their own `text` class as a fallback for unknown widths.
+const CARD_TYPE: Record<string, { title: string; meta: string; showMeta: boolean; showStatus: boolean; compactTags: boolean }> = {
+  "w-20": { title: "text-[10px] leading-tight", meta: "", showMeta: false, showStatus: false, compactTags: true },
+  "w-32": { title: "text-[12px] leading-snug", meta: "text-[10px]", showMeta: true, showStatus: false, compactTags: true },
+  "w-45": { title: "text-[13px] leading-snug", meta: "text-[10.5px]", showMeta: true, showStatus: true, compactTags: false },
+  "w-58": { title: "text-[14px] leading-snug", meta: "text-[11px]", showMeta: true, showStatus: true, compactTags: false },
+  "w-70": { title: "text-[15px] leading-snug", meta: "text-[11.5px]", showMeta: true, showStatus: true, compactTags: false },
+};
 
 interface CloudLatestGridProps {
   items: LatestSeriesInfo[];
@@ -79,6 +63,42 @@ interface CloudLatestCardProps {
   priority?: boolean;
 }
 
+function SourceChip({ item, onOpen }: { item: LatestSeriesInfo; onOpen?: () => void }) {
+  const flag = (
+    <ReactCountryFlag
+      countryCode={getCountryCodeForLanguage(item.language)}
+      svg
+      className="shrink-0"
+      style={{ width: '16px', height: '12px', borderRadius: '2px' }}
+      title={item.language.toUpperCase()}
+    />
+  );
+  const base = "inline-flex max-w-full items-center gap-1.5 rounded-[4px] border border-rule bg-paper-2 px-2 py-0.5 font-mono text-[11px] text-ink-2";
+  if (!onOpen) {
+    return (
+      <span className={base}>
+        {flag}
+        <span className="truncate">{item.provider}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={cn(base, "cursor-pointer transition-colors hover:border-accent-line hover:text-accent-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen();
+      }}
+      title="Click to open in the source"
+    >
+      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+      <span className="truncate">{item.provider}</span>
+      {flag}
+    </button>
+  );
+}
+
 const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, textSize, priority = false }) => {
   const [showAddSeries, setShowAddSeries] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -96,121 +116,103 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
     }
   };
 
-  // Get ring color based on fetch date
-  const ringColor = getFetchDateRingColor(item.fetchDate);
-  const showRing = ringColor !== null;
+  const type = CARD_TYPE[cardWidth] ?? { title: textSize, meta: "text-[11px]", showMeta: true, showStatus: true, compactTags: false };
+  const age = formatFetchAge(item.fetchDate);
+  const hasChapter = item.latestChapter !== undefined && item.latestChapter !== null && `${item.latestChapter}` !== "";
+  const accessibleName = [
+    item.title,
+    hasChapter ? `chapter ${item.latestChapter}` : null,
+    `on ${item.provider}`,
+    age ? age.long : null,
+    item.inLibrary === InLibraryStatus.InLibrary ? "in your library" : null,
+    item.inLibrary === InLibraryStatus.InLibraryButDisabled ? "in your library, disabled" : null,
+  ].filter(Boolean).join(", ");
 
   return (
     <>
-      <div
-        className={`relative ${cardWidth} rounded-md shadow group transition-all duration-200`}
-        style={{ 
-          aspectRatio: '4/6',
-          ...(showRing ? {
-            border: `1.5px solid #${ringColor}`,
-            borderRadius: '6px',
-            transition: 'all 0.2s ease-in-out',
-          } : {})
-        }}
-        onMouseEnter={(e) => {
-          if (showRing && ringColor) {
-            e.currentTarget.style.borderWidth = '2.5px';
-            e.currentTarget.style.boxShadow = `0 4px 20px rgba(${parseInt(ringColor.slice(0,2), 16)}, ${parseInt(ringColor.slice(2,4), 16)}, ${parseInt(ringColor.slice(4,6), 16)}, 0.3)`;
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (showRing) {
-            e.currentTarget.style.borderWidth = '1.5px';
-            e.currentTarget.style.boxShadow = '';
-          }
-        }}
-      >
+      <div data-latest-card className={`group relative ${cardWidth}`}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div 
-              className={`relative w-full h-full rounded-md overflow-hidden cursor-pointer hover:scale-105 transition-transform ${
-                showRing ? 'group-hover:shadow-lg' : ''
-              }`}
+            <button
+              type="button"
               onClick={handleCardClick}
+              aria-label={accessibleName}
+              className="block w-full cursor-pointer rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-
-              <Image
-                {...(priority ? { priority: true } : { loading: "lazy" as const })}
-                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
-                src={formatThumbnailUrl(item.thumbnailUrl)}
-                alt={item.title}
-                fill
-                className="rounded-md object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (target.src !== window.location.origin + '/rensaio.png') {
-                    target.src = '/rensaio.png';
-                  }
-                }}
-              />
-
-              {/* Status bar — 2px strip across the top edge, color-coded by
-                  item.status. Same language as the Library cards so the two
-                  surfaces feel cohesive. */}
-              <div
-                className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 ${getStatusDisplay(item.status).color}`}
-                aria-hidden
-              />
-
-              {/* Provider Badge - Top Left */}
-              <div className="absolute top-1 left-1 text-white text-xs font-semibold max-w-[70%] rounded shadow z-10">
-                <Badge 
-                  variant="secondary" 
-                  className="bg-black/70"
-                >
-                  {item.provider}
-                </Badge>
-              </div>
-              
-              {/* Last Chapter Badge */}
-              {item.latestChapter && (
-                <LastChapterBadge 
-                  lastChapter={item.latestChapter}
-                  status={item.status}
+              <span
+                className="relative block w-full overflow-hidden rounded-md bg-paper-2 shadow-paper ring-1 ring-rule transition-[transform,box-shadow] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-lift motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+                style={{ aspectRatio: '2/3' }}
+              >
+                <Image
+                  {...(priority ? { priority: true } : { loading: "lazy" as const })}
+                  sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 280px"
+                  src={formatThumbnailUrl(item.thumbnailUrl)}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== window.location.origin + '/rensaio.png') {
+                      target.src = '/rensaio.png';
+                    }
+                  }}
                 />
-              )}
-              
-              {/* In Library Heart Icon */}
-              {item.inLibrary !== InLibraryStatus.NotInLibrary && (
-                <div className="absolute top-7 right-1">
-                  <Heart  strokeWidth={0.5} stroke='#000'
-                    className={`h-8 w-8 ${
-                      item.inLibrary === InLibraryStatus.InLibrary 
-                        ? 'text-red-500 fill-red-500 ' 
-                        : 'text-yellow-500 fill-yellow-500'
-                    } drop-shadow-sm`}
-                  />
-                </div>
-              )}
-              <div className={`absolute bottom-0 left-0 w-full bg-black/60 text-white font-semibold px-2 py-1 rounded-b-md flex items-center justify-center ${textSize}`}>
-                {item.title}
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="max-w-xl min-w-[22rem] p-0 bg-card border shadow-lg relative">
-            <div className="p-4 space-y-2">
-              {/* Status Badge - Top Right */}
-              <div className="absolute top-4 right-4">
-                <Badge className={`text-xs ${getStatusDisplay(item.status).color}`}>
-                  {getStatusDisplay(item.status).text}
-                </Badge>
-              </div>
-              
-              {/* Last Chapter Badge and Title */}
-              <div className="flex items-center gap-2">
-                {item.latestChapter && (
-                  <Badge variant="secondary" className="shrink-0"> {item.latestChapter}
-                  </Badge>
+
+                {/* Fetch age — top left */}
+                {age && cardWidth !== "w-20" && (
+                  <span
+                    aria-hidden
+                    className="absolute left-1.5 top-1.5 z-10 rounded-[3px] bg-ink/80 px-1.5 py-[3px] font-mono text-[10px] font-semibold leading-none text-paper backdrop-blur-sm"
+                  >
+                    {age.short}
+                  </span>
                 )}
-                <h3 className="font-semibold text-base text-primary truncate">{item.title}</h3>
+
+                {/* Library membership — top right (icon + label) */}
+                {item.inLibrary !== InLibraryStatus.NotInLibrary && (
+                  <span aria-hidden className="absolute right-1.5 top-1.5 z-10">
+                    <InLibraryTag inLibrary={item.inLibrary} compact={type.compactTags} />
+                  </span>
+                )}
+              </span>
+
+              <span className="mt-2 block min-w-0 px-0.5">
+                <span className={cn("line-clamp-2 font-semibold text-ink [overflow-wrap:anywhere]", type.title)}>
+                  {item.title}
+                </span>
+                {type.showMeta && (
+                  <span className={cn("mt-1 flex min-w-0 items-baseline gap-1.5 font-mono text-ink-3", type.meta)}>
+                    {hasChapter && (
+                      <span className="shrink-0 font-semibold text-ink-2">Ch. {item.latestChapter}</span>
+                    )}
+                    <span className="min-w-0 truncate">{item.provider}</span>
+                  </span>
+                )}
+                {type.showStatus && (
+                  <SeriesStatusInline status={item.status} className={cn("mt-1 flex", type.meta)} />
+                )}
+              </span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="right"
+            className="relative w-[min(26rem,calc(100vw-2rem))] max-w-none rounded-lg border border-rule bg-paper-1 p-0 text-ink shadow-lift"
+          >
+            <div className="space-y-2.5 p-4 pb-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {hasChapter && (
+                    <div className="mb-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-accent-ink">
+                      Ch. {item.latestChapter}
+                      {age && <span className="text-ink-3"> · {age.long}</span>}
+                    </div>
+                  )}
+                  <h3 className="font-serif text-[19px] font-medium leading-tight text-ink">{item.title}</h3>
+                </div>
+                <SeriesStatusTag status={item.status} />
               </div>
-              {(item.author || item.artist) && (
-                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+              {(Boolean(item.author) || Boolean(item.artist)) && (
+                <div className="flex flex-wrap gap-x-2 text-[12.5px] text-ink-3">
                   {item.author && <span>by {item.author}</span>}
                   {item.artist && item.artist !== item.author && <span>art by {item.artist}</span>}
                 </div>
@@ -218,48 +220,17 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
               {item.genre && item.genre.length > 0 && (
                 <DynamicTags genres={item.genre} />
               )}
-              <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">
-                {item.description || "No description available"}
+              <p className="line-clamp-4 whitespace-pre-line text-[13px] leading-relaxed text-ink-2">
+                {item.description?.length ? item.description : "No description available"}
               </p>
-              <div className="flex flex-wrap gap-1 pt-1">
-                { item.url ? (
-                <span 
-                  className="inline-flex items-center gap-1 bg-accent text-accent-foreground rounded px-2 py-0.5 text-sm font-medium border border-border cursor-pointer hover:bg-accent/80 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (item.url) {
-                      window.open(item.url, '_blank', 'noopener,noreferrer');
-                    }
-                  }}
-                  title="Click to open in the source"
-                ><ExternalLink className="h-3 w-3" />
-                  {item.provider}
-                  <ReactCountryFlag
-                    countryCode={getCountryCodeForLanguage(item.language)}
-                    svg
-                    style={{ width: '16px', height: '12px', borderRadius: '2px', border: '1px solid #ccc' }}
-                    title={item.language.toUpperCase()}
-                  />
-                </span>
-
-                ) : (
-                <span 
-                  className="inline-flex items-center gap-1 bg-accent text-accent-foreground rounded px-2 py-0.5 text-sm font-medium border border-border">
-                  {item.provider}
-                  <ReactCountryFlag
-                    countryCode={getCountryCodeForLanguage(item.language)}
-                    svg
-                    style={{ width: '16px', height: '12px', borderRadius: '2px', border: '1px solid #ccc' }}
-                    title={item.language.toUpperCase()}
-                  />
-                </span>
-
-                )}
-
+              <div className="flex flex-wrap gap-1 pr-10 pt-0.5">
+                <SourceChip
+                  item={item}
+                  onOpen={item.url ? () => window.open(item.url, '_blank', 'noopener,noreferrer') : undefined}
+                />
               </div>
-           
             </div>
-            
+
             {/* Add Series Button — only if not in library */}
             {item.inLibrary === InLibraryStatus.NotInLibrary && canAddSeries && (
               <Button
@@ -270,13 +241,13 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
                   setShowAddSeries(true);
                 }}
                 title="Add to library"
+                aria-label="Add to library"
               >
                 <Plus className="h-4 w-4" />
               </Button>
             )}
           </TooltipContent>
         </Tooltip>
-
       </div>
 
       {/* Add Series Modal */}
@@ -299,6 +270,98 @@ const CloudLatestCard: React.FC<CloudLatestCardProps> = ({ item, cardWidth, text
   );
 };
 
+// ---------------------------------------------------------------------------
+// Day grouping. Groups are runs of consecutive items that share a local
+// calendar day, so the server's order is never changed.
+// ---------------------------------------------------------------------------
+
+type DayGroup = { key: string; date: Date | null; items: { item: LatestSeriesInfo; index: number }[] };
+
+function groupByDay(items: LatestSeriesInfo[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  items.forEach((item, index) => {
+    const d = item.fetchDate ? new Date(item.fetchDate) : null;
+    const valid = d && !Number.isNaN(d.getTime()) ? d : null;
+    const key = valid ? valid.toDateString() : "undated";
+    const last = groups[groups.length - 1];
+    if (last?.key === key) {
+      last.items.push({ item, index });
+    } else {
+      groups.push({ key, date: valid, items: [{ item, index }] });
+    }
+  });
+  return groups;
+}
+
+function dayLabel(date: Date | null): { lead: string | null; long: string; short: string } {
+  if (!date) return { lead: null, long: "Undated", short: "Undated" };
+  const today = new Date();
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((startOf(today) - startOf(date)) / 86400000);
+  const lead = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : null;
+  const long = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const short = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return { lead, long, short };
+}
+
+function DayDivider({ group }: { group: DayGroup }) {
+  const { lead, long, short } = dayLabel(group.date);
+  const total = group.items.length;
+  const inLibrary = group.items.filter(({ item }) => item.inLibrary !== InLibraryStatus.NotInLibrary).length;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-3">
+      <h3 className="shrink-0 font-semibold text-ink-2">
+        {lead && <span className="text-accent-ink">{lead}</span>}
+        {lead && <span aria-hidden> · </span>}
+        {lead && <span className="sr-only">, </span>}
+        <span className="hidden sm:inline">{long}</span>
+        <span className="sm:hidden">{short}</span>
+      </h3>
+      <span aria-hidden className="h-px min-w-4 flex-1 bg-rule" />
+      <span className="shrink-0 tabular-nums max-sm:order-last max-sm:basis-full max-sm:tracking-[0.1em]">
+        {total} {total === 1 ? "update" : "updates"}
+        {inLibrary > 0 && (
+          <>
+            <span aria-hidden> · </span>
+            <span className="sr-only">, </span>
+            {inLibrary}
+            <span> in your library</span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function GridNotice({
+  tone,
+  title,
+  body,
+}: {
+  tone: "empty" | "error";
+  title: string;
+  body: React.ReactNode;
+}) {
+  const Icon = tone === "error" ? TriangleAlert : SearchX;
+  return (
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className="mx-auto flex max-w-md flex-col items-center px-4 py-16 text-center"
+    >
+      <span
+        className={cn(
+          "mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border",
+          tone === "error" ? "border-bad/30 bg-bad-soft text-bad" : "border-rule bg-paper-1 text-ink-3",
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <p className="font-serif text-[22px] leading-tight text-ink">{title}</p>
+      <p className="mt-2 text-[13.5px] leading-relaxed text-ink-3 [overflow-wrap:anywhere]">{body}</p>
+    </div>
+  );
+}
+
 export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
   items,
   isLoading,
@@ -315,26 +378,30 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
   const [columns, setColumns] = useState(1);
 
   // Determine text size for the card title based on cardWidth
-  const textSize = cardWidthOptions.find(opt => opt.value === cardWidth)?.text || "text-sm";
+  const textSize = cardWidthOptions.find(opt => opt.value === cardWidth)?.text ?? "text-sm";
 
-  // Calculate columns on resize (same logic as main page)
+  const groups = useMemo(() => groupByDay(items), [items]);
+
+  // Calculate columns on resize (same logic as main page). Measured on the
+  // first day group; every group shares the same width and card size.
   useEffect(() => {
     function updateColumns() {
-      if (!gridRef.current) return;
-      const containerWidth = gridRef.current.offsetWidth;
+      const grid = gridRef.current?.querySelector<HTMLElement>("[data-latest-grid]");
+      if (!grid) return;
+      const containerWidth = grid.offsetWidth;
       // Dynamically measure the first card's width
-      const firstItem = gridRef.current.querySelector("div.relative");
+      const firstItem = grid.querySelector("[data-latest-card]");
       let actualItemWidth = 272; // Default width
       if (firstItem) {
         actualItemWidth = firstItem.getBoundingClientRect().width;
       }
       // Dynamically get the computed gap from CSS
-      const computedStyle = window.getComputedStyle(gridRef.current);
+      const computedStyle = window.getComputedStyle(grid);
       let actualGap = 16;
-      if (computedStyle.gap) {
-        actualGap = parseFloat(computedStyle.gap);
-      } else if (computedStyle.columnGap) {
+      if (computedStyle.columnGap && computedStyle.columnGap !== "normal") {
         actualGap = parseFloat(computedStyle.columnGap);
+      } else if (computedStyle.gap) {
+        actualGap = parseFloat(computedStyle.gap);
       }
       const cols = Math.max(1, Math.floor((containerWidth + actualGap) / (actualItemWidth + actualGap)));
       setColumns(cols);
@@ -357,7 +424,7 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
           onLoadMore();
         }
       },
-      { 
+      {
         threshold: 0.1,
         rootMargin: '200px' // Trigger 200px before the element becomes visible
       }
@@ -376,103 +443,107 @@ export const CloudLatestGrid: React.FC<CloudLatestGridProps> = ({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold text-red-600">Error loading latest series</p>
-          <p className="text-sm text-muted-foreground">{error.message}</p>
-        </div>
-      </div>
+      <GridNotice
+        tone="error"
+        title="Error loading latest series"
+        body={error.message}
+      />
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex flex-wrap gap-4" style={{ justifyContent: "space-evenly" }}>
-        {Array.from({ length: 20 }).map((_, i) => (
-          <div
-            key={i}
-            className={`relative ${cardWidth} rounded-md overflow-hidden`}
-            style={{ aspectRatio: "4/6" }}
-          >
-            <div className="w-full h-full skeleton-shimmer rounded-md" />
-          </div>
-        ))}
+      <div role="status" aria-label="Loading latest series">
+        <Skeleton className="mb-4 h-3 w-56" />
+        <div className="flex flex-wrap gap-x-4 gap-y-6" style={{ justifyContent: "space-evenly" }}>
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={i} className={`relative ${cardWidth}`}>
+              <Skeleton className="w-full rounded-md" style={{ aspectRatio: "2/3" }} />
+              <Skeleton className="mt-2 h-3 w-4/5" />
+              <Skeleton className="mt-1.5 h-2.5 w-1/2" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">No series found</p>
-          <p className="text-sm text-muted-foreground">Try adjusting your search or source filter</p>
-        </div>
-      </div>
+      <GridNotice
+        tone="empty"
+        title="No series found"
+        body="Try adjusting your search or source filter"
+      />
     );
   }
 
-  // Calculate dummy items (same logic as main page)
-  const remainder = columns > 1 ? items.length % columns : 0;
-  const dummyCount = remainder === 0 ? 0 : columns - remainder;
-
   return (
     <TooltipProvider delayDuration={2000}>
-      <div className="w-full">
-        <div 
-          className="flex flex-wrap gap-4" 
-          style={{ justifyContent: 'space-evenly' }}
-          ref={gridRef}
-        >
-          {items.map((item, index) => (
-            <CloudLatestCard
-              key={`${item.mihonId}-${index}`}
-              item={item}
-              cardWidth={cardWidth}
-              textSize={textSize}
-              // Eagerly load only the first row of covers to protect LCP. The
-              // grid is responsive (columns recomputed on resize), so we use a
-              // safe upper bound that covers the widest realistic first row.
-              // All other tiles lazy-load via next/image viewport detection.
-              priority={index < FIRST_ROW_PRIORITY_COUNT}
-            />
-          ))}
-          
-          {/* Dummy items for grid alignment */}
-          {Array.from({ length: dummyCount }).map((_, i) => (
-            <div 
-              key={`dummy-${i}`} 
-              className={cardWidth} 
-              style={{ 
-                visibility: "hidden", 
-                height: 0, 
-                margin: 0, 
-                padding: 0,
-                maxWidth: '17rem',
-                minWidth: 0
-              }} 
-            />
-          ))}
-        </div>
+      <div className="w-full" ref={gridRef}>
+        {groups.map((group, gi) => {
+          // Dummy items keep the last row of each group left-aligned.
+          const remainder = columns > 1 ? group.items.length % columns : 0;
+          const dummyCount = remainder === 0 ? 0 : columns - remainder;
+          return (
+            <section key={`${group.key}-${gi}`} className={gi > 0 ? "mt-10" : undefined}>
+              <DayDivider group={group} />
+              <div
+                data-latest-grid
+                className="flex flex-wrap gap-x-4 gap-y-6"
+                style={{ justifyContent: 'space-evenly' }}
+              >
+                {group.items.map(({ item, index }) => (
+                  <CloudLatestCard
+                    key={`${item.mihonId}-${index}`}
+                    item={item}
+                    cardWidth={cardWidth}
+                    textSize={textSize}
+                    // Eagerly load only the first row of covers to protect LCP.
+                    priority={index < FIRST_ROW_PRIORITY_COUNT}
+                  />
+                ))}
+
+                {/* Dummy items for grid alignment */}
+                {Array.from({ length: dummyCount }).map((_, i) => (
+                  <div
+                    key={`dummy-${i}`}
+                    className={cardWidth}
+                    style={{
+                      visibility: "hidden",
+                      height: 0,
+                      margin: 0,
+                      padding: 0,
+                      maxWidth: '17rem',
+                      minWidth: 0
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
         {/* Load More Trigger - Outside the flex container */}
         {hasMore && (
-          <div ref={loadMoreRef} className="flex items-center justify-center py-4 mt-6 min-h-[80px]">
+          <div ref={loadMoreRef} className="mt-8 flex min-h-[80px] items-center justify-center py-4">
             {isLoadingMore ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Loading more...</span>
+              <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3" role="status">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                <span>Loading more...</span>
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">Scroll to load more</div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3">Scroll to load more</div>
             )}
           </div>
         )}
 
         {/* End of Results */}
         {!hasMore && items.length > 0 && (
-          <div className="flex items-center justify-center py-4 mt-6">
-            <p className="text-sm text-muted-foreground">No more results</p>
+          <div className="mt-10 flex items-center gap-3 py-4 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
+            <span aria-hidden className="h-px flex-1 bg-rule" />
+            <p>No more results</p>
+            <span aria-hidden className="h-px flex-1 bg-rule" />
           </div>
         )}
       </div>

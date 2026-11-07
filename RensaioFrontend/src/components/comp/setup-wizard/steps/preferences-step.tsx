@@ -78,14 +78,19 @@ export function PreferencesStep({
     // Save preferences to wizard state
     setStepData(0, settings);
     // Note: Settings will be actually saved to backend when next step is triggered
-  };  return (
-    <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">
-        Configure your content preferences, download settings, and other preferences. 
+  };
+
+  // The wizard shell's content region is the only scroller, so the settings
+  // sections flow at full height here (no nested scroll box).
+  return (
+    <div className="space-y-5">
+      <p className="max-w-[68ch] text-[13.5px] leading-[1.55] text-ink-2">
+        Configure your content preferences, download settings, and other preferences.
         These settings can be changed later in the Settings page.
-      </div>      <div 
+      </p>
+      <div
         ref={containerRef}
-        className={`max-h-[60vh] overflow-y-auto max-[768px]:max-h-none max-[768px]:overflow-visible ${hasScrollbar ? 'pr-2' : ''}`}
+        className={hasScrollbar ? 'pr-2' : undefined}
       >
         <SettingsManager
           sections={[

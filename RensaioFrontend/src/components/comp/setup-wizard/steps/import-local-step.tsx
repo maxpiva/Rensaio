@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, AlertCircle, Circle } from "lucide-react";
+import { AlertCircle, Check, LoaderCircle } from "lucide-react";
 import {
   useSetupWizardScanLocalFiles,
   useSetupWizardInstallExtensions,
@@ -10,46 +10,8 @@ import {
   useSignalRProgress
 } from "@/lib/api/hooks/useSetupWizard";
 import { JobType, type SetupJobStatusValue } from "@/lib/api/types";
-
-// Custom hook to detect if scrollbar is visible
-function useScrollbarDetection() {
-  const [hasScrollbar, setHasScrollbar] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>(null);
-
-  useEffect(() => {
-    const checkScrollbar = () => {
-      if (containerRef.current) {
-        const { scrollHeight, clientHeight } = containerRef.current;
-        const newHasScrollbar = scrollHeight > clientHeight;
-        setHasScrollbar(prev => prev !== newHasScrollbar ? newHasScrollbar : prev);
-      }
-    };
-
-    const debouncedCheck = () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(checkScrollbar, 100);
-    };
-
-    checkScrollbar();
-
-    const observer = new ResizeObserver(debouncedCheck);
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  return { hasScrollbar, containerRef };
-}
+import { cn } from "@/lib/utils";
+import { PaperBar, PaperNote, PaperPanel, StepIntro } from "../paper";
 
 interface ImportLocalStepProps {
   setError: (error: string | null) => void;
@@ -76,6 +38,7 @@ interface ActionProgressProps {
 }
 
 function ActionProgress({
+  index,
   title,
   isActive,
   isCompleted,
@@ -83,28 +46,8 @@ function ActionProgress({
   progress,
   message,
   errorMessage
-}: ActionProgressProps) {
-  const cardClass = [
-    'iw-scan-card',
-    isActive    ? 'is-active' : '',
-    isCompleted ? 'is-done'   : '',
-    isFailed    ? 'is-failed' : '',
-  ].filter(Boolean).join(' ');
-
-  const iconClass = [
-    'iw-scan-icon',
-    isFailed    ? 'is-failed'  : '',
-    isCompleted ? 'is-done'    : '',
-    isActive    ? 'is-spinning': '',
-    (!isFailed && !isCompleted && !isActive) ? 'is-idle' : '',
-  ].filter(Boolean).join(' ');
-
-  const renderIcon = () => {
-    if (isFailed)    return <AlertCircle />;
-    if (isCompleted) return <CheckCircle />;
-    if (isActive)    return null; // spinner via CSS border animation
-    return <Circle />;
-  };
+}: ActionProgressProps & { index: number }) {
+  const isIdle = !isActive && !isCompleted && !isFailed;
 
   const pctLabel = isCompleted
     ? '100%'
@@ -115,29 +58,52 @@ function ActionProgress({
   const statusText = message ?? (isCompleted ? 'Complete' : isActive ? 'Running…' : 'Queued');
 
   return (
-    <div className={cardClass}>
-      <div className={iconClass}>
-        {renderIcon()}
-      </div>
+    <li
+      className={cn(
+        'grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-rule px-4 py-4 last:border-b-0 max-sm:gap-3 max-sm:px-3.5',
+        isActive && 'bg-paper',
+      )}
+      aria-current={isActive ? 'step' : undefined}
+    >
+      <span
+        className={cn(
+          'grid h-[34px] w-[34px] place-items-center rounded-full border-[1.5px] font-mono text-[12px] font-semibold transition-colors duration-300',
+          isCompleted && 'border-ok/35 bg-ok-soft text-ok',
+          isFailed && 'border-bad/35 bg-bad-soft text-bad',
+          isActive && 'border-accent-line bg-accent-soft text-accent-ink',
+          isIdle && 'border-rule-2 text-ink-3',
+        )}
+      >
+        {isFailed ? (
+          <AlertCircle className="h-4 w-4" aria-hidden />
+        ) : isCompleted ? (
+          <Check className="h-4 w-4 stroke-[2.4]" aria-hidden />
+        ) : isActive ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          index + 1
+        )}
+      </span>
 
-      <div className="iw-scan-body">
-        <div className="iw-scan-label">{title}</div>
-        <div className="iw-progress-bar">
-          <div
-            className="iw-progress-fill"
-            style={{ width: `${isCompleted ? 100 : progress}%` }}
-          />
-        </div>
-        <div className="iw-scan-status">{statusText}</div>
+      <div className="min-w-0">
+        <b className={cn('block text-[14px] font-semibold', isIdle ? 'text-ink-3' : 'text-ink')}>{title}</b>
+        <div className="mt-0.5 text-[12.5px] leading-[1.45] text-ink-3 [overflow-wrap:anywhere]">{statusText}</div>
+        <PaperBar
+          value={isCompleted ? 100 : progress}
+          size="lg"
+          tone={isFailed ? 'bad' : isCompleted ? 'ok' : 'accent'}
+          className="mt-2.5"
+          label={`${title} progress`}
+        />
         {errorMessage && (
-          <div className="iw-scan-error">{errorMessage}</div>
+          <div className="mt-2 font-mono text-[11.5px] leading-[1.5] text-bad [overflow-wrap:anywhere]">{errorMessage}</div>
         )}
       </div>
 
-      <div className={`iw-scan-pct${(!isActive && !isCompleted && !isFailed) ? ' is-muted' : ''}`}>
+      <span className={cn('font-mono text-[12px] font-semibold tabular-nums', isIdle ? 'text-ink-3' : 'text-ink')}>
         {pctLabel}
-      </div>
-    </div>
+      </span>
+    </li>
   );
 }
 
@@ -147,7 +113,6 @@ export function ImportLocalStep({ setError, setIsLoading, setCanProgress, onProc
   // Jobs that the server reports already completed (e.g. before a page reload) so the UI
   // shows them done instead of resetting to 0% (SignalR has no history after a reload).
   const [serverCompleted, setServerCompleted] = useState<Set<JobType>>(new Set());
-  const { hasScrollbar, containerRef } = useScrollbarDetection();
 
   // Use only refs for duplicate prevention - no state
   const completedJobsRef = useRef<Set<JobType>>(new Set());
@@ -325,47 +290,43 @@ export function ImportLocalStep({ setError, setIsLoading, setCanProgress, onProc
     setCanProgress(allActionsCompleted);
   }, [currentActionIndex, allActionsCompleted, setIsLoading, setCanProgress]);
 
+  // The wizard shell's content region scrolls; no nested scroll box here.
   return (
-    <div className="space-y-4">
-      <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+    <div className="max-w-[760px] space-y-4">
+      <StepIntro>
         Scanning local files, installing sources, and searching for series matches. All actions
         run automatically — this may take a few minutes depending on the number of series and sources.
-      </p>
+      </StepIntro>
 
-      <div
-        ref={containerRef}
-        className={`max-h-[60vh] p-0.5 overflow-y-auto max-[768px]:max-h-none max-[768px]:overflow-visible ${hasScrollbar ? 'pr-2' : ''}`}
-      >
-        <div className="space-y-3">
-          {actions.map((action, index) => {
-            const isCompleted = isJobCompleted(action.jobType) || serverCompleted.has(action.jobType);
-            const isActive = currentActionIndex === index && !isCompleted;
-            const isFailed = isJobFailed(action.jobType);
-            const progress = isCompleted ? 100 : getJobProgress(action.jobType);
-            const progressData = getProgressForJob(action.jobType);
+      <PaperPanel as="ol" aria-label="Import actions">
+        {actions.map((action, index) => {
+          const isCompleted = isJobCompleted(action.jobType) || serverCompleted.has(action.jobType);
+          const isActive = currentActionIndex === index && !isCompleted;
+          const isFailed = isJobFailed(action.jobType);
+          const progress = isCompleted ? 100 : getJobProgress(action.jobType);
+          const progressData = getProgressForJob(action.jobType);
 
-            return (
-              <ActionProgress
-                key={action.jobType}
-                title={action.title}
-                isActive={isActive}
-                isCompleted={isCompleted}
-                isFailed={isFailed}
-                progress={progress}
-                message={progressData?.message}
-                errorMessage={progressData?.errorMessage}
-              />
-            );
-          })}
+          return (
+            <ActionProgress
+              key={action.jobType}
+              index={index}
+              title={action.title}
+              isActive={isActive}
+              isCompleted={isCompleted}
+              isFailed={isFailed}
+              progress={progress}
+              message={progressData?.message}
+              errorMessage={progressData?.errorMessage}
+            />
+          );
+        })}
+      </PaperPanel>
 
-          {allActionsCompleted && (
-            <div className="iw-done-banner" style={{ marginTop: '4px' }}>
-              <CheckCircle />
-              <span>Series process completed successfully</span>
-            </div>
-          )}
-        </div>
-      </div>
+      {allActionsCompleted && (
+        <PaperNote tone="ok" role="status" className="motion-safe:animate-paper-rise">
+          <b>Series process completed successfully</b>
+        </PaperNote>
+      )}
     </div>
   );
 }

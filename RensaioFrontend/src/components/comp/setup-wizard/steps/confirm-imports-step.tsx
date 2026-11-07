@@ -6,19 +6,21 @@
  *   - ImportsContext.Provider
  *   - Tab state
  *   - <StickyHead> (filter tabs + reviewed counter)
- *   - <CardsScroll> (virtualized list via react-window, pink scrollbar, jump-to-top)
+ *   - <CardsScroll> (virtualized list via react-window, jump-to-top)
  *   - <CoverPopoverHost> (body-level singleton cover art popover)
  *
  * All sub-components live under ./confirm-imports/.
- * No business-logic changes — only JSX restructuring + new className hooks.
+ * No business-logic changes — Paper styling lives in the sub-components.
  */
 
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSetupWizardImports, useSetupWizardImportSeries, useSetupWizardUpdateImport } from "@/lib/api/hooks/useSetupWizard";
-import type { ImportInfo, SmallSeries } from "@/lib/api/types";
+import type { ImportInfo } from "@/lib/api/types";
 import { ImportStatus, Action } from "@/lib/api/types";
+import { LoaderCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { ImportsContext } from "./confirm-imports/imports-context";
 import { StickyHead, type TabId } from "./confirm-imports/sticky-head";
@@ -52,8 +54,8 @@ function useDualImportState(
       const p = prevGlobal[i];
       if (!g || !p) return true;
       if (g.action !== p.action || g.status !== p.status) return true;
-      const gSeries = g.series || [];
-      const pSeries = p.series || [];
+      const gSeries = g.series ?? [];
+      const pSeries = p.series ?? [];
       if (gSeries.length !== pSeries.length) return true;
       for (let j = 0; j < gSeries.length; j++) {
         const gS = gSeries[j];
@@ -216,13 +218,11 @@ export function ConfirmImportsStep({
   } = useDualImportState(globalImports, setGlobalImports);
 
   // ── Debounced per-import backend sync (unchanged logic) ───────────────────
-  const debounceTimeoutsRef = useRef<{
-    [path: string]: ReturnType<typeof setTimeout> | number;
-  }>({});
+  const debounceTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout> | number>>({});
   // Latest not-yet-synced payload per path, so a still-pending edit (e.g. a just-matched
   // item promoted to Add) can be flushed immediately when the user leaves this step
   // instead of being lost if they reach Finish before the 5s debounce fires.
-  const pendingUpdatesRef = useRef<{ [path: string]: ImportInfo }>({});
+  const pendingUpdatesRef = useRef<Record<string, ImportInfo>>({});
 
   const updateImportField = useCallback(
     (path: string, field: string, value: unknown, seriesIndex?: number) => {
@@ -258,7 +258,7 @@ export function ConfirmImportsStep({
           updateMutation.mutate(updatedImport, {
             onError: () => {
               setError("Failed to update import. Please try again.");
-              refetch();
+              void refetch();
             },
           });
           delete debounceTimeoutsRef.current[path];
@@ -287,7 +287,7 @@ export function ConfirmImportsStep({
         updateMutation.mutate(payload, {
           onError: () => {
             setError("Failed to update import. Please try again.");
-            refetch();
+            void refetch();
           },
         });
       }
@@ -395,16 +395,28 @@ export function ConfirmImportsStep({
   // ── Loading / empty guards ────────────────────────────────────────────────
   if (importsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-muted-foreground">Loading imports…</div>
+      <div className="flex flex-col gap-3.5" role="status" aria-label="Loading imports…">
+        <span className="sr-only">Loading imports…</span>
+        <Skeleton className="h-11 w-full" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex gap-4 rounded-md border border-rule bg-paper-1 p-4">
+            <Skeleton className="h-24 w-16 shrink-0" />
+            <div className="flex flex-1 flex-col gap-2.5">
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="mt-2 h-11 w-full" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   if (globalImports.length === 0) {
     return (
-      <div className="text-center space-y-4">
-        <div className="text-muted-foreground">Loading Series</div>
+      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-md border border-dashed border-rule-2 bg-paper-1 px-6 text-center" role="status">
+        <LoaderCircle className="h-5 w-5 animate-spin text-accent-ink" aria-hidden />
+        <span className="font-serif text-[20px] italic text-ink-2">Loading Series</span>
       </div>
     );
   }
@@ -413,7 +425,7 @@ export function ConfirmImportsStep({
   return (
     <ImportsContext.Provider value={{ updateImportField }}>
       <CoverPopoverHost>
-        <div className="iw-confirm-root">
+        <div className="flex min-h-0 flex-1 flex-col">
           <StickyHead
             activeTab={activeTab}
             onTabChange={setActiveTab}

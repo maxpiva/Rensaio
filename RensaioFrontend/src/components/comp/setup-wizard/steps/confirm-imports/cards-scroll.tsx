@@ -7,12 +7,10 @@
  *
  * Responsibilities:
  *   - Wraps the react-window VariableSizeList with AutoSizer so the list
- *     fills the available height (max ~52vh on desktop via CSS on .iw-scroll-wrap).
- *   - Applies a pink custom scrollbar via the className "iw-cards-scroll"
- *     passed to <List>.
- *   - Renders a bottom gradient fade overlay (.iw-scroll-fade).
- *   - Shows a floating jump-to-top button (.iw-jump-top) that appears
- *     after scrolling 100px down.
+ *     fills the height left in the wizard content area (min 280px).
+ *   - Thin rule-coloured scrollbar on the <List>.
+ *   - Renders a bottom fade into the paper.
+ *   - Shows a floating jump-to-top pill that appears after scrolling 100px down.
  *   - Registers its inner scroll element with the CoverPopoverHost so the
  *     popover is dismissed on scroll.
  *   - Shows an empty-state message when items.length === 0.
@@ -30,7 +28,7 @@ import { VariableSizeList as List } from "react-window";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { ChevronUp } from "lucide-react";
 import type { ImportInfo } from "@/lib/api/types";
-import { ImportStatus, Action } from "@/lib/api/types";
+import type { ImportStatus, Action } from "@/lib/api/types";
 import { ImportCard, type ImportCardProps } from "./import-card";
 import { useCoverPopoverScrollRef } from "./cover-popover";
 
@@ -105,7 +103,7 @@ const Row = React.memo(function Row({
         // The Row wrapper carries padding-bottom for inter-card spacing, so we MUST
         // measure border-box to allocate the correct row height in react-window.
         const blockSize =
-          entry.borderBoxSize && entry.borderBoxSize[0]
+          entry.borderBoxSize?.[0]
             ? entry.borderBoxSize[0].blockSize
             : entry.contentRect.height;
         if (blockSize !== data.getItemSize(index)) {
@@ -120,7 +118,7 @@ const Row = React.memo(function Row({
   return (
     <div style={style} className="pr-2">
       {/*
-        Inter-card gap lives HERE on the measured wrapper — not inside .iw-import-card.
+        Inter-card gap lives HERE on the measured wrapper — not inside the card.
         react-window's ResizeObserver reads this div's contentRect.height, so the
         14px padding-bottom adds real allocated space between rows AND sits OUTSIDE
         the card's frame (the card background does not extend through it), producing
@@ -218,6 +216,8 @@ export const CardsScroll = React.memo(function CardsScroll({
   }, [items]);
 
   const getItemSize = useCallback(
+    // A 0 measurement (detached row) also falls back to the default height.
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     (index: number) => itemHeights.current.get(index) || DEFAULT_ITEM_HEIGHT,
     []
   );
@@ -297,11 +297,13 @@ export const CardsScroll = React.memo(function CardsScroll({
   };
 
   // ── Empty state ───────────────────────────────────────────────────────────
+  // The list fills whatever height the wizard content area has left under the
+  // sticky head (min 280px), so the cards scroll here, not the page.
   if (items.length === 0) {
     return (
-      <div className="iw-scroll-wrap">
-        <div className="iw-scroll-empty">
-          <span>{emptyMessage}</span>
+      <div className="relative flex min-h-[280px] flex-1 flex-col">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-rule-2 bg-paper-1 px-6 py-10 text-center">
+          <span className="font-serif text-[20px] italic leading-tight text-ink-2">{emptyMessage}</span>
         </div>
       </div>
     );
@@ -309,8 +311,8 @@ export const CardsScroll = React.memo(function CardsScroll({
 
   // ── Virtualized list ──────────────────────────────────────────────────────
   return (
-    <div className="iw-scroll-wrap">
-      <div className="iw-cards-height-container">
+    <div className="relative flex min-h-[280px] flex-1 flex-col">
+      <div className="min-h-0 w-full flex-1">
         <AutoSizer>
           {({ height, width }) => (
             <List
@@ -321,7 +323,7 @@ export const CardsScroll = React.memo(function CardsScroll({
               itemSize={getItemSize}
               itemData={itemData}
               overscanCount={5}
-              className="iw-cards-scroll"
+              className="overscroll-contain [scrollbar-color:var(--rule-2)_transparent] [scrollbar-width:thin]"
               outerRef={outerRef}
             >
               {Row}
@@ -330,17 +332,22 @@ export const CardsScroll = React.memo(function CardsScroll({
         </AutoSizer>
       </div>
 
-      {/* Bottom gradient fade */}
-      <div className="iw-scroll-fade" aria-hidden="true" />
+      {/* Bottom fade into the paper */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-paper to-transparent"
+        aria-hidden="true"
+      />
 
       {/* Jump-to-top button */}
       {showJumpTop && (
         <button
-          className="iw-jump-top"
+          type="button"
+          className="absolute bottom-4 left-1/2 z-[3] inline-flex h-9 -translate-x-1/2 items-center gap-[7px] rounded-full bg-ink px-3.5 text-[12.5px] font-semibold text-paper shadow-lift outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-paper motion-safe:animate-paper-rise max-sm:h-11"
           onClick={handleJumpTop}
           aria-label="Jump to top"
         >
-          <ChevronUp width={14} height={14} />
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          <span aria-hidden>Top</span>
         </button>
       )}
     </div>
@@ -374,7 +381,7 @@ export const CardsScroll = React.memo(function CardsScroll({
       prev.status !== next.status ||
       prev.action !== next.action ||
       prev.title !== next.title ||
-      (prev.series || []).length !== (next.series || []).length
+      (prev.series ?? []).length !== (next.series ?? []).length
     ) {
       return false;
     }

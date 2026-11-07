@@ -29,6 +29,8 @@ import React, {
 import { createPortal } from "react-dom";
 import Image from "next/image";
 
+import { cn } from "@/lib/utils";
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const POP_W = 120;
@@ -152,9 +154,12 @@ export function CoverPopoverHost({ children }: { children: React.ReactNode }) {
       {mounted &&
         createPortal(
           <div
-            className={`iw-cover-pop${state.visible ? " is-visible" : ""}`}
+            className={cn(
+              "pointer-events-none fixed left-0 top-0 z-[9999] overflow-hidden rounded-[4px] bg-paper-2 shadow-lift ring-1 ring-rule-2 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+              state.visible ? "visible scale-100 opacity-100" : "invisible scale-[0.94] opacity-0",
+            )}
             aria-hidden="true"
-            style={{ left: state.left, top: state.top }}
+            style={{ left: state.left, top: state.top, width: POP_W, height: POP_H }}
           >
             {state.url ? (
               <Image
@@ -162,18 +167,16 @@ export function CoverPopoverHost({ children }: { children: React.ReactNode }) {
                 alt={state.label}
                 width={POP_W}
                 height={POP_H}
-                className="iw-cover-pop__img"
                 unoptimized
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
-              <div
-                className="iw-cover-pop__placeholder"
-                style={{ width: "100%", height: "100%" }}
-              />
+              <div className="h-full w-full bg-paper-3" />
             )}
             {state.label && (
-              <em className="iw-cover-pop__label">{state.label}</em>
+              <em className="absolute inset-x-0 bottom-0 truncate bg-ink/85 px-2 py-1 font-mono text-[10px] font-medium not-italic uppercase tracking-[0.08em] text-paper">
+                {state.label}
+              </em>
             )}
           </div>,
           document.body

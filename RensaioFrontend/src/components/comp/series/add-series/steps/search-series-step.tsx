@@ -124,11 +124,13 @@ export function SearchSeriesStep({
   // for it left the first search idle and showing "No results found". Use
   // that first selection until the debounce has caught up once; after that,
   // every change (including the user's early edits) is debounced normally.
-  const debounceCaughtUpRef = React.useRef(false);
-  if (debouncedSelectedSources.length > 0) debounceCaughtUpRef.current = true;
-  const effectiveSelectedSources = debounceCaughtUpRef.current
-    ? debouncedSelectedSources
-    : initialSelectedSources;
+  // "Caught up" means the debounce no longer holds the pre-load placeholder
+  // array (compared by identity, so a settled empty selection still counts).
+  const preLoadSourcesRef = React.useRef(selectedSources);
+  const effectiveSelectedSources =
+    debouncedSelectedSources === preLoadSourcesRef.current
+      ? initialSelectedSources
+      : debouncedSelectedSources;
 
   const searchSourcesParam = canBrowseSources
     ? (effectiveSelectedSources.length > 0 ? effectiveSelectedSources : undefined)

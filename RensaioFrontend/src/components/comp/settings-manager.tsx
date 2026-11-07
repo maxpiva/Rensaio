@@ -1227,7 +1227,7 @@ function SecuritySection({
             Let users log in with an identity provider such as Authentik, Keycloak,
             Pocket ID or Authelia. Requires authentication to be enabled. Register a
             client at your provider with the callback URL{" "}
-            <code className="font-mono">
+            <code className="font-mono [overflow-wrap:anywhere]">
               {(localSettings.externalDomain || "https://your-rensaio").replace(/\/$/, "")}
               /api/auth/oidc/callback
             </code>

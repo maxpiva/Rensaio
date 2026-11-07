@@ -1,17 +1,10 @@
-.grid-justify-evenly {
-  justify-content: space-evenly;
-}
-
+/* Library cover grid: rows are distributed evenly; the last row is padded with
+   invisible filler items (see ListSeries) so it stays aligned to the columns. */
 .grid-auto-fit {
   justify-content: space-evenly;
 }
 
 .grid-auto-fit > * {
-  max-width: 17rem;
+  max-width: 17.5rem;
   min-width: 0;
-}
-
-.gaid-auto-fit::after  {
-  content: "";
-flex-basis: 30%
 }

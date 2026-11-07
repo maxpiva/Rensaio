@@ -12,8 +12,10 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { PageLayout } from "@/components/comp/layout/page-layout";
-import { RibbonSlot } from "@/components/comp/layout/ribbon";
+import { PageLayout, PageHeader } from "@/components/comp/layout/page-layout";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, ArrowDownUp, Folder, Plug, Plus, Tag } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { SeriesStatus, type SeriesInfo } from "@/lib/api/types";
 import { useLibrary } from "@/lib/api/hooks/useSeries";
 import { useSettings } from "@/lib/api/hooks/useSettings";
@@ -42,6 +44,7 @@ function getSessionValue(key: string, fallback: string | null): string | null {
 export default function RootPage() {
   const queryClient = useQueryClient();
   const canBrowseSources = usePermission('canBrowseSources');
+  const canAddSeries = usePermission('canAddSeries');
   const { data: settings } = useSettings();
 
   const handleRefresh = useCallback(async () => {
@@ -182,172 +185,196 @@ export default function RootPage() {
     };
   }, [deduplicatedLibrary, selectedGenre, selectedProvider, selectedCategory]);
 
+  const totalCount = deduplicatedLibrary?.length ?? 0;
+
+  const statusTabs: { value: string; label: string; count: number; marker: React.ReactNode }[] = [
+    { value: "all", label: "All", count: allCount, marker: null },
+    { value: "active", label: "Active", count: activeCount, marker: <span className="h-1.5 w-1.5 rounded-full bg-ok" /> },
+    { value: "paused", label: "Paused", count: pausedCount, marker: <span className="h-1.5 w-1.5 rounded-full bg-warn" /> },
+    { value: "unassigned", label: "Unassigned", count: unassignedCount, marker: <AlertTriangle className="h-3.5 w-3.5 text-warn" /> },
+    { value: "completed", label: "Completed", count: completedCount, marker: <span className="h-1.5 w-1.5 rounded-full bg-info" /> },
+  ];
+
+  const filterTrigger =
+    "h-9 w-auto min-w-[9.5rem] max-w-[14rem] shrink-0 gap-2 text-[13px] caret-transparent max-sm:h-11 [&>span]:flex [&>span]:items-center [&>span]:gap-2";
+
   return (
-    <PageLayout mainClassName="p-2 pb-16 sm:px-6 sm:py-4 sm:pb-4 overflow-y-auto">
-      {/* Library contextual ribbon — portaled into the command bar */}
-      <RibbonSlot>
-        <div className="flex w-full items-center gap-2">
-          {/* Status filter — single Select with status-colored dots and live
-              count badges. Mirrors the cinematic-galaxy mockup's "Status: All"
-              dropdown while keeping our existing Select primitive. */}
-          <div className="w-36 sm:w-44 shrink-0">
-            <Select value={tab} onValueChange={setTab}>
-              <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
+    <PageLayout mainClassName="overflow-y-auto px-4 pt-5 pb-8 sm:px-6 sm:pt-6 lg:px-9 lg:pt-7">
+      <PageHeader
+        folio="01"
+        eyebrow="Library"
+        title="The"
+        accent="Library"
+        meta={[
+          `${totalCount} series`,
+          orderBy === "lastChange" ? "Newest change first" : "A → Z",
+        ]}
+        tate="書庫"
+        actions={
+          <AddSeries
+            triggerButton={
+              <Button className="gap-1.5 max-sm:h-11">
+                <Plus className="h-4 w-4" />
+                {canAddSeries ? "Add Series" : "Request Series"}
+              </Button>
+            }
+          />
+        }
+      />
+
+      {/* Filter bar — status tabs, sort + card size, then the facet selects. */}
+      <div className="mb-5 space-y-3 sm:mb-6 motion-safe:animate-paper-rise [animation-delay:60ms]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
+          <div
+            role="group"
+            aria-label="Filter by status"
+            className="-mx-4 flex min-w-0 items-end gap-5 overflow-x-auto border-b border-rule px-4 [scrollbar-width:none] sm:-mx-0 sm:px-0 lg:flex-1 [&::-webkit-scrollbar]:hidden"
+          >
+            {statusTabs.map((t) => {
+              const active = tab === t.value;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setTab(t.value)}
+                  aria-pressed={active}
+                  className={cn(
+                    "relative -mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-[13.5px] font-semibold transition-colors outline-none max-sm:min-h-11",
+                    "focus-visible:text-ink focus-visible:[box-shadow:0_2px_0_0_var(--accent-ink)]",
+                    active
+                      ? "border-accent-ink text-ink"
+                      : "border-transparent text-ink-3 hover:border-rule-2 hover:text-ink-2",
+                  )}
+                >
+                  {t.marker}
+                  <span>{t.label}</span>
+                  {t.count > 0 && (
+                    <span
+                      className={cn(
+                        "-translate-y-1 font-mono text-[10.5px] font-medium tabular-nums",
+                        active ? "text-accent-ink" : "text-ink-3",
+                      )}
+                    >
+                      {t.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select value={orderBy} onValueChange={setOrderBy}>
+              <SelectTrigger
+                aria-label="Sort order"
+                className="h-9 min-w-0 flex-1 gap-2 caret-transparent max-sm:h-11 sm:w-[11.5rem] sm:flex-none [&>span]:flex [&>span]:items-center [&>span]:gap-2"
+              >
+                <ArrowDownUp className="hidden h-3.5 w-3.5 shrink-0 text-ink-3 sm:block" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
-                    <span>All</span>
-                    {allCount > 0 && (
-                      <span className="text-white/40 text-[11px]">{allCount}</span>
-                    )}
-                  </span>
-                </SelectItem>
-                <SelectItem value="active">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                    <span>Active</span>
-                    {activeCount > 0 && (
-                      <span className="text-white/40 text-[11px]">{activeCount}</span>
-                    )}
-                  </span>
-                </SelectItem>
-                <SelectItem value="paused">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                    <span>Paused</span>
-                    {pausedCount > 0 && (
-                      <span className="text-white/40 text-[11px]">{pausedCount}</span>
-                    )}
-                  </span>
-                </SelectItem>
-                <SelectItem value="unassigned">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    <span>Unassigned</span>
-                    {unassignedCount > 0 && (
-                      <span className="text-white/40 text-[11px]">{unassignedCount}</span>
-                    )}
-                  </span>
-                </SelectItem>
-                <SelectItem value="completed">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    <span>Completed</span>
-                    {completedCount > 0 && (
-                      <span className="text-white/40 text-[11px]">{completedCount}</span>
-                    )}
-                  </span>
-                </SelectItem>
+                <SelectItem value="title">Alphabetical</SelectItem>
+                <SelectItem value="lastChange">Last Change</SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
+            <div
+              role="radiogroup"
+              aria-label="Card size"
+              className="flex shrink-0 items-center rounded-md border border-rule-2 bg-paper-1 p-0.5"
+            >
+              {cardWidthOptions.map((opt) => {
+                const active = cardWidth === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={`Card size ${opt.label}`}
+                    title={`Card size ${opt.label}`}
+                    onClick={() => setCardWidth(opt.value)}
+                    className={cn(
+                      "inline-flex h-8 min-w-8 items-center justify-center rounded-[4px] px-1.5 font-mono text-[11px] font-semibold tracking-wide transition-colors outline-none max-sm:h-10 max-sm:min-w-10",
+                      "focus-visible:ring-[3px] focus-visible:ring-accent-soft",
+                      active ? "bg-ink text-paper" : "text-ink-3 hover:bg-hover hover:text-ink",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {/* Categories — only when categorized folders are enabled in settings */}
           {showCategoriesFilter && (
-            <div className="w-32 sm:w-40 shrink-0">
-              <Select
-                value={selectedCategory ?? "__ALL__"}
-                onValueChange={(value) => setSelectedCategory(value === "__ALL__" ? null : value)}
-              >
-                <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__ALL__">All Categories</SelectItem>
-                  {categories.filter((category) => category).map((category) => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Genres */}
-          <div className="w-32 sm:w-40 shrink-0">
             <Select
-              value={selectedGenre ?? "__ALL__"}
-              onValueChange={(value) => setSelectedGenre(value === "__ALL__" ? null : value)}
+              value={selectedCategory ?? "__ALL__"}
+              onValueChange={(value) => setSelectedCategory(value === "__ALL__" ? null : value)}
             >
-              <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                <SelectValue placeholder="All Genres" />
+              <SelectTrigger aria-label="Category" className={cn(filterTrigger, selectedCategory && "border-accent-line bg-accent-soft")}>
+                <Folder className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__ALL__">All Genres</SelectItem>
-                {genres.filter((genre) => genre).map((genre) => (
-                  <SelectItem key={genre} value={genre}>{genre}</SelectItem>
+                <SelectItem value="__ALL__">All Categories</SelectItem>
+                {categories.filter((category) => category).map((category) => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          )}
+
+          {/* Genres */}
+          <Select
+            value={selectedGenre ?? "__ALL__"}
+            onValueChange={(value) => setSelectedGenre(value === "__ALL__" ? null : value)}
+          >
+            <SelectTrigger aria-label="Genre" className={cn(filterTrigger, selectedGenre && "border-accent-line bg-accent-soft")}>
+              <Tag className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+              <SelectValue placeholder="All Genres" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__ALL__">All Genres</SelectItem>
+              {genres.filter((genre) => genre).map((genre) => (
+                <SelectItem key={genre} value={genre}>{genre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Sources (permission-gated) */}
           {canBrowseSources && (
-            <div className="w-32 sm:w-48 shrink-0">
-              <Select
-                value={selectedProvider ?? "__ALL__"}
-                onValueChange={(value) => setSelectedProvider(value === "__ALL__" ? null : value)}
-              >
-                <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="All Sources" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__ALL__">All Sources</SelectItem>
-                  {providers.filter((provider) => provider).map((provider) => (
-                    <SelectItem key={provider} value={provider}>{provider}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select
+              value={selectedProvider ?? "__ALL__"}
+              onValueChange={(value) => setSelectedProvider(value === "__ALL__" ? null : value)}
+            >
+              <SelectTrigger aria-label="Source" className={cn(filterTrigger, selectedProvider && "border-accent-line bg-accent-soft")}>
+                <Plug className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                <SelectValue placeholder="All Sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__ALL__">All Sources</SelectItem>
+                {providers.filter((provider) => provider).map((provider) => (
+                  <SelectItem key={provider} value={provider}>{provider}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
-
-          {/* Right cluster: sort, card size, add series */}
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <div className="w-28 sm:w-32">
-              <Select value={orderBy} onValueChange={setOrderBy}>
-                <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="title">Alphabetical</SelectItem>
-                  <SelectItem value="lastChange">Last Change</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-14 sm:w-16">
-              <Select value={cardWidth} onValueChange={setCardWidth}>
-                <SelectTrigger className="w-full !pr-2 caret-transparent h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="Card Size" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cardWidthOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="h-8">
-              <AddSeries />
-            </div>
-          </div>
         </div>
-      </RibbonSlot>
+      </div>
 
       <PullToRefresh onRefresh={handleRefresh}>
-        <div className="flex flex-wrap gap-2 sm:gap-4">
-          <ListSeries
-            filterFn={filterFn}
-            sortFn={sortFn}
-            cardWidth={cardWidth}
-            cardWidthOptions={cardWidthOptions}
-            orderBy={orderBy}
-            library={deduplicatedLibrary}
-          />
-        </div>
+        <ListSeries
+          filterFn={filterFn}
+          sortFn={sortFn}
+          cardWidth={cardWidth}
+          cardWidthOptions={cardWidthOptions}
+          orderBy={orderBy}
+          library={deduplicatedLibrary}
+        />
       </PullToRefresh>
     </PageLayout>
   );

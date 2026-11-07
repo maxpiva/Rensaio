@@ -19,7 +19,14 @@ import { userService } from "@/lib/api/services/userService";
 import { UserIcon, Upload } from "lucide-react";
 import { fetchGravatarBase64 } from "@/lib/gravatar";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Save, Loader2, GripVertical, BadgeCheck, AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/comp/layout/page-header";
+import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
+import {
+  Plus, X, Save, Loader2, GripVertical, BadgeCheck, AlertCircle, AlertTriangle,
+  HardDrive, Download, CalendarClock, Globe, GitBranch, ShieldCheck, Network,
+  Lock, HeartHandshake, Cpu, Undo2, CheckCircle2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useSettings,
@@ -819,7 +826,7 @@ function FlareSolverrSection({
       </div>
 
       {localSettings.flareSolverrEnabled && (
-        <div className="border-muted space-y-4 border-l-2 pl-6">
+        <div className="space-y-4 border-l-2 border-accent-line pl-4 sm:pl-6">
           <div>
             <Label htmlFor="flaresolverr-url">FlareSolverr URL</Label>
             <Input
@@ -928,7 +935,7 @@ function SocksSettingsSection({
         <Label htmlFor="socks-proxy-enabled">Enable SOCKS Proxy</Label>
       </div>
 
-      <div className="border-muted space-y-4 border-l-2 pl-6">
+      <div className="space-y-4 border-l-2 border-accent-line pl-4 sm:pl-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label htmlFor="socks-proxy-version">SOCKS Version</Label>
@@ -1043,7 +1050,7 @@ function ProfileSection({
   const [localError, setLocalError] = useState('');
 
   const avatarSrc = user?.avatarBase64
-    ? `data:${user.avatarContentType || 'image/png'};base64,${user.avatarBase64}`
+    ? `data:${user.avatarContentType?.length ? user.avatarContentType : 'image/png'};base64,${user.avatarBase64}`
     : null;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1097,10 +1104,10 @@ function ProfileSection({
             </div>
           </div>
           {localError && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950 rounded-md">{localError}</div>
+            <div className="rounded-md border border-bad/25 bg-bad-soft p-3 text-sm text-bad" role="alert">{localError}</div>
           )}
           {updateMutation.isSuccess && (
-            <div className="p-3 text-sm text-green-600 bg-green-50 dark:bg-green-950 rounded-md">Avatar updated!</div>
+            <div className="rounded-md border border-ok/25 bg-ok-soft p-3 text-sm text-ok">Avatar updated!</div>
           )}
           <div className="space-y-2">
             <Label>Upload Image</Label>
@@ -1164,6 +1171,8 @@ function SecuritySection({
         <Label htmlFor="external-domain">External Domain</Label>
         <Input
           id="external-domain"
+          aria-invalid={externalDomainError ? true : undefined}
+          aria-describedby={externalDomainError ? "external-domain-error" : undefined}
           value={localSettings.externalDomain || ""}
           onChange={(e) =>
             setLocalSettings((prev) => ({
@@ -1174,15 +1183,15 @@ function SecuritySection({
           placeholder="https://rensaio.example.com"
         />
         {externalDomainError && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-            <span>⚠</span>
+          <p id="external-domain-error" role="alert" className="flex items-center gap-1.5 text-xs font-medium text-bad">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>{externalDomainError}</span>
           </p>
         )}
         <p className="text-xs text-muted-foreground">
           Base URL used for invite links and OPDS URLs. Fill this in when Rensaiō is
           accessed from outside your local network (e.g. a reverse proxy). When left
-          empty, links are generated from the address you're currently using to reach
+          empty, links are generated from the address you&apos;re currently using to reach
           the app (e.g. http://192.168.x.x:9833), so users on your LAN get working links.
         </p>
       </div>
@@ -1202,7 +1211,7 @@ function SecuritySection({
       </div>
 
       {authEnabled && (
-        <div className="border-muted space-y-3 border-l-2 pl-6">
+        <div className="space-y-3 border-l-2 border-accent-line pl-4 sm:pl-6">
           <div className="flex items-center space-x-2">
             <Switch
               id="oidc-enabled"
@@ -1225,13 +1234,13 @@ function SecuritySection({
             .
           </p>
           {oidcLocked && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+            <p className="rounded-md bg-warn-soft px-2.5 py-1.5 text-xs text-warn">
               These values come from appsettings.json or environment variables and
               cannot be changed here.
             </p>
           )}
           {localSettings.oidcConfigError && (
-            <p className="text-xs text-red-600 dark:text-red-400">
+            <p className="rounded-md bg-bad-soft px-2.5 py-1.5 text-xs text-bad" role="alert">
               The Oidc configuration could not be read, so single sign-on is off:{" "}
               {localSettings.oidcConfigError}
             </p>
@@ -1420,7 +1429,7 @@ function ContributionSection({
       </div>
 
       {isEnabled && (
-        <div className="border-muted space-y-4 border-l-2 pl-6">
+        <div className="space-y-4 border-l-2 border-accent-line pl-4 sm:pl-6">
           {/* Contributor Id */}
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -1535,7 +1544,7 @@ function CefAdvancedSection({
       </div>
 
       {open && (
-        <div className="border-muted space-y-4 border-l-2 pl-6 pt-2">
+        <div className="space-y-4 border-l-2 border-accent-line pl-4 sm:pl-6 pt-2">
           <div className="flex items-center space-x-2">
             <Switch
               id="cef-enabled"
@@ -1727,6 +1736,38 @@ interface SettingsManagerProps {
   className?: string;
 }
 
+/**
+ * Settings page (Paper): sections are listed in this order in the section nav.
+ * Only used when the manager renders as the full Settings page (not inside the
+ * setup wizard, which picks its own `sections`).
+ */
+const PAGE_SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "storage", label: "Storage", icon: HardDrive },
+  { id: "download-settings", label: "Download Settings", icon: Download },
+  { id: "schedule-tasks", label: "Schedule Tasks", icon: CalendarClock },
+  { id: "content-preferences", label: "Content Preferences", icon: Globe },
+  { id: "mihon-repositories", label: "Mihon Repositories", icon: GitBranch },
+  { id: "flaresolverr", label: "FlareSolverr", icon: ShieldCheck },
+  { id: "socks-settings", label: "Socks", icon: Network },
+  { id: "security", label: "Security", icon: Lock },
+  { id: "contribution", label: "Contribution", icon: HeartHandshake },
+  { id: "advanced-cef", label: "Advanced", icon: Cpu },
+];
+
+function SaveButtonContent({ pending, label }: { pending: boolean; label: string }) {
+  return pending ? (
+    <>
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Saving...
+    </>
+  ) : (
+    <>
+      <Save className="h-4 w-4" />
+      {label}
+    </>
+  );
+}
+
 export function SettingsManager({
   sections,
   showSaveButton = true,
@@ -1746,6 +1787,42 @@ export function SettingsManager({
   const { toast } = useToast();
   const router = useRouter();
   const isInitialMount = React.useRef(true);
+
+  // Full-page mode: section nav + one section at a time + unsaved bar.
+  const pageMode = !useLocalState && !sections;
+  const [activeId, setActiveId] = useState<string>("storage");
+  const navScrollerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLElement>(null);
+
+  // Deep link: /settings#security opens that section.
+  React.useEffect(() => {
+    if (!pageMode) return;
+    const fromHash = window.location.hash.replace("#", "");
+    if (PAGE_SECTION_NAV.some((s) => s.id === fromHash)) setActiveId(fromHash);
+  }, [pageMode]);
+
+  // Keep the active chip visible in the phone's horizontal section strip.
+  React.useEffect(() => {
+    if (!pageMode) return;
+    const scroller = navScrollerRef.current;
+    const chip = scroller?.querySelector<HTMLElement>(`[data-section="${activeId}"]`);
+    if (!scroller || !chip) return;
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
+    const target = chip.offsetLeft - (scroller.clientWidth - chip.offsetWidth) / 2;
+    scroller.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [activeId, pageMode]);
+
+  const selectSection = React.useCallback((id: string) => {
+    setActiveId(id);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${id}`);
+    }
+    // If the section header has scrolled away, bring it back under the nav.
+    const panel = panelRef.current;
+    if (panel && panel.getBoundingClientRect().top < 0) {
+      panel.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, []);
 
   const onSettingsChangeRef = React.useRef(onSettingsChange);
   React.useEffect(() => {
@@ -1788,38 +1865,46 @@ export function SettingsManager({
     if (localSettings && onSettingsChangeRef.current) {
       onSettingsChangeRef.current(localSettings);
     }
-  }, [localSettings]); // Show loading state while settings are being fetched (only in server state mode)
-  if (!useLocalState && (settingsLoading || !localSettings)) {
-    return (
-      <div className={`space-y-6 ${className}`}>
-        {showHeader && (
+  }, [localSettings]);
+
+  const loadingState = (
+    <div className={cn(pageMode ? "pb-6" : "space-y-6", className)}>
+      {showHeader &&
+        (pageMode ? (
+          <PageHeader
+            folio="09"
+            eyebrow="Manage · Settings"
+            title={<em>{title}</em>}
+            description={description}
+            tate="設定"
+          />
+        ) : (
           <div>
-            <h1 className="text-3xl font-bold">{title}</h1>
-            <p className="text-muted-foreground">{description}</p>
+            <h1 className="font-serif text-3xl">{title}</h1>
+            <p className="text-ink-2">{description}</p>
           </div>
+        ))}
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 py-12 text-sm text-ink-3",
+          pageMode && "mt-6 rounded-lg border border-dashed border-rule-2",
         )}
-        <div className="flex items-center justify-center py-12">
-          <div className="text-muted-foreground">Loading settings...</div>
-        </div>
+        role="status"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        Loading settings...
       </div>
-    );
+    </div>
+  );
+
+  // Show loading state while settings are being fetched (only in server state mode)
+  if (!useLocalState && (settingsLoading || !localSettings)) {
+    return loadingState;
   }
 
   // In local state mode, show loading only if we're waiting for server data and have no initial settings
   if (useLocalState && !initialSettings && settingsLoading && !localSettings) {
-    return (
-      <div className={`space-y-6 ${className}`}>
-        {showHeader && (
-          <div>
-            <h1 className="text-3xl font-bold">{title}</h1>
-            <p className="text-muted-foreground">{description}</p>
-          </div>
-        )}
-        <div className="flex items-center justify-center py-12">
-          <div className="text-muted-foreground">Loading settings...</div>
-        </div>
-      </div>
-    );
+    return loadingState;
   }
 
   if (!localSettings) {
@@ -1831,6 +1916,7 @@ export function SettingsManager({
 
     // Validate externalDomain: if non-empty, it must have a schema
     if (localSettings.externalDomain && !/^https?:\/\//.test(localSettings.externalDomain)) {
+      if (pageMode) selectSection("security");
       toast({
         title: "Validation Error",
         description: "External Domain is missing the URL schema (e.g. https://)",
@@ -1869,76 +1955,251 @@ export function SettingsManager({
     }
   };
 
-  // Filter sections based on props
-  const sectionsToShow = sections
-    ? AVAILABLE_SECTIONS.filter((section) => sections.includes(section.id))
-    : AVAILABLE_SECTIONS;
+  const isPending = updateSettingsMutation.isPending;
+
+  // ── Wizard / embedded mode: unchanged stacked cards ──────────────────
+  if (!pageMode) {
+    // Filter sections based on props
+    const sectionsToShow = sections
+      ? AVAILABLE_SECTIONS.filter((section) => sections.includes(section.id))
+      : AVAILABLE_SECTIONS;
+
+    return (
+      <div className={`space-y-6 ${className}`}>
+        {showHeader && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-ink-2">{description}</p>
+            {showSaveButton && (
+              <Button onClick={handleSave} disabled={isPending}>
+                <SaveButtonContent pending={isPending} label="Save Settings" />
+              </Button>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-6">
+          {sectionsToShow.map((section) => {
+            const SectionComponent = section.component;
+            return (
+              <Card key={section.id}>
+                <CardHeader>
+                  <CardTitle>{section.title}</CardTitle>
+                  <CardDescription>{section.description}</CardDescription>
+                </CardHeader>
+                <SectionComponent
+                  localSettings={localSettings}
+                  setLocalSettings={handleSettingsUpdate}
+                />
+              </Card>
+            );
+          })}
+        </div>
+
+        {showFooterSaveButton && (
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={isPending}>
+              <SaveButtonContent pending={isPending} label="Save Settings" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Full Settings page ───────────────────────────────────────────────
+  const navItems = PAGE_SECTION_NAV.filter((n) =>
+    AVAILABLE_SECTIONS.some((s) => s.id === n.id),
+  );
+  const activeIndex = Math.max(0, navItems.findIndex((n) => n.id === activeId));
+  const activeNav = navItems[activeIndex] ?? PAGE_SECTION_NAV[0]!;
+  const activeSection =
+    AVAILABLE_SECTIONS.find((s) => s.id === activeNav.id) ?? AVAILABLE_SECTIONS[0]!;
+  const ActiveComponent = activeSection.component;
+
+  const isDirty =
+    !!settings && JSON.stringify(settings) !== JSON.stringify(localSettings);
+  const externalDomainError = getExternalDomainError(localSettings.externalDomain || "");
+  const sectionHasError = (id: string) => id === "security" && !!externalDomainError;
+
+  const discardChanges = () => {
+    if (settings) setLocalSettings(settings);
+  };
+
+  const unsavedBar = (
+    <div className="flex items-center gap-2 rounded-lg border border-rule-2 bg-paper-1/95 py-1.5 pl-3 pr-1.5 shadow-lift backdrop-blur sm:gap-3 sm:pl-4 lg:max-w-[420px] lg:py-2 lg:pr-2">
+      <span
+        aria-hidden
+        className={cn("h-2 w-2 shrink-0 rounded-full", externalDomainError ? "bg-bad" : "bg-warn")}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold text-ink">Unsaved changes</p>
+        {externalDomainError ? (
+          <button
+            type="button"
+            onClick={() => selectSection("security")}
+            className="block max-w-full truncate text-left text-xs text-bad underline-offset-2 hover:underline"
+          >
+            Security: {externalDomainError}
+          </button>
+        ) : (
+          <p className="hidden truncate text-xs text-ink-3 sm:block">
+            Save to apply them to the server.
+          </p>
+        )}
+      </div>
+      <Button variant="ghost" size="sm" onClick={discardChanges} disabled={isPending}>
+        <Undo2 className="h-4 w-4" aria-hidden />
+        Discard
+      </Button>
+      <Button size="sm" onClick={handleSave} disabled={isPending}>
+        <SaveButtonContent pending={isPending} label="Save" />
+      </Button>
+    </div>
+  );
+
+  // Focused fields scroll clear of the sticky section strip and unsaved bar.
+  const focusClearance =
+    "[&_:is(input,textarea,button,[role=switch],[role=combobox],[role=radio],[role=checkbox])]:scroll-mt-40 lg:[&_:is(input,textarea,button,[role=switch],[role=combobox],[role=radio],[role=checkbox])]:scroll-mt-24 [&_:is(input,textarea,button,[role=switch],[role=combobox],[role=radio],[role=checkbox])]:scroll-mb-28";
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={cn("relative", className)}>
       {showHeader && (
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-muted-foreground">{description}</p>
-          </div>
-          {showSaveButton && (
-            <Button
-              onClick={handleSave}
-              disabled={updateSettingsMutation.isPending}
-            >
-              {updateSettingsMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Settings
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+        <PageHeader
+          folio="09"
+          eyebrow="Manage · Settings"
+          title={<em>{title}</em>}
+          description={description}
+          meta={[`${navItems.length} sections`, isDirty ? "unsaved changes" : "all saved"]}
+          tate="設定"
+          actions={
+            showSaveButton ? (
+              <Button onClick={handleSave} disabled={isPending}>
+                <SaveButtonContent pending={isPending} label="Save Settings" />
+              </Button>
+            ) : undefined
+          }
+        />
       )}
 
-      <div className="grid gap-6">
-        {sectionsToShow.map((section) => {
-          const SectionComponent = section.component;
-          return (
-            <Card key={section.id}>
-              <CardHeader>
-                <CardTitle>{section.title}</CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </CardHeader>
-              <SectionComponent
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:mt-7 lg:grid-cols-[212px_minmax(0,1fr)] lg:gap-8">
+        {/* Section nav: horizontal sticky strip on phone, sticky rail on desktop */}
+        <nav
+          aria-label="Settings sections"
+          className="sticky top-[-16px] z-20 -mx-4 border-b border-rule bg-paper/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-paper/85 sm:-mx-6 sm:px-6 lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+        >
+          <div
+            ref={navScrollerRef}
+            className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] lg:flex-col lg:gap-0.5 lg:overflow-visible [&::-webkit-scrollbar]:hidden"
+          >
+            {navItems.map((item, i) => {
+              const Icon = item.icon;
+              const active = item.id === activeNav.id;
+              const hasError = sectionHasError(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  data-section={item.id}
+                  aria-current={active ? "true" : undefined}
+                  onClick={() => selectSection(item.id)}
+                  className={cn(
+                    "group relative flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-3 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "lg:min-h-[34px] lg:w-full lg:border-transparent lg:px-2.5",
+                    active
+                      ? "border-accent-line bg-accent-soft text-accent-ink lg:border-transparent lg:bg-paper-2 lg:text-ink"
+                      : "border-rule bg-paper-1 text-ink-2 hover:bg-hover hover:text-ink lg:bg-transparent",
+                  )}
+                >
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute -left-[14px] top-1.5 bottom-1.5 hidden w-[3px] rounded-r bg-primary lg:block"
+                    />
+                  )}
+                  <span className="hidden w-5 font-mono text-[10.5px] text-ink-3 lg:inline">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <Icon
+                    className={cn("h-4 w-4", active ? "text-accent-ink" : "text-ink-3 group-hover:text-ink-2")}
+                    aria-hidden
+                  />
+                  <span className="lg:truncate">{item.label}</span>
+                  {hasError && (
+                    <>
+                      <AlertTriangle className="ml-auto h-3.5 w-3.5 text-bad" aria-hidden />
+                      <span className="sr-only">(has an error)</span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {/* Phone/tablet: unsaved bar lives in the sticky strip, above the
+              form, so it never covers fields or collides with the dock. */}
+          {isDirty && (
+            <div role="region" aria-label="Unsaved changes" className="mt-2 lg:hidden">
+              {unsavedBar}
+            </div>
+          )}
+        </nav>
+
+        <div className="min-w-0 pb-6 lg:pb-0">
+          <section
+            ref={panelRef}
+            key={activeSection.id}
+            aria-labelledby={`settings-h-${activeSection.id}`}
+            className={cn(
+              "animate-paper-rise scroll-mt-20 overflow-hidden rounded-lg border border-rule bg-card shadow-paper",
+              focusClearance,
+            )}
+          >
+            <header className="relative border-b border-rule px-4 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
+              <p className="paper-eyebrow mb-2">
+                Section {String(activeIndex + 1).padStart(2, "0")} of{" "}
+                {String(navItems.length).padStart(2, "0")}
+              </p>
+              <h2
+                id={`settings-h-${activeSection.id}`}
+                className="font-serif text-[26px] leading-[1.1] tracking-[-0.02em] text-ink sm:text-[30px]"
+              >
+                {activeSection.title}
+              </h2>
+              <p className="mt-1.5 max-w-[62ch] text-[13px] leading-relaxed text-ink-2">
+                {activeSection.description}
+              </p>
+            </header>
+            <div className="pt-5 sm:pt-6 [&>div]:max-sm:px-4">
+              <ActiveComponent
                 localSettings={localSettings}
                 setLocalSettings={handleSettingsUpdate}
               />
-            </Card>
-          );
-        })}
+            </div>
+          </section>
+
+          {showFooterSaveButton && !isDirty && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pb-6">
+              <p className="flex items-center gap-1.5 text-xs text-ink-3">
+                <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-hidden />
+                No unsaved changes
+              </p>
+              <Button variant="outline" onClick={handleSave} disabled={isPending}>
+                <SaveButtonContent pending={isPending} label="Save Settings" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {showFooterSaveButton && (
-        <div className="flex items-center justify-between">
-          <div />
-          <Button
-            onClick={handleSave}
-            disabled={updateSettingsMutation.isPending}
-          >
-            {updateSettingsMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Settings
-              </>
-            )}
-          </Button>
+      {/* Desktop: the unsaved-changes bar sticks to the bottom of the scroll
+          area, left-aligned so it clears the activity dock. It is the last
+          thing in the flow, so the end of the form always scrolls above it. */}
+      {isDirty && (
+        <div
+          role="region"
+          aria-label="Unsaved changes"
+          className="sticky bottom-0 z-30 mt-4 hidden pb-4 pt-2 lg:block lg:pl-[244px]"
+        >
+          {unsavedBar}
         </div>
       )}
     </div>

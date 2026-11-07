@@ -437,7 +437,13 @@ export default function QueuePage() {
   );
 
   // Queued rows sit at the top of this section, so name them in the heading.
-  const historyTitle = historyVisible.some((i) => i.status === 'queued') ? 'Up next & history' : 'History';
+  const queuedInHistory = historyVisible.filter((i) => i.status === 'queued').length;
+  const historyTitle =
+    queuedInHistory === 0
+      ? 'History'
+      : queuedInHistory === historyVisible.length
+        ? 'Up next'
+        : 'Up next & history';
 
   // --- Bucket into groups ---
   const buckets = useMemo(() => {

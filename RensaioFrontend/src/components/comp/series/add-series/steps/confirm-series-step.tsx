@@ -13,7 +13,9 @@ import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
-import { ChevronDown } from "lucide-react";
+import { BookmarkCheck, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 // ─── DynamicTags — kept as a named export for external consumers ─────────────
 export function DynamicTags({ genres }: { genres: string[] }) {
@@ -176,7 +178,7 @@ export function ConfirmSeriesStep({
             series.provider === selectableSeries[0].provider &&
             series.lang === selectableSeries[0].lang &&
             series.scanlator === selectableSeries[0].scanlator;
-          return { ...series, isSelected: isFirstSelectable || false };
+          return { ...series, isSelected: Boolean(isFirstSelectable) };
         });
         return { ...prev, fullSeries: updatedSeries };
       });
@@ -360,340 +362,281 @@ export function ConfirmSeriesStep({
     (s) => s.isSelected && !s.isUnselectable,
   ).length;
 
-  return (
-    <div className="confirm-scroll">
-      <div className="flex flex-col gap-4">
-        {/* Title bar */}
-        {displayTitle && (
-          <div className="confirm-title">{displayTitle}</div>
-        )}
+  const selectableCount = validFullSeries.filter((s) => !s.isUnselectable).length;
+  const initials = displayTitle
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 
-        {/* Two-column layout */}
-        <div className="cmd-confirm">
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-1 sm:px-7" data-vaul-no-drag>
+      {/* Title bar */}
+      {displayTitle && (
+        <h3 className="mb-5 font-serif text-[24px] font-semibold leading-[1.08] tracking-[-0.02em] text-ink [overflow-wrap:anywhere] sm:text-[30px]">
+          {displayTitle}
+        </h3>
+      )}
+
+      {/* Two-column layout: meta panel | sources */}
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-[168px_minmax(0,1fr)]">
         {/* ── Left: meta panel ── */}
-        <div>
-          {/* Cover */}
-          <div className="confirm-cv">
+        <aside className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-4 gap-y-3 sm:block">
+          {/* Cover, set with an offset print shadow */}
+          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[3px] bg-paper-3 shadow-print">
             {coverUrl ? (
               <Image
                 src={coverUrl}
                 alt={displayTitle}
                 fill
-                sizes="(max-width: 640px) 240px, 180px"
+                sizes="(max-width: 640px) 88px, 168px"
                 className="object-cover"
               />
             ) : (
-              <div className="cv-faint">
-                {displayTitle
-                  .split(" ")
-                  .slice(0, 2)
-                  .map((w) => w[0])
-                  .join("")
-                  .toUpperCase()}
+              <div className="flex h-full w-full items-center justify-center font-serif text-3xl italic text-ink-3">
+                {initials}
               </div>
             )}
           </div>
 
-          {/* Author / artist */}
-          {displayAuthor && (
-            <p className="text-sm text-muted-foreground italic mt-2">
-              by {displayAuthor}
-              {displayArtist && displayArtist !== displayAuthor && (
-                <> · art {displayArtist}</>
-              )}
-            </p>
-          )}
+          <div className="min-w-0 sm:mt-4">
+            {/* Author / artist */}
+            {displayAuthor && (
+              <p className="font-serif text-[14px] italic leading-snug text-ink-2">
+                by {displayAuthor}
+                {displayArtist && displayArtist !== displayAuthor && (
+                  <> · art {displayArtist}</>
+                )}
+              </p>
+            )}
 
-          {/* Genre chips */}
-          {displayGenres.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {displayGenres.map((genre: string) => (
-                <span key={genre} className="chip">
-                  {genre}
-                </span>
-              ))}
-            </div>
-          )}
+            {/* Genre chips */}
+            {displayGenres.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {displayGenres.map((genre: string) => (
+                  <span
+                    key={genre}
+                    className="rounded-full border border-rule-2 px-2 py-0.5 text-[11px] leading-4 text-ink-2"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Synopsis */}
           {displaySynopsis && (
-            <p className="confirm-synopsis mt-2">{displaySynopsis}</p>
+            <p className="col-span-2 line-clamp-6 text-[13px] leading-relaxed text-ink-2 sm:mt-4">
+              {displaySynopsis}
+            </p>
           )}
-        </div>
+        </aside>
 
         {/* ── Right: sources ── */}
-        <div className="src-table-wrap">
-          <div className="src-table-head">
-            <h3>
-              Track from <em>these sources</em>
-            </h3>
+        <section className="min-w-0" aria-label="Sources">
+          <div className="flex items-baseline justify-between gap-3 border-b-2 border-ink/80 pb-2">
+            <h4 className="font-serif text-[18px] font-semibold tracking-[-0.01em] text-ink">
+              Track from <em className="font-medium text-accent-ink">these sources</em>
+            </h4>
             {selectedCount > 0 && (
-              <span className="sel-count">
-                <span className="dot" />
-                {selectedCount} OF {validFullSeries.filter((s) => !s.isUnselectable).length}
+              <span className="inline-flex shrink-0 items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-2 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                {selectedCount} OF {selectableCount}
               </span>
             )}
           </div>
 
           {/* Desktop table */}
-          <div className="src-table">
-            <div className="src-thead">
+          <div className="mt-3 hidden overflow-hidden rounded-lg border border-rule bg-paper-1 sm:block">
+            <div
+              className="grid grid-cols-[16px_32px_minmax(0,1fr)_auto] gap-3 border-b border-rule px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3"
+              aria-hidden="true"
+            >
               <div />
               <div />
               <div>Source</div>
-              <div className="ch-head">Chapters</div>
+              <div className="text-right">Chapters</div>
             </div>
-            {validFullSeries.map((series) => {
-              const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
-              const chCount = series.chapterCount;
-              const thumbUrl = series.thumbnailUrl ? formatThumbnailUrl(series.thumbnailUrl) : null;
-              return (
-                <React.Fragment key={seriesKey}>
-                  <div
-                    className={`src-trow${series.isSelected && !series.isUnselectable ? " active" : ""}${series.isUnselectable ? " opacity-50 cursor-not-allowed" : ""}`}
-                    onClick={() => {
-                      if (!series.isUnselectable) handleToggleSelection(seriesKey);
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      className="src-check"
-                      checked={series.isSelected && !series.isUnselectable}
-                      onChange={() => {
+            <div className="divide-y divide-rule">
+              {validFullSeries.map((series) => {
+                const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
+                const chCount = series.chapterCount;
+                const thumbUrl = series.thumbnailUrl ? formatThumbnailUrl(series.thumbnailUrl) : null;
+                const isActive = series.isSelected && !series.isUnselectable;
+                return (
+                  <div key={seriesKey}>
+                    <div
+                      className={sourceRowClass(isActive, series.isUnselectable)}
+                      onClick={() => {
                         if (!series.isUnselectable) handleToggleSelection(seriesKey);
                       }}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={series.isUnselectable}
-                    />
-                    <div className="src-cv-mini">
-                      {thumbUrl && (
-                        <Image
-                          src={thumbUrl}
-                          alt={`${series.provider} cover`}
-                          fill
-                          sizes="32px"
-                          className="object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="src-name">
-                      <span className="name-txt">{series.provider}</span>
-                      <span className="flag">
+                    >
+                      <SourceCheck
+                        checked={isActive}
+                        disabled={series.isUnselectable}
+                        label={`Track from ${series.provider}`}
+                        onToggle={() => {
+                          if (!series.isUnselectable) handleToggleSelection(seriesKey);
+                        }}
+                      />
+                      <SourceThumb url={thumbUrl} provider={series.provider} />
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[14px] font-medium text-ink">{series.provider}</span>
                         <ReactCountryFlag
                           countryCode={getCountryCodeForLanguage(series.lang)}
                           svg
-                          style={{ width: "16px", height: "12px" }}
+                          style={{ width: "16px", height: "12px", flexShrink: 0, borderRadius: 2 }}
                           title={series.lang.toUpperCase()}
                         />
-                      </span>
-                      {series.scanlator && series.scanlator !== series.provider && (
-                        <span className="text-muted-foreground text-[10px] truncate">
-                          · {series.scanlator}
+                        {series.scanlator && series.scanlator !== series.provider && (
+                          <span className="truncate text-[11px] text-ink-3">
+                            · {series.scanlator}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end gap-3">
+                        {series.isUnselectable && <ExistsTag />}
+                        <span className="font-mono text-[13px] tabular-nums text-ink">
+                          {chCount}
+                          <span className="text-ink-3"> ch</span>
                         </span>
-                      )}
+                      </div>
                     </div>
-                    <div className="ch-cell">
-                      <span className="num">{chCount}</span>
-                      <span className="lab"> ch</span>
-                    </div>
-                  </div>
 
-                  {/* Per-source switches — visible only when selected */}
-                  {series.isSelected && !series.isUnselectable && (
-                    <div className="src-row-extras">
-                      <div className="flex items-center gap-1.5">
-                        <Switch
+                    {/* Per-source switches — visible only when selected */}
+                    {isActive && (
+                      <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-dashed border-rule bg-accent-soft/40 py-2.5 pl-[71px] pr-3">
+                        <SourceSwitch
                           id={`storage-${seriesKey}`}
                           checked={series.isStorage}
-                          onCheckedChange={(checked) =>
-                            handleStorageChange(seriesKey, checked)
-                          }
+                          onCheckedChange={(checked) => handleStorageChange(seriesKey, checked)}
+                          label="Permanent Source"
                         />
-                        <Label
-                          htmlFor={`storage-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Permanent Source
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Switch
+                        <SourceSwitch
                           id={`cover-${seriesKey}`}
                           checked={series.useCover}
-                          onCheckedChange={(checked) =>
-                            handleCoverChange(seriesKey, checked)
-                          }
+                          onCheckedChange={(checked) => handleCoverChange(seriesKey, checked)}
+                          label="Use as Cover"
                         />
-                        <Label
-                          htmlFor={`cover-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Use as Cover
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Switch
+                        <SourceSwitch
                           id={`title-${seriesKey}`}
                           checked={series.useTitle}
-                          onCheckedChange={(checked) =>
-                            handleTitleChange(seriesKey, checked)
-                          }
+                          onCheckedChange={(checked) => handleTitleChange(seriesKey, checked)}
+                          label="Use as Title"
                         />
-                        <Label
-                          htmlFor={`title-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Use as Title
-                        </Label>
                       </div>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Mobile card stack */}
-          <div className="src-cards">
+          <div className="mt-3 divide-y divide-rule overflow-hidden rounded-lg border border-rule bg-paper-1 sm:hidden">
             {validFullSeries.map((series) => {
               const seriesKey = `${getSeriesId(series)}-${series.provider}-${series.lang}-${series.scanlator}`;
               const chCount = series.chapterCount;
               const thumbUrl = series.thumbnailUrl ? formatThumbnailUrl(series.thumbnailUrl) : null;
+              const isActive = series.isSelected && !series.isUnselectable;
               return (
-                <React.Fragment key={seriesKey}>
+                <div key={seriesKey}>
                   <div
-                    className={`src-card${series.isSelected && !series.isUnselectable ? " active" : ""}${series.isUnselectable ? " opacity-50 cursor-not-allowed" : ""}`}
+                    className={cn(sourceRowClass(isActive, series.isUnselectable), "min-h-[60px]")}
                     onClick={() => {
                       if (!series.isUnselectable) handleToggleSelection(seriesKey);
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      className="src-check"
-                      checked={series.isSelected && !series.isUnselectable}
-                      onChange={() => {
+                    <SourceCheck
+                      checked={isActive}
+                      disabled={series.isUnselectable}
+                      label={`Track from ${series.provider}`}
+                      onToggle={() => {
                         if (!series.isUnselectable) handleToggleSelection(seriesKey);
                       }}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={series.isUnselectable}
                     />
-                    <div className="src-cv-mini">
-                      {thumbUrl && (
-                        <Image
-                          src={thumbUrl}
-                          alt={`${series.provider} cover`}
-                          fill
-                          sizes="32px"
-                          className="object-cover"
+                    <SourceThumb url={thumbUrl} provider={series.provider} />
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[14px] font-medium text-ink">{series.provider}</span>
+                        <ReactCountryFlag
+                          countryCode={getCountryCodeForLanguage(series.lang)}
+                          svg
+                          style={{ width: "16px", height: "12px", flexShrink: 0, borderRadius: 2 }}
+                          title={series.lang.toUpperCase()}
                         />
-                      )}
-                    </div>
-                    <div className="src-info">
-                      <div className="name-row">
-                        <span className="name-txt">{series.provider}</span>
-                        <span className="flag">
-                          <ReactCountryFlag
-                            countryCode={getCountryCodeForLanguage(series.lang)}
-                            svg
-                            style={{ width: "16px", height: "12px" }}
-                            title={series.lang.toUpperCase()}
-                          />
-                        </span>
                         {series.scanlator && series.scanlator !== series.provider && (
-                          <span className="scanlator">· {series.scanlator}</span>
+                          <span className="truncate text-[11px] text-ink-3">· {series.scanlator}</span>
                         )}
                       </div>
-                      <div className="sub-row">
+                      <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-3">
                         <span>{series.lang.toUpperCase()}</span>
-                        <span className="sep">·</span>
+                        <span aria-hidden="true">·</span>
                         <span>
-                          <span className="num">{chCount}</span> chapters
+                          <span className="tabular-nums text-ink-2">{chCount}</span> chapters
                         </span>
                       </div>
                     </div>
-                    {series.isUnselectable && (
-                      <span className="text-[10px] text-destructive font-semibold">
-                        EXISTS
-                      </span>
-                    )}
+                    <div className="flex justify-end">
+                      {series.isUnselectable && <ExistsTag />}
+                    </div>
                   </div>
 
                   {/* Per-source switches — visible only when selected */}
-                  {series.isSelected && !series.isUnselectable && (
-                    <div className="src-row-extras">
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          id={`m-storage-${seriesKey}`}
-                          checked={series.isStorage}
-                          onCheckedChange={(checked) =>
-                            handleStorageChange(seriesKey, checked)
-                          }
-                        />
-                        <Label
-                          htmlFor={`m-storage-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Permanent
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          id={`m-cover-${seriesKey}`}
-                          checked={series.useCover}
-                          onCheckedChange={(checked) =>
-                            handleCoverChange(seriesKey, checked)
-                          }
-                        />
-                        <Label
-                          htmlFor={`m-cover-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Cover
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          id={`m-title-${seriesKey}`}
-                          checked={series.useTitle}
-                          onCheckedChange={(checked) =>
-                            handleTitleChange(seriesKey, checked)
-                          }
-                        />
-                        <Label
-                          htmlFor={`m-title-${seriesKey}`}
-                          className="text-xs cursor-pointer"
-                        >
-                          Title
-                        </Label>
-                      </div>
+                  {isActive && (
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 border-t border-dashed border-rule bg-accent-soft/40 px-3 py-1">
+                      <SourceSwitch
+                        id={`m-storage-${seriesKey}`}
+                        checked={series.isStorage}
+                        onCheckedChange={(checked) => handleStorageChange(seriesKey, checked)}
+                        label="Permanent"
+                        compact
+                      />
+                      <SourceSwitch
+                        id={`m-cover-${seriesKey}`}
+                        checked={series.useCover}
+                        onCheckedChange={(checked) => handleCoverChange(seriesKey, checked)}
+                        label="Cover"
+                        compact
+                      />
+                      <SourceSwitch
+                        id={`m-title-${seriesKey}`}
+                        checked={series.useTitle}
+                        onCheckedChange={(checked) => handleTitleChange(seriesKey, checked)}
+                        label="Title"
+                        compact
+                      />
                     </div>
                   )}
-                </React.Fragment>
+                </div>
               );
             })}
           </div>
 
           {/* More options — Storage Path + Category */}
           {!isAddSourcesMode && titleSeries && (
-            <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen}>
+            <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen} className="mt-4">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="-ml-2 inline-flex h-9 items-center gap-1.5 rounded-md px-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-2 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-11"
                 >
                   <ChevronDown
-                    className="h-3.5 w-3.5 transition-transform duration-200"
-                    style={{
-                      transform: moreOptionsOpen ? "rotate(180deg)" : "rotate(0deg)",
-                    }}
+                    className={cn(
+                      "h-3.5 w-3.5 transition-transform duration-200",
+                      moreOptionsOpen && "rotate-180",
+                    )}
+                    aria-hidden="true"
                   />
                   More options
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 sm:items-end mt-3">
-                  <div className="flex-1 min-w-0">
-                    <Label htmlFor="storage-path" className="text-sm font-medium">
+                <div className="mt-2 grid gap-4 rounded-lg border border-rule bg-paper-1 p-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+                  <div className="min-w-0">
+                    <Label htmlFor="storage-path" className="paper-eyebrow">
                       Storage Path
                     </Label>
                     <Input
@@ -701,16 +644,16 @@ export function ConfirmSeriesStep({
                       value={editableStoragePath}
                       onChange={(e) => handleStoragePathChange(e.target.value)}
                       placeholder="Enter storage path..."
-                      className="mt-1 bg-card text-xs sm:text-sm"
+                      className="mt-1.5 font-mono text-xs sm:text-[13px]"
                     />
                   </div>
                   {availableCategories.length > 0 && (
-                    <div className="w-full sm:w-48">
-                      <Label htmlFor="category-select" className="text-sm font-medium">
+                    <div className="w-full">
+                      <Label htmlFor="category-select" className="paper-eyebrow">
                         Category
                       </Label>
                       <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-                        <SelectTrigger id="category-select" className="mt-1 bg-card">
+                        <SelectTrigger id="category-select" className="mt-1.5">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
@@ -727,9 +670,84 @@ export function ConfirmSeriesStep({
               </CollapsibleContent>
             </Collapsible>
           )}
-        </div>
+        </section>
       </div>
-      </div>
+    </div>
+  );
+}
+
+// ─── Presentational helpers (local to the confirm step) ─────────────────────
+
+function sourceRowClass(isActive: boolean, isUnselectable: boolean | undefined): string {
+  return cn(
+    "relative grid grid-cols-[16px_32px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 transition-colors",
+    "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:transition-colors",
+    isActive ? "bg-accent-soft before:bg-primary" : "before:bg-transparent",
+    isUnselectable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+    !isActive && !isUnselectable && "hover:bg-hover",
+  );
+}
+
+function SourceCheck({
+  checked,
+  disabled,
+  label,
+  onToggle,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  const id = React.useId();
+  return (
+    <span className="flex items-center" onClick={(e) => e.stopPropagation()}>
+      <Checkbox id={id} checked={checked} disabled={disabled} onCheckedChange={onToggle} />
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+    </span>
+  );
+}
+
+function SourceThumb({ url, provider }: { url: string | null; provider: string }) {
+  return (
+    <span className="relative block h-12 w-8 overflow-hidden rounded-[2px] bg-paper-3 shadow-paper">
+      {url && (
+        <Image src={url} alt={`${provider} cover`} fill sizes="32px" className="object-cover" />
+      )}
+    </span>
+  );
+}
+
+function ExistsTag() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-[3px] bg-bad-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-bad">
+      <BookmarkCheck className="h-3 w-3" aria-hidden="true" />
+      EXISTS
+    </span>
+  );
+}
+
+function SourceSwitch({
+  id,
+  checked,
+  onCheckedChange,
+  label,
+  compact = false,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  label: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center gap-2", compact && "min-h-11")}>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Label htmlFor={id} className="cursor-pointer text-xs text-ink-2">
+        {label}
+      </Label>
     </div>
   );
 }

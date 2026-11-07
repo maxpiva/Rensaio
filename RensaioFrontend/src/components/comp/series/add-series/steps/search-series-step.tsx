@@ -1,7 +1,7 @@
 "use client";
 
 import { type AddSeriesState } from "@/components/comp/series/add-series";
-import { AlertTriangle, Loader2, Search } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Search, X } from "lucide-react";
 import { type LinkedSeries, type ExistingSource } from "@/lib/api/types";
 import { useSearchSeries, useAvailableSearchSources } from "@/lib/api/hooks/useSearch";
 import React from "react";
@@ -12,6 +12,7 @@ import { getCountryCodeForLanguage } from "@/lib/utils/language-country-mapping"
 import { usePermission } from "@/hooks/use-permission";
 import { formatThumbnailUrl } from "@/lib/utils/thumbnail";
 import { MultiSelectSources } from "@/components/ui/multi-select-sources";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -219,142 +220,160 @@ export function SearchSeriesStep({
   const hasResults = allSeries.length > 0;
 
   return (
-    <div className="search-step">
-      {/* Search input row — full width */}
-      <div className="cmd-input-wrap">
-          <Search className="icon" style={{ width: 22, height: 22 }} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Search input row — full width, underlined like a ledger entry */}
+      <div className="shrink-0 px-5 sm:px-7">
+        <div className="group flex items-center gap-3 border-b-2 border-ink/80 pb-2.5 transition-colors focus-within:border-primary">
+          <Search className="h-5 w-5 shrink-0 text-ink-3 transition-colors group-focus-within:text-accent-ink" aria-hidden="true" />
           <input
-            className="cmd-input"
+            className="h-11 min-w-0 flex-1 bg-transparent font-serif text-[22px] tracking-[-0.01em] text-ink outline-none placeholder:italic placeholder:text-ink-3 sm:text-[26px] [&::-webkit-search-cancel-button]:appearance-none"
             type="search"
+            aria-label="Search for a series"
             placeholder="Search for a series…"
             autoFocus
             value={searchValue}
             onPointerDown={(e) => e.stopPropagation()}
             onChange={(e) => setSearchValue(e.target.value)}
           />
-          <div className="cmd-spinner-slot" aria-hidden={!isSearching}>
-            {isSearching && (
-              <Loader2
-                className="h-4 w-4 animate-spin"
-                style={{ color: "hsl(var(--as-fg-muted))" }}
-              />
-            )}
-          </div>
+          {/* Clear — stands in for the native search-field cancel glyph hidden above */}
+          {hasQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              className="-my-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-9"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSearchValue("")}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden={!isSearching}>
+            {isSearching && <Loader2 className="h-4 w-4 animate-spin text-ink-3" />}
+          </span>
         </div>
 
         {/* Sources selector — its own row, right-aligned */}
         {canBrowseSources && availableSources.length > 0 && (
           <div
-            className="cmd-sources-row"
+            className="mt-3 flex justify-end"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="src-dropdown-slot">
+            <div className="w-full sm:w-56">
               <MultiSelectSources
                 sources={availableSources}
                 selectedSources={selectedSources}
                 onSelectionChange={setSelectedSources}
+                triggerClassName="h-9 border-rule-2 bg-paper-1 text-[13px] max-sm:h-11"
               />
             </div>
           </div>
         )}
+      </div>
 
-        {/* Results area */}
+      {/* Results area */}
+      <div
+        className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 sm:px-7"
+        data-vaul-no-drag
+      >
         {error ? (
           <div
-            className="flex items-center gap-2 px-5 py-3"
-            style={{ color: "hsl(0 72% 51%)", fontSize: 12 }}
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-bad/30 bg-bad-soft px-3 py-2.5 text-[13px] leading-snug text-bad"
           >
-            <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
-            <span>{error.message}</span>
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{error.message}</span>
           </div>
         ) : !hasQuery ? (
-          <div className="res-list">
-            <p
-              className="stage-label"
-              style={{ justifyContent: "center", opacity: 0.45, fontSize: 13, padding: "24px 22px" }}
-            >
-              Start typing to search…
-            </p>
-          </div>
+          <SearchNotice>Start typing to search…</SearchNotice>
         ) : !hasResults && !isSearching ? (
-          <div className="res-list">
-            <p
-              style={{
-                color: "hsl(var(--as-fg-muted))",
-                fontSize: 13,
-                padding: "24px 22px",
-                textAlign: "center",
-              }}
-            >
-              {debouncedSearchValue.length < 3
-                ? "Keep typing — search starts at 3 characters"
-                : "No results found"}
-            </p>
-          </div>
+          <SearchNotice>
+            {debouncedSearchValue.length < 3
+              ? "Keep typing — search starts at 3 characters"
+              : "No results found"}
+          </SearchNotice>
         ) : (
-          <div className="res-list" data-vaul-no-drag>
+          <ul className="divide-y divide-rule overflow-hidden rounded-lg border border-rule bg-paper-1">
             {allSeries.map((series) => {
               const seriesId = getSeriesId(series);
               const isSelected = isSeriesSelected(seriesId);
               const isFocused = lastFocusedId === seriesId;
 
               return (
-                <div
-                  key={seriesId}
-                  className={`res-row${isSelected ? " selected" : ""}${isFocused ? " focused" : ""}`}
-                  onClick={() => {
-                    handleSeriesToggle(seriesId, !isSelected);
-                    setLastFocusedId(seriesId);
-                  }}
-                >
-                  {/* Slot 1: accent bar */}
-                  <div
-                    className="accent"
-                    style={isSelected ? { background: "hsl(var(--primary))" } : undefined}
-                  />
-
-                  {/* Slot 2: cover thumbnail */}
-                  <div className="res-cv">
-                    <Image
-                      src={formatThumbnailUrl(series.thumbnailUrl)}
-                      alt={series.title}
-                      fill
-                      sizes="(max-width: 640px) 44px, 48px"
-                      className="object-cover"
-                    />
-                  </div>
-
-                  {/* Slot 3: body */}
-                  <div className="res-body">
-                    <div className="res-title">{series.title}</div>
-                    <div className="res-meta">
-                      <span className="src-badge">
-                        {series.provider}
-                      </span>
-                      <ReactCountryFlag
-                        countryCode={getCountryCodeForLanguage(series.lang)}
-                        svg
-                        style={{ width: 16, height: 12 }}
-                        title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Slot 4: selected indicator */}
-                  <div className="res-tail">
-                    {isSelected && (
-                      <span
-                        className="sel-added font-mono"
-                      >
-                        ✓ added
-                      </span>
+                <li key={seriesId}>
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
+                    className={cn(
+                      "group relative grid w-full grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:gap-4 sm:px-4",
+                      "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:transition-colors",
+                      isSelected
+                        ? "bg-accent-soft before:bg-primary"
+                        : cn("hover:bg-hover before:bg-transparent", isFocused && "bg-hover/60"),
                     )}
-                  </div>
-                </div>
+                    onClick={() => {
+                      handleSeriesToggle(seriesId, !isSelected);
+                      setLastFocusedId(seriesId);
+                    }}
+                  >
+                    {/* Cover thumbnail */}
+                    <span className="relative block h-[66px] w-11 overflow-hidden rounded-[3px] bg-paper-3 shadow-paper">
+                      <Image
+                        src={formatThumbnailUrl(series.thumbnailUrl)}
+                        alt=""
+                        fill
+                        sizes="44px"
+                        className="object-cover"
+                      />
+                    </span>
+
+                    {/* Body */}
+                    <span className="min-w-0">
+                      <span className="line-clamp-2 font-serif text-[15px] font-semibold leading-snug text-ink sm:text-base">
+                        {series.title}
+                      </span>
+                      <span className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span className="max-w-full truncate rounded-[3px] border border-rule-2 bg-paper px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.08em] text-ink-2">
+                          {series.provider}
+                        </span>
+                        <ReactCountryFlag
+                          countryCode={getCountryCodeForLanguage(series.lang)}
+                          svg
+                          style={{ width: 16, height: 12, borderRadius: 2 }}
+                          title={`${series.lang.toUpperCase()} (${getCountryCodeForLanguage(series.lang)})`}
+                        />
+                      </span>
+                    </span>
+
+                    {/* Selected indicator */}
+                    <span className="flex items-center" aria-hidden="true">
+                      {isSelected ? (
+                        <span className="inline-flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-accent-ink">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3 w-3" strokeWidth={3} />
+                          </span>
+                          <span className="max-sm:sr-only">added</span>
+                        </span>
+                      ) : (
+                        <span className="block h-5 w-5 rounded-full border border-rule-2 transition-colors group-hover:border-ink-3" />
+                      )}
+                    </span>
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Quiet centred prompt used for the idle, too-short and no-result states. */
+function SearchNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-rule-2 px-6 py-10 text-center">
+      <Search className="h-5 w-5 text-ink-3" aria-hidden="true" />
+      <p className="font-serif text-[15px] italic text-ink-2">{children}</p>
     </div>
   );
 }

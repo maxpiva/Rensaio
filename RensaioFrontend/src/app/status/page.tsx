@@ -1,110 +1,92 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Activity, AlertTriangle, Radio } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Octagon, RotateCcw } from 'lucide-react';
 import { useSeriesStatus, useProviderStatus, useClearAlert } from '@/lib/api/hooks/useStatus';
 import { ProviderStatusPanel } from '@/components/comp/status/provider-status-panel';
 import { SeriesStatusPanel } from '@/components/comp/status/series-status-panel';
-import { RibbonSlot } from '@/components/comp/layout/ribbon';
+import { StatusNotice } from '@/components/comp/status/status-notice';
+import { PageHeader } from '@/components/comp/layout/page-header';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
+import { HealthStatusLevel } from '@/lib/api/types';
+import { cn } from '@/lib/utils';
 
 type StatusTab = "providers" | "series";
 
 interface StatTileProps {
   label: string;
   value: number;
-  icon: React.ReactNode;
   tone: "warning" | "critical";
+  loading?: boolean;
 }
 
-/** Glass summary tile — muted when the count is zero, accent-lit when there are alerts. */
-function StatTile({ label, value, icon, tone }: StatTileProps) {
+/**
+ * Summary tile: a printed figure with a status tag underneath. The tag is
+ * always icon + label ("Clear" / "Warning" / "Critical"), never colour alone.
+ */
+function StatTile({ label, value, tone, loading }: StatTileProps) {
   const active = value > 0;
-  const accentText =
-    tone === "critical" ? "text-red-400" : "text-amber-400";
-  const accentRing =
-    tone === "critical"
-      ? "border-red-500/30 shadow-[0_0_24px_-12px] shadow-red-500/40"
-      : "border-amber-500/30 shadow-[0_0_24px_-12px] shadow-amber-500/40";
+  const toneText = tone === "critical" ? "text-bad" : "text-warn";
+  const toneSoft = tone === "critical" ? "bg-bad-soft text-bad" : "bg-warn-soft text-warn";
+  const ToneIcon = tone === "critical" ? Octagon : AlertTriangle;
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border bg-white/[0.02] p-4 transition-colors ${
-        active ? accentRing : "border-white/[0.06]"
-      }`}
+      className={cn(
+        "relative flex min-w-0 flex-col rounded-lg border bg-paper-1 p-3.5 shadow-paper sm:p-4",
+        active ? (tone === "critical" ? "border-bad/30" : "border-warn/30") : "border-rule",
+      )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          {label}
-        </span>
-        <span className={active ? accentText : "text-muted-foreground/60"}>
-          {icon}
-        </span>
-      </div>
+      {active && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-x-0 top-0 h-[3px] rounded-t-lg",
+            tone === "critical" ? "bg-bad" : "bg-warn",
+          )}
+        />
+      )}
+      <span className="paper-eyebrow min-w-0 text-ink-3 [overflow-wrap:anywhere]">{label}</span>
       <div
-        className={`mt-2 font-mono text-3xl font-semibold tabular-nums ${
-          active ? accentText : "text-muted-foreground/50"
-        }`}
+        className={cn(
+          "mt-2 font-serif text-[40px] leading-none tabular-nums tracking-[-0.03em] sm:text-[46px]",
+          active ? toneText : "text-ink-3/70",
+        )}
       >
-        {value}
+        {loading ? <Skeleton className="h-10 w-10" /> : value}
       </div>
-    </div>
-  );
-}
-
-interface SegmentedTabsProps {
-  value: StatusTab;
-  onChange: (v: StatusTab) => void;
-  providerCount: number;
-  seriesCount: number;
-}
-
-/** Sources / Series segmented control — matches the queue page's filter pills. */
-function SegmentedTabs({ value, onChange, providerCount, seriesCount }: SegmentedTabsProps) {
-  const tabs: { id: StatusTab; label: string; count: number }[] = [
-    { id: "series", label: "Series", count: seriesCount },
-    { id: "providers", label: "Sources", count: providerCount },
-  ];
-  return (
-    <div className="inline-flex items-center gap-0.5 rounded-full border border-white/[0.06] bg-white/[0.015] px-0.5 py-0.5">
-      {tabs.map((tab) => {
-        const isActive = value === tab.id;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange(tab.id)}
-            className={`rounded-full px-3.5 py-[5px] text-[12.5px] font-medium transition-colors duration-[120ms] ${
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-            {tab.count > 0 && (
-              <span
-                className={`ml-1 text-[11px] ${
-                  isActive ? "text-primary-foreground/70" : "text-muted-foreground/60"
-                }`}
-              >
-                {tab.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
+      <div className="mt-3">
+        {active ? (
+          <span className={cn("inline-flex h-[22px] items-center gap-1 rounded-[4px] px-1.5 text-[11.5px] font-semibold", toneSoft)}>
+            <ToneIcon className="h-3 w-3" aria-hidden="true" />
+            {tone === "critical" ? "Critical" : "Warning"}
+          </span>
+        ) : (
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] bg-ok-soft px-1.5 text-[11.5px] font-semibold text-ok">
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+            Clear
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
 function PanelSkeleton({ rows }: { rows: number }) {
   return (
-    <div className="space-y-3">
+    <div aria-busy="true" aria-label="Loading alerts" className="overflow-hidden rounded-lg border border-rule bg-paper-1">
       {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          className="h-20 w-full animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.02]"
-        />
+        <div key={i} className="flex items-center gap-3.5 border-t border-rule px-4 py-3.5 first:border-t-0">
+          <Skeleton className="h-[54px] w-10 rounded-[3px]" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-1/3" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+          <Skeleton className="hidden h-7 w-20 sm:block" />
+        </div>
       ))}
     </div>
   );
@@ -112,8 +94,10 @@ function PanelSkeleton({ rows }: { rows: number }) {
 
 export default function StatusPage() {
   const [activeTab, setActiveTab] = useState<StatusTab>("series");
-  const { data: series, isLoading: seriesLoading } = useSeriesStatus();
-  const { data: providers, isLoading: providersLoading } = useProviderStatus();
+  const seriesQuery = useSeriesStatus();
+  const providersQuery = useProviderStatus();
+  const { data: series, isLoading: seriesLoading } = seriesQuery;
+  const { data: providers, isLoading: providersLoading } = providersQuery;
   const { mutate: clearAlert } = useClearAlert();
   const { canAdmin } = useAuth();
 
@@ -121,83 +105,99 @@ export default function StatusPage() {
     clearAlert({ targetType, targetId });
   };
 
-  const seriesWarnings = series?.filter((s) => s.level === 1).length ?? 0;
-  const seriesCritical = series?.filter((s) => s.level === 2).length ?? 0;
-  const sourceWarnings = providers?.filter((p) => p.level === 1).length ?? 0;
-  const sourceCritical = providers?.filter((p) => p.level === 2).length ?? 0;
+  const seriesWarnings = series?.filter((s) => s.level === HealthStatusLevel.Yellow).length ?? 0;
+  const seriesCritical = series?.filter((s) => s.level === HealthStatusLevel.Red).length ?? 0;
+  const sourceWarnings = providers?.filter((p) => p.level === HealthStatusLevel.Yellow).length ?? 0;
+  const sourceCritical = providers?.filter((p) => p.level === HealthStatusLevel.Red).length ?? 0;
+  const totalAlerts = (series?.length ?? 0) + (providers?.length ?? 0);
+  const anyCritical = seriesCritical + sourceCritical;
+
+  const description = seriesLoading || providersLoading
+    ? "Health of your sources and series."
+    : totalAlerts === 0
+      ? "Health of your sources and series. Everything checks out."
+      : `Health of your sources and series. ${totalAlerts} alert${totalAlerts === 1 ? "" : "s"} need${totalAlerts === 1 ? "s" : ""} a look${anyCritical ? `, ${anyCritical} critical` : ""}.`;
+
+  const errorNotice = (what: string, retry: () => void) => (
+    <StatusNotice
+      tone="bad"
+      title={`Couldn’t load ${what} status`}
+      body="The server didn’t answer. Try again in a moment."
+      action={
+        <Button variant="ink" onClick={retry}>
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Try again
+        </Button>
+      }
+    />
+  );
 
   return (
-    <div className="space-y-6">
-      <RibbonSlot>
-        <div className="flex w-full items-center gap-2">
-          <Activity className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <h2 className="truncate text-sm font-semibold text-foreground">Status</h2>
-          <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-            · Health of your sources and series
-          </span>
-        </div>
-      </RibbonSlot>
-
-      {/* Summary tiles */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
-          label="Series Warnings"
-          value={seriesWarnings}
-          tone="warning"
-          icon={<AlertTriangle className="h-4 w-4" />}
-        />
-        <StatTile
-          label="Series Critical"
-          value={seriesCritical}
-          tone="critical"
-          icon={<Radio className="h-4 w-4" />}
-        />
-        <StatTile
-          label="Source Warnings"
-          value={sourceWarnings}
-          tone="warning"
-          icon={<AlertTriangle className="h-4 w-4" />}
-        />
-        <StatTile
-          label="Source Critical"
-          value={sourceCritical}
-          tone="critical"
-          icon={<Radio className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* Tab selector */}
-      <SegmentedTabs
-        value={activeTab}
-        onChange={setActiveTab}
-        providerCount={providers?.length ?? 0}
-        seriesCount={series?.length ?? 0}
+    <div className="mx-auto w-full max-w-[1100px]">
+      <PageHeader
+        folio="04"
+        eyebrow="Status · Health report"
+        title="Status"
+        accent="report."
+        tate="診断"
+        description={description}
       />
 
-      {/* Active panel */}
-      <div>
-        {activeTab === "providers" &&
-          (providersLoading ? (
+      {/* Summary tiles */}
+      <section aria-label="Alert summary" className="mb-7 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <StatTile label="Series Warnings" value={seriesWarnings} tone="warning" loading={seriesLoading} />
+        <StatTile label="Series Critical" value={seriesCritical} tone="critical" loading={seriesLoading} />
+        <StatTile label="Source Warnings" value={sourceWarnings} tone="warning" loading={providersLoading} />
+        <StatTile label="Source Critical" value={sourceCritical} tone="critical" loading={providersLoading} />
+      </section>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)}>
+        <div className="mb-3 flex items-center gap-3">
+          <TabsList aria-label="Alert type" className="max-sm:grid max-sm:w-full max-sm:grid-cols-2">
+            <TabsTrigger value="series" className="min-w-[96px] max-sm:min-h-[38px]">
+              Series
+              <span className="font-mono text-[10.5px] font-medium tabular-nums opacity-70">
+                {series?.length ?? 0}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="providers" className="min-w-[96px] max-sm:min-h-[38px]">
+              Sources
+              <span className="font-mono text-[10.5px] font-medium tabular-nums opacity-70">
+                {providers?.length ?? 0}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          <span aria-hidden="true" className="hidden h-px flex-1 bg-rule sm:block" />
+        </div>
+
+        <TabsContent value="providers" className="mt-0">
+          {providersLoading ? (
             <PanelSkeleton rows={2} />
+          ) : providersQuery.isError && !providers ? (
+            errorNotice("source", () => void providersQuery.refetch())
           ) : (
             <ProviderStatusPanel
               providers={providers ?? []}
               onClearAlert={handleClearAlert}
               canAdmin={canAdmin}
             />
-          ))}
+          )}
+        </TabsContent>
 
-        {activeTab === "series" &&
-          (seriesLoading ? (
+        <TabsContent value="series" className="mt-0">
+          {seriesLoading ? (
             <PanelSkeleton rows={3} />
+          ) : seriesQuery.isError && !series ? (
+            errorNotice("series", () => void seriesQuery.refetch())
           ) : (
             <SeriesStatusPanel
               series={series ?? []}
               onClearAlert={handleClearAlert}
               canAdmin={canAdmin}
             />
-          ))}
-      </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -81,6 +81,20 @@ namespace RensaioBackend.Services.Downloads
             DownloadSummary downloadSummary;
 
             var appSettings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
+
+            // The job was queued when no other source had this chapter. Another source may have
+            // stored it since (both are usually queued by the same refresh), so check again
+            // before spending a download on a second copy.
+            List<SeriesProviderEntity> seriesSources = await _db.SeriesProviders.Where(a => a.SeriesId == ch.SeriesId)
+                .AsNoTracking().ToListAsync(token).ConfigureAwait(false);
+            SeriesProviderEntity? self = seriesSources.FirstOrDefault(a => a.Id == ch.SeriesProviderId);
+            if (self != null && IsHeldByAnotherSource(self, seriesSources, ch))
+            {
+                _logger.LogInformation("Skipping chapter {ParsedNumber} of series {SeriesTitle} from provider {ProviderName}: another source already has it.",
+                    ch.Chapter.ParsedNumber, ch.Title, providerName);
+                return JobResult.Success;
+            }
+
             ISourceInterop src;
             try
             {
@@ -143,9 +157,8 @@ namespace RensaioBackend.Services.Downloads
             }
 
             decimal? maxChap = null;
-            SeriesProviderEntity? p = await _db.SeriesProviders.Where(a => a.Id == ch.SeriesProviderId).AsNoTracking().FirstOrDefaultAsync(token).ConfigureAwait(false);
-            if (p != null)
-                maxChap = p.Chapters.Max(c => c.Number);
+            if (self != null)
+                maxChap = self.Chapters.Max(c => c.Number);
 
             string zipFile = ArchiveHelperService.MakeFileNameSafe(ch.ProviderName, ch.Scanlator, ch.Title, ch.Language, ch.Chapter.ParsedNumber, rchap, maxChap) + ".cbz";
             string message = $"Downloading ({providerName}) {ch.Title} {chapterName}...";
@@ -246,16 +259,6 @@ namespace RensaioBackend.Services.Downloads
                     Directory.CreateDirectory(dirPath);
 
                 string finalPath = Path.Combine(dirPath, zipFile);
-                try
-                {
-                    await Task.Run(() => File.Move(tempZipPath, finalPath, true), token).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Failed to move downloaded file from {TempZipPath} to {FinalPath}", tempZipPath, finalPath);
-                    await reporter.ReportAsync(ProgressStatus.Failed, (int)acum, message, downloadSummary,null, token).ConfigureAwait(false);
-                    return await RescheduleDownloadAsync(ch, token).ConfigureAwait(false);
-                }
 
                 using (var n = await _lock.LockAsync(ch.SeriesId.ToString(), token).ConfigureAwait(false))
                 {
@@ -263,8 +266,35 @@ namespace RensaioBackend.Services.Downloads
                     if (providerr == null)
                     {
                         _logger.LogWarning("Series Provider {ProviderName} no longer exists.", ch.ProviderName);
+                        TryDeleteFile(tempZipPath);
                         await reporter.ReportAsync(ProgressStatus.Completed, 100, "", downloadSummary,null, token).ConfigureAwait(false);
                         return JobResult.Failed;
+                    }
+
+                    Models.Database.SeriesEntity s = await _db.Series.Include(a => a.Sources).Where(a => a.Id == providerr.SeriesId).FirstAsync(token);
+
+                    // Downloads of the same chapter from two sources run in parallel. Whichever
+                    // finishes second must not leave a duplicate: under the series lock, discard
+                    // this copy if another source stored the chapter while it was downloading.
+                    if (IsHeldByAnotherSource(providerr, s.Sources, ch))
+                    {
+                        TryDeleteFile(tempZipPath);
+                        _logger.LogInformation("Discarded chapter {ParsedNumber} of series {SeriesTitle} from provider {ProviderName}: another source stored it first.",
+                            ch.Chapter.ParsedNumber, ch.Title, ch.ProviderName);
+                        message = $"Downloading ({providerName}) {ch.Title} {chapterName} skipped, another source already has it.";
+                        await reporter.ReportAsync(ProgressStatus.Completed, 100, message, downloadSummary, null, token).ConfigureAwait(false);
+                        return JobResult.Success;
+                    }
+
+                    try
+                    {
+                        await Task.Run(() => File.Move(tempZipPath, finalPath, true), token).ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "Failed to move downloaded file from {TempZipPath} to {FinalPath}", tempZipPath, finalPath);
+                        await reporter.ReportAsync(ProgressStatus.Failed, (int)acum, message, downloadSummary,null, token).ConfigureAwait(false);
+                        return await RescheduleDownloadAsync(ch, token).ConfigureAwait(false);
                     }
 
                     Models.Chapter? cha = providerr.Chapters.FirstOrDefault(c => c.Number == ch.Chapter.ParsedNumber);
@@ -273,6 +303,16 @@ namespace RensaioBackend.Services.Downloads
                         cha = new Models.Chapter();
                         providerr.Chapters.Add(cha);
                         providerr.Chapters = providerr.Chapters.OrderBy(c => c.Number).ToList();
+                    }
+
+                    // A re-download can produce a different file name (the chapter title or the
+                    // zero padding changed). The old file is no longer referenced anywhere, so
+                    // remove it instead of leaving an orphaned second copy on disk.
+                    string? previousFile = cha.Filename;
+                    if (!string.IsNullOrEmpty(previousFile) && !string.Equals(previousFile, zipFile, StringComparison.Ordinal))
+                    {
+                        _hashCache.DeleteChapterHash(s.StoragePath, previousFile);
+                        TryDeleteFile(Path.Combine(dirPath, previousFile));
                     }
 
                     cha.PageCount = pagesWritten;
@@ -288,7 +328,6 @@ namespace RensaioBackend.Services.Downloads
                     _db.Touch(providerr, a => a.Chapters);
                     await _db.SaveChangesAsync(token).ConfigureAwait(false);
 
-                    Models.Database.SeriesEntity s = await _db.Series.Include(a => a.Sources).Where(a => a.Id == providerr.SeriesId).FirstAsync(token);
                     if (providerr.IsStorage)
                     {
                         List<Models.Chapter> chapters = s.Sources.Where(a => !a.IsDisabled && !a.IsUninstalled && !a.IsStorage)
@@ -349,6 +388,33 @@ namespace RensaioBackend.Services.Downloads
                 _logger.LogError(e, "Error downloading chapter {ParsedNumber} of series {SeriesTitle}: {Message}", ch.Chapter.ParsedNumber, ch.Title, e.Message);
                 await reporter.ReportAsync(ProgressStatus.Failed, (int)100, "Error downloading chapter", downloadSummary, null, token).ConfigureAwait(false);
                 return await RescheduleDownloadAsync(ch, token).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// True when the chapter of <paramref name="ch"/> no longer needs downloading by
+        /// <paramref name="self"/> because another source of the series stores it. A source
+        /// re-downloading a chapter it already stores (an updated chapter) is never redundant.
+        /// </summary>
+        internal static bool IsHeldByAnotherSource(SeriesProviderEntity self, IEnumerable<SeriesProviderEntity> sources, ChapterDownload ch)
+        {
+            decimal? number = ch.Chapter.ParsedNumber;
+            bool ownCopy = self.Chapters.Any(c => c.Number == number && !string.IsNullOrEmpty(c.Filename) && !c.IsDeleted);
+            if (ownCopy)
+                return false;
+            return self.HasCopyFromOtherSource(sources, number);
+        }
+
+        private void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to delete file {Path}", path);
             }
         }
 

@@ -184,8 +184,10 @@ namespace RensaioBackend.Services.Series
                 // Every stored file except the row being transferred, which is free to change name.
                 List<DuplicateChapterRules.StoredCopy> otherCopies = series.Sources.StoredCopies()
                     .Where(c => !(c.SourceId == unknown.Id && c.Number == ch.Number && c.Filename == ch.Filename)).ToList();
-                bool originalShared = !string.IsNullOrEmpty(ch.Filename)
-                    && DuplicateChapterRules.IsFileUsedByOtherSource(targetProvider.Id, otherCopies, ch.Filename);
+                // The original must survive if any other row needs it; only the row this match replaces does not.
+                bool originalShared = !string.IsNullOrEmpty(ch.Filename) && otherCopies.Any(c =>
+                    !(!isNewProvider && c.SourceId == targetProvider.Id && c.Number == chap.ChapterNumber)
+                    && DuplicateChapterRules.IsSameArchive(c.Filename, ch.Filename));
 
                 if (isNewProvider)
                 {

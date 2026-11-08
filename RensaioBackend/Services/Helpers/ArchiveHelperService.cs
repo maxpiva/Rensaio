@@ -2,6 +2,7 @@
 using RensaioBackend.Extensions;
 using RensaioBackend.Models;
 using RensaioBackend.Models.Database;
+using RensaioBackend.Services.Downloads;
 using RensaioBackend.Services.Import.KavitaParser;
 using RensaioBackend.Services.Jobs.Report;
 using RensaioBackend.Services.Settings;
@@ -80,7 +81,15 @@ namespace RensaioBackend.Services.Helpers
         }
         public async Task UpdateTitleAndAddComicInfoAsync(Models.Database.SeriesEntity series, bool onlyDownloadByRensaio = true, CancellationToken token = default)
         {
+            // A download picks its file name under this lock, so a rename must not move a file onto it meanwhile.
+            using (await DownloadCommandService.SeriesFileLock.LockAsync(series.Id.ToString(), token).ConfigureAwait(false))
+                await UpdateTitleAndAddComicInfoLockedAsync(series, onlyDownloadByRensaio, token).ConfigureAwait(false);
+        }
+
+        private async Task UpdateTitleAndAddComicInfoLockedAsync(Models.Database.SeriesEntity series, bool onlyDownloadByRensaio, CancellationToken token)
+        {
             SettingsDto settings = await _settings.GetSettingsAsync(token);
+            List<DuplicateChapterRules.StoredCopy> storedCopies = series.Sources.StoredCopies().ToList();
             foreach (var sp2 in series.Sources)
             {
                 var sp = await _db.SeriesProviders
@@ -106,7 +115,12 @@ namespace RensaioBackend.Services.Helpers
                     }
                     if (!onlyDownloadByRensaio)
                         extension = ".cbz"; // Force .cbz, we don't write other formats.
-                    if (!string.Equals(newFileName, chap.Filename, StringComparison.OrdinalIgnoreCase))
+                    // Leave the name alone when another source's row shares this file or the new name is
+                    // taken (a source-id tag keeps such a file apart from the canonical one).
+                    if (!string.Equals(newFileName, chap.Filename, StringComparison.OrdinalIgnoreCase)
+                        && !DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, chap.Filename)
+                        && !DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, newFileName)
+                        && !File.Exists(Path.Combine(settings.StorageFolder, series.StoragePath, newFileName)))
                     {
                         string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
                         string oldFullPath = Path.Combine(basePath, chap.Filename);

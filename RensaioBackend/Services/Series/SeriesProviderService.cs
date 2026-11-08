@@ -5,6 +5,7 @@ using RensaioBackend.Models;
 using RensaioBackend.Models.Database;
 using RensaioBackend.Models.Dto;
 using RensaioBackend.Models.Enums;
+using RensaioBackend.Services.Downloads;
 using RensaioBackend.Services.Helpers;
 using RensaioBackend.Services.Jobs;
 using RensaioBackend.Services.Settings;
@@ -87,6 +88,31 @@ namespace RensaioBackend.Services.Series
         /// <returns>True if the match was set successfully</returns>
         public async Task<bool> SetMatchAsync(ProviderMatchDto pm, CancellationToken token = default)
         {
+            // Matching names and moves archives, so it takes the same per-series lock as downloads and renames.
+            Guid? seriesId = await _db.SeriesProviders.AsNoTracking().Where(a => a.Id == pm.Id)
+                .Select(a => (Guid?)a.SeriesId).FirstOrDefaultAsync(token).ConfigureAwait(false);
+            if (seriesId == null)
+                return false;
+            using (await DownloadCommandService.SeriesFileLock.LockAsync(seriesId.Value.ToString(), token).ConfigureAwait(false))
+                return await SetMatchLockedAsync(pm, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Puts a matched archive at its new path. A file another source still points at is copied,
+        /// so that source keeps its file.
+        /// </summary>
+        private static void PlaceMatchedArchive(string originalPath, string newPath, bool keepOriginal)
+        {
+            if (originalPath == newPath)
+                return;
+            if (keepOriginal)
+                File.Copy(originalPath, newPath, true);
+            else
+                File.Move(originalPath, newPath, true);
+        }
+
+        private async Task<bool> SetMatchLockedAsync(ProviderMatchDto pm, CancellationToken token)
+        {
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             SeriesProviderEntity? unknown = await _db.SeriesProviders.FirstOrDefaultAsync(a => a.Id == pm.Id, token)
                 .ConfigureAwait(false);
@@ -155,6 +181,14 @@ namespace RensaioBackend.Services.Series
                 if (ch == null)
                     continue;
                 
+                // Every stored file except the row being transferred, which is free to change name.
+                List<DuplicateChapterRules.StoredCopy> otherCopies = series.Sources.StoredCopies()
+                    .Where(c => !(c.SourceId == unknown.Id && c.Number == ch.Number && c.Filename == ch.Filename)).ToList();
+                // The original must survive if any other row needs it; only the row this match replaces does not.
+                bool originalShared = !string.IsNullOrEmpty(ch.Filename) && otherCopies.Any(c =>
+                    !(!isNewProvider && c.SourceId == targetProvider.Id && c.Number == chap.ChapterNumber)
+                    && DuplicateChapterRules.IsSameArchive(c.Filename, ch.Filename));
+
                 if (isNewProvider)
                 {
                     // For a new provider, add the chapter directly
@@ -165,7 +199,7 @@ namespace RensaioBackend.Services.Series
                     decimal? maxChap = targetProvider.Chapters.Max(c => c.Number);
                     string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
                         series.Title, targetProvider.Language, ch.Number, ch.Name, maxChap);
-                    string newFilename = filename + extension;
+                    string newFilename = DuplicateChapterRules.DistinctArchiveName(targetProvider.Id, otherCopies, filename + extension);
                     string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
                     string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
                     
@@ -173,8 +207,7 @@ namespace RensaioBackend.Services.Series
                     {
                         try
                         {
-                            if (originalPath != newPath)
-                                File.Move(originalPath, newPath, true);
+                            PlaceMatchedArchive(originalPath, newPath, originalShared);
                             ch.Filename = newFilename;
                             ch.ShouldDownload = false;
                         }
@@ -194,7 +227,7 @@ namespace RensaioBackend.Services.Series
                         string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
                             series.Title, targetProvider.Language, dst.Number, dst.Name, maxChap);
                         string? extension = Path.GetExtension(ch.Filename);
-                        string newFilename = filename + extension;
+                        string newFilename = DuplicateChapterRules.DistinctArchiveName(targetProvider.Id, otherCopies, filename + extension);
                         string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
                         string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
                         
@@ -202,8 +235,7 @@ namespace RensaioBackend.Services.Series
                         {
                             try
                             {
-                                if (originalPath != newPath)
-                                    File.Move(originalPath, newPath, true);
+                                PlaceMatchedArchive(originalPath, newPath, originalShared);
                                 _db.Touch(targetProvider, a => a.Chapters);
                                 dst.Filename = newFilename;
                                 dst.DownloadDate = ch.DownloadDate;

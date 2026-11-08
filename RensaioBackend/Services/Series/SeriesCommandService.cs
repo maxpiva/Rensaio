@@ -1161,20 +1161,28 @@ namespace RensaioBackend.Services.Series
                 return new RedownloadResult(RedownloadOutcome.ChapterNotFound);
             }
 
-            // Remove any existing on-disk copy of this chapter (held by whichever source) and reset
-            // its row, so the fresh download replaces it instead of leaving an orphan or duplicate.
+            // Remove the existing on-disk copy of this chapter and reset its row, so the fresh
+            // download replaces it instead of leaving an orphan or duplicate. Other permanent
+            // sources keep their own copy when the target is permanent.
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             bool cleared = false;
-            foreach (SeriesProviderEntity sp in series.Sources)
+            List<SeriesProviderEntity> replaced = series.Sources.Where(p =>
+                DuplicateChapterRules.RedownloadReplacesCopy(target.Id, target.IsStorage, p.Id, p.IsStorage)).ToList();
+            List<DuplicateChapterRules.StoredCopy> kept = series.Sources.Except(replaced).StoredCopies().ToList();
+            foreach (SeriesProviderEntity sp in replaced)
             {
                 foreach (Models.Chapter c in sp.Chapters.Where(c => c.Number == chapterNumber && !string.IsNullOrEmpty(c.Filename)))
                 {
-                    _hashCache.DeleteChapterHash(series.StoragePath, c.Filename!);
-                    string full = Path.Combine(settings.StorageFolder, series.StoragePath, c.Filename!);
-                    if (File.Exists(full))
+                    // A file a kept source still points at stays on disk; only this row is reset.
+                    if (!DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, kept, c.Filename!))
                     {
-                        try { File.Delete(full); }
-                        catch (Exception e) { _logger.LogWarning(e, "Unable to delete file {full} for re-download", full); }
+                        _hashCache.DeleteChapterHash(series.StoragePath, c.Filename!);
+                        string full = Path.Combine(settings.StorageFolder, series.StoragePath, c.Filename!);
+                        if (File.Exists(full))
+                        {
+                            try { File.Delete(full); }
+                            catch (Exception e) { _logger.LogWarning(e, "Unable to delete file {full} for re-download", full); }
+                        }
                     }
                     c.Filename = null;
                     c.DownloadDate = null;

@@ -44,6 +44,20 @@ public static class DownloadsExtensions
         return downloads;
     }
 
+    /// <summary>
+    /// True when another source of the series already stores a file for chapter
+    /// <paramref name="number"/> that makes a download by <paramref name="self"/> redundant.
+    /// A temporary source defers to a copy from any other source. A permanent source never defers.
+    /// </summary>
+    public static bool HasCopyFromOtherSource(this SeriesProviderEntity self, IEnumerable<SeriesProviderEntity> sources, decimal? number)
+        => DuplicateChapterRules.HasCopyFromOtherSource(self.Id, self.IsStorage, sources.StoredCopies(), number);
+
+    /// <summary>Every chapter file the given sources currently store.</summary>
+    public static IEnumerable<DuplicateChapterRules.StoredCopy> StoredCopies(this IEnumerable<SeriesProviderEntity> sources)
+        => sources.SelectMany(s => s.Chapters
+            .Where(c => !string.IsNullOrEmpty(c.Filename) && !c.IsDeleted)
+            .Select(c => new DuplicateChapterRules.StoredCopy(s.Id, c.Number, c.Filename!)));
+
     public static List<ChapterDownload> GenerateDownloadsFromChapterData(this RensaioBackend.Models.Database.SeriesEntity series, SeriesProviderEntity serie, List<ParsedChapter>? chapterData)
     {
         List<ParsedChapter> wanted = [];

@@ -1,48 +1,85 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RensaioBackend.Utils
 {
+    /// <summary>
+    /// One async mutex per key. An entry is removed only when no caller holds or waits on it,
+    /// so two callers can never end up with different semaphores for the same key.
+    /// </summary>
     public class KeyedAsyncLock
     {
-        private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
+        private readonly Dictionary<string, Entry> _locks = new();
+
+        private sealed class Entry
+        {
+            public readonly SemaphoreSlim Semaphore = new(1, 1);
+            public int References; // holders plus waiters, guarded by _locks
+        }
+
+        /// <summary>Number of live keys; exposed for tests.</summary>
+        internal int Count
+        {
+            get { lock (_locks) return _locks.Count; }
+        }
 
         public async Task<IDisposable> LockAsync(string key, CancellationToken token = default)
         {
-            var semaphore = _locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-            await semaphore.WaitAsync(token).ConfigureAwait(false);
-            return new Releaser(this, key, semaphore);
+            Entry entry;
+            lock (_locks)
+            {
+                if (!_locks.TryGetValue(key, out entry!))
+                {
+                    entry = new Entry();
+                    _locks[key] = entry;
+                }
+                entry.References++;
+            }
+            try
+            {
+                await entry.Semaphore.WaitAsync(token).ConfigureAwait(false);
+            }
+            catch
+            {
+                Leave(key, entry);
+                throw;
+            }
+            return new Releaser(this, key, entry);
+        }
+
+        private void Leave(string key, Entry entry)
+        {
+            lock (_locks)
+            {
+                if (--entry.References == 0)
+                {
+                    _locks.Remove(key);
+                    entry.Semaphore.Dispose();
+                }
+            }
         }
 
         private sealed class Releaser : IDisposable
         {
             private readonly KeyedAsyncLock _parent;
             private readonly string _key;
-            private readonly SemaphoreSlim _semaphore;
-            private bool _disposed;
+            private readonly Entry _entry;
+            private int _disposed;
 
-            public Releaser(KeyedAsyncLock parent, string key, SemaphoreSlim semaphore)
+            public Releaser(KeyedAsyncLock parent, string key, Entry entry)
             {
                 _parent = parent;
                 _key = key;
-                _semaphore = semaphore;
+                _entry = entry;
             }
 
             public void Dispose()
             {
-                if (_disposed) return;
-                _semaphore.Release();
-
-                // Try to remove the semaphore if no one is waiting and count is 1 (unlocked)
-                if (_semaphore.CurrentCount == 1 && _parent._locks.TryGetValue(_key, out var sem) && sem == _semaphore)
-                {
-                    _parent._locks.TryRemove(_key, out _);
-                    _semaphore.Dispose();
-                }
-
-                _disposed = true;
+                if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+                _entry.Semaphore.Release();
+                _parent.Leave(_key, _entry);
             }
         }
     }

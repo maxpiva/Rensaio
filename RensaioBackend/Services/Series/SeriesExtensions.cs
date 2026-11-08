@@ -108,8 +108,14 @@ public static class SeriesExtensions
             };
             importSeriesEntry.Series.Add(seriesOption);
         }
+        // True until the user has saved a choice for this import. Only an automatic pick gets
+        // its extra sources demoted to temporary below, so a deliberate choice is never overridden.
+        bool autoPicked = !importSeriesEntry.Series.Any(a => a.Preferred);
         SetPreferredSeries(importSeriesEntry.Series, import.Info.Providers);
         EnsurePreferredStorageSeries(importSeriesEntry.Series);
+        // Sources picked before gap filling: the ones already in the folder (or the most
+        // complete match). The permanent source comes from these, never from a gap filler.
+        List<ProviderSeriesOption> corePicks = importSeriesEntry.Series.Where(a => a.Preferred).ToList();
         decimal? from = importSeriesEntry.ContinueAfterChapter;
         decimal? to = importSeriesEntry.Series.Max(a => a.LastChapter);
         if (from.HasValue && to.HasValue)
@@ -133,8 +139,13 @@ public static class SeriesExtensions
                 }
             }
         }
-        ProviderSeriesOption? series = importSeriesEntry.Series.FirstOrDefault(a => a.Preferred && a.IsStorage);
-        if (series == null)
+        ProviderSeriesOption? series = autoPicked
+            ? corePicks.Where(a => a.IsStorage).OrderByDescending(a => a.ChapterCount).FirstOrDefault()
+              ?? corePicks.OrderByDescending(a => a.ChapterCount).FirstOrDefault()
+            : importSeriesEntry.Series.FirstOrDefault(a => a.Preferred && a.IsStorage);
+        if (series != null)
+            series.IsStorage = true;
+        else
         {
             series = importSeriesEntry.Series.FirstOrDefault(a => a.Preferred);
             if (series != null)
@@ -144,6 +155,18 @@ public static class SeriesExtensions
         {
             series.UseTitle = true;
             series.UseCover = true;
+            // The wizard selects every source already in the folder plus sources that fill
+            // chapter gaps. Each inherits its extension's Permanent default, so several permanent
+            // sources would each keep their own copy of the chapters they share. Keep one
+            // permanent source; the others become temporary and only fill the gaps.
+            if (autoPicked)
+            {
+                foreach (ProviderSeriesOption other in importSeriesEntry.Series)
+                {
+                    if (!ReferenceEquals(other, series) && other.Preferred)
+                        other.IsStorage = false;
+                }
+            }
         }
         return importSeriesEntry;
     }

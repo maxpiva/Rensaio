@@ -5,6 +5,7 @@ using RensaioBackend.Models;
 using RensaioBackend.Models.Database;
 using RensaioBackend.Models.Dto;
 using RensaioBackend.Models.Enums;
+using RensaioBackend.Services.Downloads;
 using RensaioBackend.Services.Helpers;
 using RensaioBackend.Services.Jobs;
 using RensaioBackend.Services.Settings;
@@ -165,7 +166,8 @@ namespace RensaioBackend.Services.Series
                     decimal? maxChap = targetProvider.Chapters.Max(c => c.Number);
                     string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
                         series.Title, targetProvider.Language, ch.Number, ch.Name, maxChap);
-                    string newFilename = filename + extension;
+                    string newFilename = DuplicateChapterRules.DistinctArchiveName(targetProvider.Id,
+                        series.Sources.Where(a => a.Id != unknown.Id).StoredCopies(), filename + extension);
                     string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
                     string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
                     
@@ -194,7 +196,8 @@ namespace RensaioBackend.Services.Series
                         string filename = ArchiveHelperService.MakeFileNameSafe(targetProvider.Provider, targetProvider.Scanlator,
                             series.Title, targetProvider.Language, dst.Number, dst.Name, maxChap);
                         string? extension = Path.GetExtension(ch.Filename);
-                        string newFilename = filename + extension;
+                        string newFilename = DuplicateChapterRules.DistinctArchiveName(targetProvider.Id,
+                            series.Sources.Where(a => a.Id != unknown.Id).StoredCopies(), filename + extension);
                         string originalPath = Path.Combine(settings.StorageFolder, series.StoragePath, ch.Filename ?? "");
                         string newPath = Path.Combine(settings.StorageFolder, series.StoragePath, newFilename);
                         

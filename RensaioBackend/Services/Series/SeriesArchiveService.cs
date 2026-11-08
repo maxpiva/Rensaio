@@ -4,6 +4,7 @@ using RensaioBackend.Models;
 using RensaioBackend.Models.Database;
 using RensaioBackend.Models.Dto;
 using RensaioBackend.Models.Enums;
+using RensaioBackend.Services.Downloads;
 using RensaioBackend.Services.Helpers;
 using RensaioBackend.Services.Jobs;
 using RensaioBackend.Services.Jobs.Models;
@@ -154,6 +155,13 @@ namespace RensaioBackend.Services.Series
         /// <returns>A summary of what was renamed.</returns>
         public async Task<SeriesRenameResultDto> RenameSeriesAsync(Guid seriesId, CancellationToken token = default)
         {
+            // A download picks its file name under this lock, so a rename must not move a file onto it meanwhile.
+            using (await DownloadCommandService.SeriesFileLock.LockAsync(seriesId.ToString(), token).ConfigureAwait(false))
+                return await RenameSeriesLockedAsync(seriesId, token).ConfigureAwait(false);
+        }
+
+        private async Task<SeriesRenameResultDto> RenameSeriesLockedAsync(Guid seriesId, CancellationToken token)
+        {
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             Models.Database.SeriesEntity? series = await _db.Series.Include(a => a.Sources)
                 .Where(a => a.Id == seriesId).FirstOrDefaultAsync(token).ConfigureAwait(false);
@@ -166,6 +174,7 @@ namespace RensaioBackend.Services.Series
             // ── 1. Rename each archive to the canonical scheme (within the current folder) ──
             string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);
             bool dbChanged = false;
+            List<DuplicateChapterRules.StoredCopy> storedCopies = series.Sources.StoredCopies().ToList();
 
             foreach (SeriesProviderEntity sp in series.Sources)
             {
@@ -204,6 +213,10 @@ namespace RensaioBackend.Services.Series
                     string newFullPath = Path.Combine(basePath, newFileName);
 
                     if (!File.Exists(oldFullPath))
+                        continue;
+
+                    // Another source's row points at this same file; moving it would strand that row.
+                    if (DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, chap.Filename))
                         continue;
 
                     // Refuse to clobber an unrelated existing file (case-only renames resolve to the

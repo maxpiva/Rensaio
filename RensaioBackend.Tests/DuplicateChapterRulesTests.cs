@@ -54,10 +54,9 @@ public class DuplicateChapterRulesTests
     }
 
     [Fact]
-    public void CaseOnlyRenameIsTheSameArchiveOnCaseInsensitiveStorage()
+    public void CaseOnlyRenameCountsAsTheSameArchive()
     {
-        bool caseInsensitive = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
-        Assert.Equal(caseInsensitive, DuplicateChapterRules.IsSameArchive("[X][en] Hero 060.cbz", "[X][en] hero 060.cbz"));
+        Assert.True(DuplicateChapterRules.IsSameArchive("[X][en] Hero 060.cbz", "[X][en] hero 060.cbz"));
         Assert.True(DuplicateChapterRules.IsSameArchive("[X][en] Hero 060.cbz", "[X][en] Hero 060.cbz"));
         Assert.False(DuplicateChapterRules.IsSameArchive("[X][en] Hero 60.cbz", "[X][en] Hero 060.cbz"));
     }

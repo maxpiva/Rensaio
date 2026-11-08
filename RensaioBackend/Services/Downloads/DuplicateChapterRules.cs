@@ -29,12 +29,12 @@ public static class DuplicateChapterRules
     }
 
     /// <summary>
-    /// True when two archive names in the same folder point at the same file. Windows and macOS
-    /// storage is case-insensitive by default, so a case-only rename there is the same file and
-    /// the old name must not be deleted after the new one was written over it.
+    /// True when two archive names in the same folder may point at the same file. Case
+    /// sensitivity depends on the storage (an SMB share under Linux can ignore case), not the
+    /// host OS, so names that differ only by case count as the same file. Deleting the old name
+    /// after a case-only rename could otherwise delete the archive that was just written; at
+    /// worst, case-sensitive storage keeps one stale file.
     /// </summary>
     public static bool IsSameArchive(string a, string b) =>
-        string.Equals(a, b, OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal);
+        string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }

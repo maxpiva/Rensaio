@@ -7,25 +7,20 @@ namespace RensaioBackend.Services.Downloads;
 public static class DuplicateChapterRules
 {
     /// <summary>One chapter file a source of the series stores on disk.</summary>
-    public readonly record struct StoredCopy(Guid SourceId, bool IsPermanent, bool IsActive, decimal? Number);
+    public readonly record struct StoredCopy(Guid SourceId, decimal? Number);
 
     /// <summary>
     /// True when a source other than <paramref name="selfId"/> already stores chapter
     /// <paramref name="number"/> in a way that makes a download by the current source redundant.
-    /// A temporary source defers to a copy from any other source. A permanent source replaces
-    /// temporary copies, so it only defers to another active permanent source.
+    /// A temporary source defers to a copy from any other source. A permanent source never
+    /// defers: a series may carry several permanent sources on purpose (a provider swap, or
+    /// keeping more than one scanlator), and each keeps its own copy.
     /// </summary>
     public static bool HasCopyFromOtherSource(Guid selfId, bool selfIsPermanent, IEnumerable<StoredCopy> copies, decimal? number)
     {
-        foreach (StoredCopy c in copies)
-        {
-            if (c.SourceId == selfId || c.Number != number)
-                continue;
-            if (selfIsPermanent && !(c.IsPermanent && c.IsActive))
-                continue;
-            return true;
-        }
-        return false;
+        if (selfIsPermanent)
+            return false;
+        return copies.Any(c => c.SourceId != selfId && c.Number == number);
     }
 
     /// <summary>

@@ -10,46 +10,26 @@ public class DuplicateChapterRulesTests
     private static readonly Guid Other = Guid.NewGuid();
 
     [Fact]
-    public void PermanentSource_SkipsChapterAnotherPermanentSourceStores()
+    public void PermanentSource_NeverDefersToAnotherSource()
     {
-        // The reported bug: two permanent sources on one series each downloaded every chapter.
-        var copies = new[] { new Copy(Other, IsPermanent: true, IsActive: true, Number: 60m) };
-        Assert.True(DuplicateChapterRules.HasCopyFromOtherSource(Self, true, copies, 60m));
-    }
-
-    [Fact]
-    public void PermanentSource_StillReplacesTemporaryCopy()
-    {
-        var copies = new[] { new Copy(Other, IsPermanent: false, IsActive: true, Number: 60m) };
+        // Several permanent sources are allowed on purpose (provider swap, multiple scanlators),
+        // and a permanent source replaces temporary copies.
+        var copies = new[] { new Copy(Other, Number: 60m) };
         Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, true, copies, 60m));
     }
 
     [Fact]
-    public void PermanentSource_IgnoresDisabledPermanentSource()
+    public void TemporarySource_SkipsChapterAnyOtherSourceStores()
     {
-        var copies = new[] { new Copy(Other, IsPermanent: true, IsActive: false, Number: 60m) };
-        Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, true, copies, 60m));
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void TemporarySource_SkipsChapterAnyOtherSourceStores(bool otherIsPermanent)
-    {
-        // The race: a temporary download finishing after the permanent one must be discarded.
-        var copies = new[] { new Copy(Other, otherIsPermanent, IsActive: true, Number: 145m) };
+        // The race: a temporary download finishing after another source's must be discarded.
+        var copies = new[] { new Copy(Other, Number: 145m) };
         Assert.True(DuplicateChapterRules.HasCopyFromOtherSource(Self, false, copies, 145m));
     }
 
     [Fact]
-    public void OwnCopyAndOtherChapterNumbers_DoNotCount()
+    public void TemporarySource_IgnoresOwnCopyAndOtherChapterNumbers()
     {
-        var copies = new[]
-        {
-            new Copy(Self, IsPermanent: true, IsActive: true, Number: 60m),
-            new Copy(Other, IsPermanent: true, IsActive: true, Number: 61m),
-        };
-        Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, true, copies, 60m));
+        var copies = new[] { new Copy(Self, Number: 60m), new Copy(Other, Number: 61m) };
         Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, false, copies, 60m));
     }
 

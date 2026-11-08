@@ -47,8 +47,7 @@ public static class DownloadsExtensions
     /// <summary>
     /// True when another source of the series already stores a file for chapter
     /// <paramref name="number"/> that makes a download by <paramref name="self"/> redundant.
-    /// A temporary source defers to a copy from any other source. A permanent source only
-    /// defers to another active permanent source, because it is meant to replace temporary copies.
+    /// A temporary source defers to a copy from any other source. A permanent source never defers.
     /// </summary>
     public static bool HasCopyFromOtherSource(this SeriesProviderEntity self, IEnumerable<SeriesProviderEntity> sources, decimal? number)
         => DuplicateChapterRules.HasCopyFromOtherSource(self.Id, self.IsStorage, sources.StoredCopies(), number);
@@ -57,7 +56,7 @@ public static class DownloadsExtensions
     public static IEnumerable<DuplicateChapterRules.StoredCopy> StoredCopies(this IEnumerable<SeriesProviderEntity> sources)
         => sources.SelectMany(s => s.Chapters
             .Where(c => !string.IsNullOrEmpty(c.Filename) && !c.IsDeleted)
-            .Select(c => new DuplicateChapterRules.StoredCopy(s.Id, s.IsStorage, !s.IsDisabled && !s.IsUninstalled, c.Number)));
+            .Select(c => new DuplicateChapterRules.StoredCopy(s.Id, c.Number)));
 
     public static List<ChapterDownload> GenerateDownloadsFromChapterData(this RensaioBackend.Models.Database.SeriesEntity series, SeriesProviderEntity serie, List<ParsedChapter>? chapterData)
     {
@@ -122,11 +121,7 @@ public static class DownloadsExtensions
                 List<decimal?> exists = serie.Chapters
                     .Where(c => c.Filename != null)
                     .Select(c => c.Number).ToList();
-                // A permanent source replaces copies from temporary sources, but it must not
-                // download a chapter another permanent source of the series already stores:
-                // that leaves two full copies of the same chapter on disk.
-                wanted = wanted.Where(c => !exists.Contains(c.ParsedNumber) &&
-                                           !serie.HasCopyFromOtherSource(allSeries, c.ParsedNumber)).ToList();
+                wanted = wanted.Where(c => !exists.Contains(c.ParsedNumber)).ToList();
             }
 
             if (serie.ContinueAfterChapter != null)

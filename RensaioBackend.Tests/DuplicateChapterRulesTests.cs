@@ -58,6 +58,28 @@ public class DuplicateChapterRulesTests
     }
 
     [Fact]
+    public void ArchiveName_ExtendsTheTagWhenTwoSourcesShareAnIdPrefix()
+    {
+        // Three sources compute one name, and B and C have ids starting with the same 8 digits.
+        const string name = "[P-Group(A)][en] Hero 60.cbz";
+        var a = Guid.NewGuid();
+        var b = Guid.Parse("12345678-0000-4000-8000-000000000001");
+        var c = Guid.Parse("12345678-0000-4000-8000-000000000002");
+        var copies = new List<Copy> { new(a, 60m, name) };
+
+        string forB = DuplicateChapterRules.DistinctArchiveName(b, copies, name);
+        copies.Add(new Copy(b, 60m, forB));
+        string forC = DuplicateChapterRules.DistinctArchiveName(c, copies, name);
+
+        Assert.NotEqual(name, forB);
+        Assert.NotEqual(name, forC);
+        Assert.NotEqual(forB, forC);
+        // A later re-download from C recomputes the same name.
+        copies.Add(new Copy(c, 60m, forC));
+        Assert.Equal(forC, DuplicateChapterRules.DistinctArchiveName(c, copies, name));
+    }
+
+    [Fact]
     public void OldFileIsProtectedOnlyWhenAnotherSourceStillStoresIt()
     {
         var copies = new[] { new Copy(Self, 60m, "mine.cbz"), new Copy(Other, 60m, "Shared.cbz") };

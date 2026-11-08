@@ -33,13 +33,17 @@ public static class DuplicateChapterRules
     /// <summary>
     /// The archive name a source should write. Scanlator labels are normalized for the file name
     /// ("Group[A]" and "Group(A)" both become "Group(A)"), so two sources can compute one name;
-    /// the later one gets a short tag from its source id. The tag is stable, so re-downloading
-    /// the chapter overwrites that source's own file.
+    /// the later one gets a tag from its source id, as short as stays unused. The tag is stable,
+    /// so re-downloading the chapter overwrites that source's own file.
     /// </summary>
-    public static string DistinctArchiveName(Guid selfId, IEnumerable<StoredCopy> copies, string filename) =>
-        IsFileUsedByOtherSource(selfId, copies, filename)
-            ? $"{Path.GetFileNameWithoutExtension(filename)} [{selfId.ToString("N")[..8]}]{Path.GetExtension(filename)}"
-            : filename;
+    public static string DistinctArchiveName(Guid selfId, IEnumerable<StoredCopy> copies, string filename)
+    {
+        string id = selfId.ToString("N");
+        string candidate = filename;
+        for (int length = 8; length <= id.Length && IsFileUsedByOtherSource(selfId, copies, candidate); length += 8)
+            candidate = $"{Path.GetFileNameWithoutExtension(filename)} [{id[..length]}]{Path.GetExtension(filename)}";
+        return candidate;
+    }
 
     /// <summary>
     /// True when an explicit re-download from the target source should remove the copy held by

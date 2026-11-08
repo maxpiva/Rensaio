@@ -1166,17 +1166,23 @@ namespace RensaioBackend.Services.Series
             // sources keep their own copy when the target is permanent.
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             bool cleared = false;
-            foreach (SeriesProviderEntity sp in series.Sources.Where(p =>
-                         DuplicateChapterRules.RedownloadReplacesCopy(target.Id, target.IsStorage, p.Id, p.IsStorage)))
+            List<SeriesProviderEntity> replaced = series.Sources.Where(p =>
+                DuplicateChapterRules.RedownloadReplacesCopy(target.Id, target.IsStorage, p.Id, p.IsStorage)).ToList();
+            List<DuplicateChapterRules.StoredCopy> kept = series.Sources.Except(replaced).StoredCopies().ToList();
+            foreach (SeriesProviderEntity sp in replaced)
             {
                 foreach (Models.Chapter c in sp.Chapters.Where(c => c.Number == chapterNumber && !string.IsNullOrEmpty(c.Filename)))
                 {
-                    _hashCache.DeleteChapterHash(series.StoragePath, c.Filename!);
-                    string full = Path.Combine(settings.StorageFolder, series.StoragePath, c.Filename!);
-                    if (File.Exists(full))
+                    // A file a kept source still points at stays on disk; only this row is reset.
+                    if (!DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, kept, c.Filename!))
                     {
-                        try { File.Delete(full); }
-                        catch (Exception e) { _logger.LogWarning(e, "Unable to delete file {full} for re-download", full); }
+                        _hashCache.DeleteChapterHash(series.StoragePath, c.Filename!);
+                        string full = Path.Combine(settings.StorageFolder, series.StoragePath, c.Filename!);
+                        if (File.Exists(full))
+                        {
+                            try { File.Delete(full); }
+                            catch (Exception e) { _logger.LogWarning(e, "Unable to delete file {full} for re-download", full); }
+                        }
                     }
                     c.Filename = null;
                     c.DownloadDate = null;

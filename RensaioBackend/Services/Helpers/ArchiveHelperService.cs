@@ -119,6 +119,7 @@ namespace RensaioBackend.Services.Helpers
                     // taken (a source-id tag keeps such a file apart from the canonical one).
                     if (!string.Equals(newFileName, chap.Filename, StringComparison.OrdinalIgnoreCase)
                         && !DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, chap.Filename)
+                        && !DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, newFileName)
                         && !File.Exists(Path.Combine(settings.StorageFolder, series.StoragePath, newFileName)))
                     {
                         string basePath = Path.Combine(settings.StorageFolder, series.StoragePath);

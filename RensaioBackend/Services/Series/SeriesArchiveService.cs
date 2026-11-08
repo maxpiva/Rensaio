@@ -220,11 +220,13 @@ namespace RensaioBackend.Services.Series
                         continue;
 
                     // Refuse to clobber an unrelated existing file (case-only renames resolve to the
-                    // same path and are allowed to fall through to File.Move).
-                    if (File.Exists(newFullPath) &&
-                        !string.Equals(oldFullPath, newFullPath, StringComparison.OrdinalIgnoreCase))
+                    // same path and are allowed to fall through to File.Move), or to take a name
+                    // another source's row already points at, even if that file is missing.
+                    if ((File.Exists(newFullPath) &&
+                         !string.Equals(oldFullPath, newFullPath, StringComparison.OrdinalIgnoreCase))
+                        || DuplicateChapterRules.IsFileUsedByOtherSource(sp.Id, storedCopies, newFileName))
                     {
-                        _logger.LogWarning("Skipping rename of {Old}: target {New} already exists",
+                        _logger.LogWarning("Skipping rename of {Old}: target {New} is already taken",
                             oldFullPath, newFullPath);
                         result.FilesFailed++;
                         continue;

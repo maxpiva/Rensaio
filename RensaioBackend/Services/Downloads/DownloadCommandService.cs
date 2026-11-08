@@ -167,7 +167,8 @@ namespace RensaioBackend.Services.Downloads
             float step = 100 / (float)(ch.PageCount);
             float acum = 0;
             int pagesWritten = 0;
-            string tempZipPath = Path.Combine(_tempFolder, zipFile);
+            // Keyed by source, not by the archive name: two sources can compute the same name.
+            string tempZipPath = Path.Combine(_tempFolder, $"{ch.SeriesProviderId:N}-{ch.Chapter.ParsedNumber}.cbz");
             bool breaked = false;
 
             try
@@ -286,6 +287,11 @@ namespace RensaioBackend.Services.Downloads
                         return JobResult.Success;
                     }
 
+                    // Never write over a file another source of the series stores.
+                    List<DuplicateChapterRules.StoredCopy> storedCopies = s.Sources.StoredCopies().ToList();
+                    zipFile = DuplicateChapterRules.DistinctArchiveName(providerr.Id, storedCopies, zipFile);
+                    finalPath = Path.Combine(dirPath, zipFile);
+
                     try
                     {
                         await Task.Run(() => File.Move(tempZipPath, finalPath, true), token).ConfigureAwait(false);
@@ -306,10 +312,11 @@ namespace RensaioBackend.Services.Downloads
                     }
 
                     // A re-download can produce a different file name (the chapter title or the
-                    // zero padding changed). The old file is no longer referenced anywhere, so
-                    // remove it instead of leaving an orphaned second copy on disk.
+                    // zero padding changed). Remove the old file instead of leaving an orphaned
+                    // second copy on disk, unless another source still stores its copy there.
                     string? previousFile = cha.Filename;
-                    if (!string.IsNullOrEmpty(previousFile) && !DuplicateChapterRules.IsSameArchive(previousFile, zipFile))
+                    if (!string.IsNullOrEmpty(previousFile) && !DuplicateChapterRules.IsSameArchive(previousFile, zipFile)
+                        && !DuplicateChapterRules.IsFileUsedByOtherSource(providerr.Id, storedCopies, previousFile))
                     {
                         _hashCache.DeleteChapterHash(s.StoragePath, previousFile);
                         TryDeleteFile(Path.Combine(dirPath, previousFile));

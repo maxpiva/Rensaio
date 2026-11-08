@@ -7,7 +7,7 @@ namespace RensaioBackend.Services.Downloads;
 public static class DuplicateChapterRules
 {
     /// <summary>One chapter file a source of the series stores on disk.</summary>
-    public readonly record struct StoredCopy(Guid SourceId, decimal? Number);
+    public readonly record struct StoredCopy(Guid SourceId, decimal? Number, string Filename);
 
     /// <summary>
     /// True when a source other than <paramref name="selfId"/> already stores chapter
@@ -22,6 +22,32 @@ public static class DuplicateChapterRules
             return false;
         return copies.Any(c => c.SourceId != selfId && c.Number == number);
     }
+
+    /// <summary>
+    /// True when a source other than <paramref name="selfId"/> stores its chapter in
+    /// <paramref name="filename"/>, so writing over or deleting that name would destroy its copy.
+    /// </summary>
+    public static bool IsFileUsedByOtherSource(Guid selfId, IEnumerable<StoredCopy> copies, string filename) =>
+        copies.Any(c => c.SourceId != selfId && IsSameArchive(c.Filename, filename));
+
+    /// <summary>
+    /// The archive name a source should write. Scanlator labels are normalized for the file name
+    /// ("Group[A]" and "Group(A)" both become "Group(A)"), so two sources can compute one name;
+    /// the later one gets a short tag from its source id. The tag is stable, so re-downloading
+    /// the chapter overwrites that source's own file.
+    /// </summary>
+    public static string DistinctArchiveName(Guid selfId, IEnumerable<StoredCopy> copies, string filename) =>
+        IsFileUsedByOtherSource(selfId, copies, filename)
+            ? $"{Path.GetFileNameWithoutExtension(filename)} [{selfId.ToString("N")[..8]}]{Path.GetExtension(filename)}"
+            : filename;
+
+    /// <summary>
+    /// True when an explicit re-download from the target source should remove the copy held by
+    /// the given source. Re-downloading from a permanent source leaves other permanent sources'
+    /// copies alone, because each keeps its own.
+    /// </summary>
+    public static bool RedownloadReplacesCopy(Guid targetId, bool targetIsPermanent, Guid sourceId, bool sourceIsPermanent) =>
+        sourceId == targetId || !(targetIsPermanent && sourceIsPermanent);
 
     /// <summary>
     /// True when two archive names in the same folder may point at the same file. Case

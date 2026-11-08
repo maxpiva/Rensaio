@@ -1161,11 +1161,13 @@ namespace RensaioBackend.Services.Series
                 return new RedownloadResult(RedownloadOutcome.ChapterNotFound);
             }
 
-            // Remove any existing on-disk copy of this chapter (held by whichever source) and reset
-            // its row, so the fresh download replaces it instead of leaving an orphan or duplicate.
+            // Remove the existing on-disk copy of this chapter and reset its row, so the fresh
+            // download replaces it instead of leaving an orphan or duplicate. Other permanent
+            // sources keep their own copy when the target is permanent.
             SettingsDto settings = await _settings.GetSettingsAsync(token).ConfigureAwait(false);
             bool cleared = false;
-            foreach (SeriesProviderEntity sp in series.Sources)
+            foreach (SeriesProviderEntity sp in series.Sources.Where(p =>
+                         DuplicateChapterRules.RedownloadReplacesCopy(target.Id, target.IsStorage, p.Id, p.IsStorage)))
             {
                 foreach (Models.Chapter c in sp.Chapters.Where(c => c.Number == chapterNumber && !string.IsNullOrEmpty(c.Filename)))
                 {

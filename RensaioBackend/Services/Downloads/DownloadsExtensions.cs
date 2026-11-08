@@ -56,7 +56,7 @@ public static class DownloadsExtensions
     public static IEnumerable<DuplicateChapterRules.StoredCopy> StoredCopies(this IEnumerable<SeriesProviderEntity> sources)
         => sources.SelectMany(s => s.Chapters
             .Where(c => !string.IsNullOrEmpty(c.Filename) && !c.IsDeleted)
-            .Select(c => new DuplicateChapterRules.StoredCopy(s.Id, c.Number)));
+            .Select(c => new DuplicateChapterRules.StoredCopy(s.Id, c.Number, c.Filename!)));
 
     public static List<ChapterDownload> GenerateDownloadsFromChapterData(this RensaioBackend.Models.Database.SeriesEntity series, SeriesProviderEntity serie, List<ParsedChapter>? chapterData)
     {

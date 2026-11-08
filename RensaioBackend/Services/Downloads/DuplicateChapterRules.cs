@@ -27,4 +27,14 @@ public static class DuplicateChapterRules
         }
         return false;
     }
+
+    /// <summary>
+    /// True when two archive names in the same folder point at the same file. Windows and macOS
+    /// storage is case-insensitive by default, so a case-only rename there is the same file and
+    /// the old name must not be deleted after the new one was written over it.
+    /// </summary>
+    public static bool IsSameArchive(string a, string b) =>
+        string.Equals(a, b, OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal);
 }

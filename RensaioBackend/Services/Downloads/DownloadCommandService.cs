@@ -309,7 +309,7 @@ namespace RensaioBackend.Services.Downloads
                     // zero padding changed). The old file is no longer referenced anywhere, so
                     // remove it instead of leaving an orphaned second copy on disk.
                     string? previousFile = cha.Filename;
-                    if (!string.IsNullOrEmpty(previousFile) && !string.Equals(previousFile, zipFile, StringComparison.Ordinal))
+                    if (!string.IsNullOrEmpty(previousFile) && !DuplicateChapterRules.IsSameArchive(previousFile, zipFile))
                     {
                         _hashCache.DeleteChapterHash(s.StoragePath, previousFile);
                         TryDeleteFile(Path.Combine(dirPath, previousFile));

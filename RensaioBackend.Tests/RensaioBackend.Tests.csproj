@@ -18,6 +18,7 @@
          OPDS helper is compiled straight into the test assembly instead of referencing the project. -->
     <Compile Include="..\RensaioBackend\Services\Opds\OpdsLinks.cs" Link="OpdsLinks.cs" />
     <Compile Include="..\RensaioBackend\Services\Downloads\DuplicateChapterRules.cs" Link="DuplicateChapterRules.cs" />
+    <Compile Include="..\RensaioBackend\Utils\KeyedAsyncLock.cs" Link="KeyedAsyncLock.cs" />
     <Compile Include="..\RensaioBackend\Services\Import\ImportLanguageHints.cs" Link="ImportLanguageHints.cs" />
     <!-- Copied next to the test assembly so a guard test can check that no feed code bypasses the helper. -->
     <None Include="..\RensaioBackend\Services\Opds\OpdsFeedService.cs" Link="OpdsFeedService.cs.txt" CopyToOutputDirectory="PreserveNewest" />

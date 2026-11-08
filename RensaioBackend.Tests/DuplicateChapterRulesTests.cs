@@ -52,4 +52,13 @@ public class DuplicateChapterRulesTests
         Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, true, copies, 60m));
         Assert.False(DuplicateChapterRules.HasCopyFromOtherSource(Self, false, copies, 60m));
     }
+
+    [Fact]
+    public void CaseOnlyRenameIsTheSameArchiveOnCaseInsensitiveStorage()
+    {
+        bool caseInsensitive = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+        Assert.Equal(caseInsensitive, DuplicateChapterRules.IsSameArchive("[X][en] Hero 060.cbz", "[X][en] hero 060.cbz"));
+        Assert.True(DuplicateChapterRules.IsSameArchive("[X][en] Hero 060.cbz", "[X][en] Hero 060.cbz"));
+        Assert.False(DuplicateChapterRules.IsSameArchive("[X][en] Hero 60.cbz", "[X][en] Hero 060.cbz"));
+    }
 }
